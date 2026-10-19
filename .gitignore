@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+backend/.venv/
+.pytest_cache/
+celerybeat-schedule*
+node_modules/
+frontend/dist/
+frontend/dev-dist/
+coverage/
+*.log

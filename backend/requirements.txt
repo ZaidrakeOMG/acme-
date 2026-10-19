@@ -1,0 +1,22 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32
+sqlalchemy[asyncio]>=2.0.36,<2.1
+asyncpg==0.31.0  # 0.32 queda bloqueado por Control de aplicaciones de Windows
+alembic>=1.14
+pydantic>=2.9,<3
+pydantic-settings>=2.6
+email-validator>=2.2
+geoalchemy2>=0.16
+argon2-cffi>=23.1
+pyjwt>=2.10
+pyotp>=2.9
+segno>=1.6
+cryptography>=43
+celery[redis]>=5.4
+redis>=5.2
+minio>=7.2
+python-multipart>=0.0.17
+# pruebas
+pytest>=8.3
+pytest-asyncio>=0.25
+httpx>=0.28

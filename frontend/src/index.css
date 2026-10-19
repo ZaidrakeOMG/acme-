@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+
+/* Colores de marca: el prestador los sobrescribe en tiempo de ejecución (AuthContext.aplicarTema). */
+@theme {
+  --color-primario: #1c3d8f;
+  --color-acento: #a2c62b;
+  --color-fondo: #f5f7fb;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--color-fondo);
+  color: #0f172a;
+}
