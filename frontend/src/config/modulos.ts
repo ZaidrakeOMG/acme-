@@ -40,8 +40,10 @@ export const MODULOS: Modulo[] = [
   // ------------------------------------------------------------ P02–P10
   { id: 'catalogos', nombre: 'Catálogos maestros', descripcion: 'Técnicos, equipos, fallas, severidades e importador', prompt: 'P02',
     grupo: 'Administración', ruta: '/catalogos', roles: ['superadmin', 'admin_prestador', 'admin_empresa', 'admin_un', 'mesa_control', 'despachador'] },
-  { id: 'formularios', nombre: 'Formularios dinámicos', descripcion: 'Constructor con 22 tipos de campo', prompt: 'P03',
-    grupo: 'Administración', roles: ['superadmin', 'admin_prestador'] },
+  { id: 'formularios', nombre: 'Formularios dinámicos', descripcion: 'Constructor con 22 tipos de campo, plantillas y versiones', prompt: 'P03',
+    grupo: 'Administración', ruta: '/formularios', roles: ['superadmin', 'admin_prestador', 'mesa_control'] },
+  { id: 'mis_formularios', nombre: 'Mis formularios', descripcion: 'Formularios dirigidos a tu rol: llenar, reanudar y consultar', prompt: 'P03',
+    grupo: 'Operación', ruta: '/mis-formularios', roles: ['superadmin', 'admin_prestador', 'mesa_control', 'despachador', 'tecnico', 'supervisor_prestador', 'direccion_prestador', 'admin_empresa', 'admin_un', 'supervisor_operadores', 'operador'] },
   { id: 'folios', nombre: 'Folios', descripcion: 'Ciclo de vida, validaciones y aprobaciones', prompt: 'P04', grupo: 'Operación',
     roles: ['superadmin', ...PRESTADOR_GESTION, 'admin_empresa', 'admin_un', 'supervisor_operadores', 'operador', 'tecnico'] },
   { id: 'app_campo', nombre: 'App de campo y chat', descripcion: 'Captura, evidencias, firma y modo offline', prompt: 'P05',

@@ -2,6 +2,38 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-10-23 · P03 — Motor de formularios dinámicos
+
+**Base de datos (migración 0003)**
+- 9 tablas: formularios, formulario_versiones, formulario_asignaciones, formulario_permisos_mesa, catalogos_personalizados,
+  catalogo_personalizado_opciones, formulario_respuestas (inmutable al enviar), formulario_evidencias (inmutables con la
+  respuesta; sin altas tras el envío) y calidad_foto_defaults. Alerta `GEOLOCALIZACION_FUERA_DE_UN`.
+
+**Backend**
+- Contrato Pydantic de los 22 tipos de campo con `config` validada por tipo, condiciones, fuentes fijas/catálogo y cascada.
+- Motor de reglas (`validacion.py`): visibilidad en cadena, validación por tipo, concatenación/matemáticas/sellos en servidor.
+- 26 endpoints bajo `/api/formularios`: CRUD con versionado, publicar, archivar, clonar, diff; asignaciones y `resolver`
+  con prioridad §6.8.3c; permisos de mesa; catálogos personalizados; `opciones` de catálogos del sistema; respuestas
+  (crear, parcial, enviar, listar) y evidencias (subir con control de calidad, EXIF/GPS, hash; descargar; eliminar).
+- Geofencing con PostGIS al enviar + evaluador de respaldo; auditoría de ajustes manuales; transcripción stub.
+- Seed: 4 plantillas base (22 tipos), catálogo «Causa raíz» (6 opciones), formulario de captura y de atención publicados y
+  asignados a Refrigeración, y uno específico del tenant demo.
+
+**Frontend**
+- Tipos espejo y motor de validación espejo; `respuestas.ts` como única puerta de escritura (interceptable en P05).
+- Renderizador con un componente por tipo: cámara (`mediaDevices`) con indicador verde/rojo y anotación, firma y dibujo en
+  `canvas`, escáner con `@zxing/browser`, audio con `MediaRecorder`, geolocalización con ajuste dentro del radio, cascada.
+- Constructor visual: paleta de 22 tipos, lienzo con secciones y arrastre, panel con todos los parámetros de `config`,
+  editor de condiciones, enlace de catálogos por arrastre, vista previa real, publicar con notas y comparación de versiones.
+- Repositorio de plantillas, lista de formularios y «Mis formularios» (iniciar, reanudar, consultar enviados); página de
+  llenado con guardado parcial automático.
+- Documentación `docs/formularios/tipos_de_campo.md`.
+
+**Pruebas:** 131 pytest y 33 vitest en verde; `tsc --noEmit` limpio; `npm run build` verde.
+
+**Incidencias resueltas:** rutas literales (`/respuestas`, `/catalogos-personalizados`) declaradas después de
+`/{formulario_id}`; EXIF GPS de prueba con `IFDRational`; caché de opciones compartida entre pruebas de vitest.
+
 ## 2026-10-23 · P02 — Catálogos maestros
 
 **Base de datos (migración 0002)**

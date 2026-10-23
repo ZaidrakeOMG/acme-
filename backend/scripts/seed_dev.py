@@ -1,11 +1,12 @@
 """Datos de desarrollo: 1 prestador, 1 tenant, 3 UNs, 1 grupo, 1 contrato, 12 usuarios (los 11 roles) y, desde P02,
-habilidades, técnicos, severidades, familias y tipos de equipo, equipos, tipos de falla y matriz de severidad.
+habilidades, técnicos, severidades, familias y tipos de equipo, equipos, tipos de falla y matriz de severidad;
+desde P03, las 4 plantillas base de formularios, el catálogo «Causa raíz» y formularios demo publicados y asignados.
 
 Ejecutar desde backend/:  .venv\\Scripts\\python -m scripts.seed_dev
 Es idempotente: si el prestador demo ya existe, no hace nada. Fija el contexto RLS 'sistema' explícitamente.
 """
 import asyncio
-from datetime import date
+from datetime import UTC, date, datetime
 
 from geoalchemy2 import WKTElement
 from sqlalchemy import select
@@ -18,9 +19,15 @@ from models.catalogos import (
     TipoFallaSeveridad,
 )
 from models.contratos import Contrato, ContratoSLA
+from models.formularios import (
+    CatalogoPersonalizado, CatalogoPersonalizadoOpcion, EstadoFormulario, Formulario, FormularioAsignacion, FormularioVersion,
+    TipoFormulario,
+)
 from models.organizaciones import Prestador, Tenant, TenantPrestador
 from models.unidades import GrupoUN, GrupoUNMiembro, UnidadNegocio, UsuarioGrupo, UsuarioUN
 from models.usuarios import Usuario
+from schemas.formularios import EsquemaFormulario
+from scripts.plantillas_formularios import CAPTURA_OPERADOR, CIERRE_CORRECTIVO, PLANTILLAS
 from services import catalogos_service, permisos_service
 
 # Solo desarrollo. MFA deshabilitado (MFA_OBLIGATORIO=false en .env de desarrollo).
@@ -112,6 +119,7 @@ async def sembrar(db) -> bool:
                            tiempo_resolucion_horas=resol, penalizacion_valor=pen))
     await db.flush()
     await sembrar_catalogos(db, prestador, tenant, unidades, usuarios, niveles)
+    await sembrar_formularios(db, prestador, tenant, usuarios)
     await db.commit()
     return True
 
@@ -235,6 +243,89 @@ async def main() -> None:
             print(f"  {'tecnico':<24} {email}")
     else:
         print("Los datos demo ya existían; no se modificó nada.")
+
+
+
+# ----------------------------------------------------------------- P03
+
+CAUSAS_RAIZ = [
+    ("desgaste", "Desgaste normal"), ("mal_uso", "Mal uso del equipo"), ("falta_mantenimiento", "Falta de mantenimiento"),
+    ("falla_electrica", "Falla eléctrica externa"), ("instalacion_deficiente", "Instalación deficiente"), ("otro", "Otra causa"),
+]
+
+
+def _publicar(db, f: Formulario, v: FormularioVersion, publicada_por) -> None:
+    v.publicada_at = datetime.now(UTC)
+    v.publicada_por = publicada_por
+    f.version_publicada_id = v.id
+    f.estado = EstadoFormulario.publicado
+
+
+async def _formulario(db, *, prestador_id, tenant_id, nombre, tipo, roles, esquema, descripcion="", plantilla=False, publicado_por=None,
+                      clonado_de=None) -> Formulario:
+    f = Formulario(prestador_id=prestador_id, tenant_id=tenant_id, nombre=nombre, descripcion=descripcion, tipo=TipoFormulario(tipo),
+                   rol_destino=roles, es_plantilla_base=plantilla, clonado_de_id=clonado_de)
+    db.add(f)
+    await db.flush()
+    v = FormularioVersion(formulario_id=f.id, prestador_id=prestador_id, tenant_id=tenant_id, numero_version=1,
+                          esquema_json=EsquemaFormulario.model_validate(esquema).model_dump(mode="json"), notas_version="Versión inicial")
+    db.add(v)
+    await db.flush()
+    _publicar(db, f, v, publicado_por)
+    await db.flush()
+    return f
+
+
+def _con_catalogo(esquema: dict, catalogo_id) -> dict:
+    """Sustituye el id de catálogo personalizado de la plantilla por el real del prestador."""
+    import copy
+    e = copy.deepcopy(esquema)
+    for s in e["secciones"]:
+        for c in s["campos"]:
+            fuente = c.get("fuente_opciones") or {}
+            if fuente.get("catalogo") == "catalogo_personalizado":
+                fuente["catalogo_personalizado_id"] = str(catalogo_id)
+    return e
+
+
+async def sembrar_formularios(db, prestador, tenant, usuarios) -> None:
+    superadmin = usuarios[Rol.superadmin]
+    admin_prestador = usuarios[Rol.admin_prestador]
+    plantillas = {}
+    for p in PLANTILLAS:
+        plantillas[p["nombre"]] = await _formulario(db, prestador_id=None, tenant_id=None, nombre=p["nombre"], tipo=p["tipo"],
+                                                    roles=p["rol_destino"], esquema=p["esquema"], descripcion=p["descripcion"],
+                                                    plantilla=True, publicado_por=superadmin.id)
+
+    catalogo = CatalogoPersonalizado(prestador_id=prestador.id, tenant_id=tenant.id, nombre="Causa raíz", clave="causa_raiz")
+    db.add(catalogo)
+    await db.flush()
+    for i, (valor, etiqueta) in enumerate(CAUSAS_RAIZ):
+        db.add(CatalogoPersonalizadoOpcion(catalogo_id=catalogo.id, prestador_id=prestador.id, tenant_id=tenant.id, valor=valor,
+                                           etiqueta=etiqueta, orden=i))
+    await db.flush()
+
+    refrigeracion = (await db.execute(select(FamiliaEquipo).where(FamiliaEquipo.nombre == "Refrigeración"))).scalar_one()
+    captura = await _formulario(db, prestador_id=prestador.id, tenant_id=None, nombre="Captura de folio (operador)", tipo="captura_operador",
+                                roles=["operador", "admin_un", "admin_empresa", "supervisor_operadores", "mesa_control"],
+                                esquema=CAPTURA_OPERADOR, descripcion="Formulario de captura del operador", publicado_por=admin_prestador.id)
+    atencion = await _formulario(db, prestador_id=prestador.id, tenant_id=None, nombre="Cierre de correctivo (global)", tipo="atencion_tecnico",
+                                 roles=["tecnico"], esquema=_con_catalogo(CIERRE_CORRECTIVO, catalogo.id),
+                                 descripcion="Reporte de atención del técnico", publicado_por=admin_prestador.id,
+                                 clonado_de=plantillas["Cierre de correctivo"].id)
+    especifico = await _formulario(db, prestador_id=prestador.id, tenant_id=tenant.id, nombre="Cierre de correctivo · Cliente Demo",
+                                   tipo="atencion_tecnico", roles=["tecnico"], esquema=_con_catalogo(CIERRE_CORRECTIVO, catalogo.id),
+                                   descripcion="Versión específica para Cliente Demo (prioridad sobre la global)",
+                                   publicado_por=admin_prestador.id, clonado_de=atencion.id)
+    db.add_all([
+        FormularioAsignacion(formulario_id=captura.id, prestador_id=prestador.id, tenant_id=None, tipo_folio="correctivo",
+                             familia_equipo_id=refrigeracion.id, prioridad=3),
+        FormularioAsignacion(formulario_id=atencion.id, prestador_id=prestador.id, tenant_id=None, tipo_folio="correctivo",
+                             familia_equipo_id=refrigeracion.id, prioridad=3),
+        FormularioAsignacion(formulario_id=especifico.id, prestador_id=prestador.id, tenant_id=tenant.id, tipo_folio="correctivo",
+                             familia_equipo_id=refrigeracion.id, prioridad=11),
+    ])
+    await db.flush()
 
 
 if __name__ == "__main__":

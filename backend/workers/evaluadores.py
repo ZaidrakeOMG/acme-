@@ -34,3 +34,32 @@ async def matriz_incompleta(db: AsyncSession, alerta: AlertaCatalogo) -> int:
         )
         disparadas += 1 if h else 0
     return disparadas
+
+
+@registrar_evaluador("GEOLOCALIZACION_FUERA_DE_UN")
+async def geolocalizacion_fuera_de_un(db: AsyncSession, alerta: AlertaCatalogo) -> int:
+    """Red de seguridad: el envío de la respuesta ya dispara la alerta; aquí se recogen respuestas enviadas en las últimas
+    24 h con geofencing fuera de rango que no tengan alerta registrada (p. ej. si el envío falló al registrarla)."""
+    from datetime import UTC, datetime, timedelta
+
+    from models.formularios import EstadoRespuesta, FormularioRespuesta
+
+    desde = datetime.now(UTC) - timedelta(hours=24)
+    respuestas = (await db.execute(select(FormularioRespuesta).where(
+        FormularioRespuesta.estado == EstadoRespuesta.enviado, FormularioRespuesta.enviado_at >= desde))).scalars().all()
+    disparadas = 0
+    for r in respuestas:
+        geo = (r.contexto_json or {}).get("geofencing") or {}
+        fuera = [(clave, d) for clave, d in geo.items() if d.get("fuera")]
+        if not fuera:
+            continue
+        ya = (await db.execute(select(AlertaHistorial.id).where(
+            AlertaHistorial.clave_alerta == alerta.clave, AlertaHistorial.entidad_id == r.id))).first()
+        if ya:
+            continue
+        clave, d = fuera[0]
+        h = await alertas_service.disparar(db, alerta.clave, tenant_id=r.tenant_id, prestador_id=r.prestador_id,
+                                           entidad_tipo="formulario_respuesta", entidad_id=r.id,
+                                           datos={"campo": clave, "distancia_m": d.get("distancia_m"), "radio_m": d.get("radio_m"), "un_id": str(r.un_id)})
+        disparadas += 1 if h else 0
+    return disparadas

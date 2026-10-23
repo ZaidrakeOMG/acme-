@@ -121,7 +121,7 @@ acma/
     core/                           config, db, rls, security, errors, middleware, dependencias
     models/  schemas/  routers/  services/
     workers/                        celery_app.py y tareas.py
-    alembic/versions/0001_cimientos.py, 0002_catalogos.py
+    alembic/versions/0001_cimientos.py, 0002_catalogos.py, 0003_formularios.py
     scripts/                        seed_dev.py, generar_secretos.py
     tests/
   frontend/
@@ -134,6 +134,12 @@ acma/
 Tarjeta **Catálogos maestros** del hub: técnicos y habilidades, severidades, familias y tipos de equipo, equipos por UN (con
 indicador de contrato activo y garantía), tipos de falla, matriz de severidad e **importador CSV/Excel**. Para importar:
 descarga la plantilla del catálogo, llénala, súbela, revisa la vista previa (errores por fila y duplicados) y confirma.
+
+## Formularios dinámicos (P03)
+
+Tarjeta **Formularios dinámicos** (superadmin, admin prestador y mesa de control): constructor visual con los 22 tipos de
+campo, plantillas base, versiones y asignaciones. Tarjeta **Mis formularios** (cualquier rol): llenar los formularios
+dirigidos a tu rol, reanudar en progreso y consultar enviados. Contrato de los tipos: `docs/formularios/tipos_de_campo.md`.
 
 ## Problemas conocidos en Windows
 

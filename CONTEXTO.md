@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-23 · P02 Catálogos maestros**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-23 · P03 Motor de formularios**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -15,7 +15,7 @@
 |---|---|---|
 | P01 | Cimientos: repo, Docker, modelo base, RLS, auth + MFA, API base, PWA con login y hub | ✅ 2026-10-19 |
 | P02 | Catálogos maestros (técnicos y habilidades, equipos, fallas, severidades, matriz, importador) | ✅ 2026-10-23 |
-| P03 | Motor de formularios | Pendiente |
+| P03 | Motor de formularios: 22 tipos de campo, constructor, versiones, asignaciones, respuestas y evidencias | ✅ 2026-10-23 |
 | P04 | Folios | Pendiente |
 | P05 | Apps PWA operador/técnico, offline y chat | Pendiente |
 | P06 | Preventivos y reasignación forzada | Pendiente |
@@ -24,6 +24,14 @@
 | P09 | Inventario, caja chica manual, presupuestos y activos | Pendiente |
 | P10 | Contratos/SLA (contador), alertas por módulo y BI | Pendiente |
 | P11 | Endurecimiento y despliegue | Pendiente |
+
+## Verificación al cierre de P03
+
+- `pytest`: **131 pruebas en verde** (96 anteriores + 35 de formularios: permisos, versionado, resolver, 22 tipos, condiciones,
+  cascada, cálculos en servidor, inmutabilidad, calidad de foto, EXIF/GPS, geofencing).
+- `vitest`: **33 pruebas en verde** (27 anteriores + 6: constructor con los 22 tipos, editor de condiciones, guardar/publicar,
+  renderizador bloquea envío, cascada familia → tipo de falla, motor espejo).
+- `tsc --noEmit` limpio; `npm run build` verde.
 
 ## Verificación al cierre de P02
 
@@ -94,6 +102,39 @@
   `pages/catalogos/Catalogos.tsx` con `useAmbito()` (tenant/prestador del usuario o los que elige el superadmin) y una
   pestaña por catálogo en `pages/catalogos/pestanas/`.
 
+### Motor de formularios (P03)
+- **Contrato del esquema**: `backend/schemas/formularios.py` ↔ `frontend/src/types/formularios.ts`; documentación completa de
+  los 22 tipos en `docs/formularios/tipos_de_campo.md`. `secciones[] → campos[]` con `clave`, `tipo`, `config` validada por
+  tipo, `condiciones[]` y `fuente_opciones` (fija o catálogo con `campo_padre` para cascada).
+- **Motor de reglas** idéntico en `backend/services/formularios/validacion.py` y
+  `frontend/src/services/formularios/validacion.ts` (`visibilidad`, `validar`, cálculos). Cualquier regla nueva se cambia
+  en ambos y se prueba en `test_formularios_validacion.py` y `tests/formularios.test.tsx`.
+- **Tablas (0003)**: `formularios`, `formulario_versiones` (una publicada no se edita: editar crea `numero_version + 1`),
+  `formulario_asignaciones` (`plan_mantenimiento_id` sin FK hasta P06), `formulario_permisos_mesa`,
+  `catalogos_personalizados` + opciones, `formulario_respuestas` (inmutables al enviar, trigger), `formulario_evidencias`
+  (inmutables con la respuesta, trigger), `calidad_foto_defaults`. Alerta nueva `GEOLOCALIZACION_FUERA_DE_UN`.
+- **Para P04 (folios)**:
+  - `GET /api/formularios/resolver?tipo=&tipo_folio=&tenant_id=&tipo_equipo_id=&familia_equipo_id=&plan_id=` → formulario
+    publicado aplicable (específico de tenant > global; coincidencia más específica) con su `esquema_json`.
+  - `POST /api/formularios/{id}/respuestas` con `origen` (`folio_captura` | `folio_atencion` | …), `referencia_id` (el
+    folio) y `contexto` {`tenant_id`, `un_id`, `equipo_id`, `sistema` {captura_folio, asignacion, autorizacion,
+    fecha_programada: ISO}}; `PUT …/respuestas/{id}` parcial; `POST …/enviar` valida en servidor (422
+    `RESPUESTA_INVALIDA` con `detalles`), recalcula concatenaciones/matemáticas/sellos y aplica geofencing.
+  - `GET /api/formularios/respuestas?origen=&referencia_id=` para listar las respuestas de un folio.
+  - `GET /api/formularios/opciones?catalogo=…&padre=…&un_id=…` resuelve los catálogos del sistema para el renderizador;
+    `tipos_falla` devuelve `extra.requiere_revision_manual`.
+  - Frontend: `<Renderizador esquema respuestas onChange contexto respuestaId evidencias onEvidencias />` y la página
+    `pages/formularios/Llenar.tsx` (ruta `/formularios/llenar/:id?origen=&referencia=&un_id=&equipo_id=&tenant_id=`).
+- **Para P05 (offline)**: toda escritura pasa por `frontend/src/services/formularios/respuestas.ts`
+  (`crearRespuesta`, `guardarRespuesta`, `enviarRespuesta`, `subirEvidencia`, `eliminarEvidencia`); la cola sustituye el
+  transporte con `usarTransporte(...)`. `lista_desplegable.config.disponible_offline` marca los catálogos a descargar.
+- **Evidencias**: `services/formularios/evidencias.py` (Pillow: dimensiones, EXIF, GPS, calidad JPEG estimada por tabla
+  de cuantización). Las anotaciones van en `anotaciones_json` y la imagen compuesta en `archivo_anotado_key`.
+- **Transcripción de audio**: `services/transcripcion.py` con `TranscriptorStub` (Fase 2 sustituye la implementación).
+- **Seed**: 4 plantillas base (cubren los 22 tipos), catálogo «Causa raíz», «Captura de folio (operador)» y
+  «Cierre de correctivo (global)» publicados y asignados a Refrigeración, y «Cierre de correctivo · Cliente Demo»
+  específico del tenant (gana en `resolver`).
+
 ### Frontend
 - `src/config/modulos.ts` define los 25 módulos de Fase 1, su prompt y los roles que los ven. Al construir un módulo:
   agregar `ruta`, la página en `App.tsx` (`PAGINAS`) y ajustar roles.
@@ -134,6 +175,21 @@
     actualizan por clave. Las contraseñas de técnicos importados viajan en el archivo y no se devuelven en la vista previa.
 18. **Alerta `MATRIZ_SEVERIDAD_INCOMPLETA`**: umbral 0 (dispara con 1 combinación faltante), destinatario admin_empresa,
     sin repetir mientras haya una sin atender. Solo cuentan tipos de equipo con equipos activos del tenant.
+20. **Formularios: `formulario_respuestas` admite `tenant_id` nulo** (respuesta independiente de un usuario del prestador)
+    con `prestador_id` del autor; la RLS es «tenant visible o prestador propio». Las evidencias copian ambos dueños.
+21. **`resolver`**: `tipo` es el tipo de formulario y `tipo_folio` (correctivo, preventivo…) acota las asignaciones; el
+    prompt solo mencionaba `tipo`.
+22. **Sellos `al_llegar_seccion` / `por_condicion`**: el servidor fija la hora en que recibe por primera vez un valor del
+    cliente para ese campo (guardado parcial), no la hora que manda el cliente.
+23. **Compresión máxima de fotos**: se estima la calidad JPEG con la tabla de cuantización (`compresion = 100 − calidad`);
+    PNG/WebP no se evalúan. Pendiente validar el umbral default 70 % con fotos reales de los técnicos.
+24. **Alerta `GEOLOCALIZACION_FUERA_DE_UN`** pertenece al tenant y al prestador a la vez (la ven despachador, admin
+    prestador y el cliente); umbral = metros de exceso sobre el radio del campo (default 0).
+25. **Plantillas base con catálogo personalizado**: la plantilla «Cierre de correctivo» referencia un id de catálogo
+    ficticio; al clonarla el prestador debe elegir su catálogo «Causa raíz» (el seed ya lo hace en los formularios demo).
+26. **Pendientes de Fase 2 detectados**: transcripción de audio real; validación cruzada GPS de fotos vs. formulario
+    (§4.3) y mapa del despachador; anotación sobre archivos de imagen cargados (solo fotos por ahora); mesa de control
+    no cambia asignaciones; el constructor no reordena secciones por arrastre (solo campos).
 19. **Catálogos en lectura para técnico, despachador y mesa de control** (equipos, tipos de falla, familias) para preparar
     P04; el hub muestra el módulo también a admin_un, mesa de control y despachador.
 

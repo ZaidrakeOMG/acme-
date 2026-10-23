@@ -10,6 +10,11 @@ import { Prestadores, Tenants } from './pages/admin/Organizaciones'
 import { Unidades } from './pages/admin/Unidades'
 import { Usuarios } from './pages/admin/Usuarios'
 import { Catalogos } from './pages/catalogos/Catalogos'
+import { Constructor } from './pages/formularios/Constructor'
+import { Formularios } from './pages/formularios/Formularios'
+import { Llenar } from './pages/formularios/Llenar'
+import { MisFormularios } from './pages/formularios/MisFormularios'
+import { Plantillas } from './pages/formularios/Plantillas'
 import { Login } from './pages/Login'
 import { RoleHub } from './pages/RoleHub'
 import { Seguridad } from './pages/Seguridad'
@@ -23,6 +28,8 @@ const PAGINAS: Record<string, ReactNode> = {
   alertas: <Alertas />,
   auditoria: <Auditoria />,
   catalogos: <Catalogos />,
+  formularios: <Formularios />,
+  mis_formularios: <MisFormularios />,
 }
 
 function SinPermiso() {
@@ -51,6 +58,9 @@ export function App() {
       <Route element={<AppShell />}>
         <Route index element={<RoleHub />} />
         <Route path="seguridad" element={<Seguridad />} />
+        <Route path="formularios/plantillas" element={['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Plantillas /> : <SinPermiso />} />
+        <Route path="formularios/constructor/:formularioId?" element={['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Constructor /> : <SinPermiso />} />
+        <Route path="formularios/llenar/:formularioId" element={<Llenar />} />
         {MODULOS.filter((m) => m.ruta).map((m) => (
           <Route
             key={m.id}

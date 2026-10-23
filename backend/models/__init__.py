@@ -6,6 +6,11 @@ from models.catalogos import (
     NivelSeveridadCatalogo, Tecnico, TecnicoHabilidad, TecnicoTenantHabilitado, TipoEquipo, TipoFalla, TipoFallaSeveridad,
 )
 from models.contratos import Contrato, ContratoSLA
+from models.formularios import (
+    CalidadFotoDefault, CatalogoPersonalizado, CatalogoPersonalizadoOpcion, EstadoFormulario, EstadoRespuesta, Formulario,
+    FormularioAsignacion, FormularioEvidencia, FormularioPermisoMesa, FormularioRespuesta, FormularioVersion, OrigenRespuesta,
+    TipoEvidencia, TipoFormulario,
+)
 from models.organizaciones import Prestador, RolCatalogo, Tenant, TenantPrestador
 from models.permisos import (
     GrupoTecnicoPermiso, GrupoTecnicos, PermisoCatalogo, PermisoDespachador, PermisoDespachadorLog,
@@ -15,6 +20,9 @@ from models.unidades import GrupoUN, GrupoUNMiembro, UnidadNegocio, UsuarioGrupo
 from models.usuarios import HistorialContrasena, Sesion, Usuario
 
 __all__ = [
+    "CalidadFotoDefault", "CatalogoPersonalizado", "CatalogoPersonalizadoOpcion", "EstadoFormulario", "EstadoRespuesta",
+    "Formulario", "FormularioAsignacion", "FormularioEvidencia", "FormularioPermisoMesa", "FormularioRespuesta",
+    "FormularioVersion", "OrigenRespuesta", "TipoEvidencia", "TipoFormulario",
     "CoberturaContrato", "Equipo", "EstadoActivo", "EstadoImportacion", "FamiliaEquipo", "Habilidad", "ImportacionCatalogo",
     "NivelSeveridadCatalogo", "Tecnico", "TecnicoHabilidad", "TecnicoTenantHabilitado", "TipoEquipo", "TipoFalla",
     "TipoFallaSeveridad",
