@@ -60,6 +60,7 @@ async def datos():
     from models import Prestador, Tenant, TenantPrestador, UnidadNegocio, Usuario
     from models.base import Dominio, Rol
     from scripts.seed_dev import CONTRASENA_DEMO, sembrar
+    from services import catalogos_service
 
     async with nueva_sesion(CONTEXTO_SISTEMA) as db:
         await sembrar(db)
@@ -68,6 +69,7 @@ async def datos():
         db.add_all([otro_prestador, otro_tenant])
         await db.flush()
         db.add(TenantPrestador(tenant_id=otro_tenant.id, prestador_id=otro_prestador.id))
+        await catalogos_service.sembrar_niveles(db, otro_prestador.id)  # como lo hace POST /api/prestadores
         un_otro = UnidadNegocio(tenant_id=otro_tenant.id, codigo="OTRA-1", nombre="Unidad del otro cliente")
         db.add(un_otro)
         h = hashear_contrasena(CONTRASENA_DEMO)

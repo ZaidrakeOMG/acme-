@@ -138,6 +138,20 @@ export async function api<T>(ruta: string, opciones: Opciones = {}, reintento = 
   return (await respuesta.json()) as T
 }
 
+/** Descarga binaria autenticada (plantillas, reportes). Devuelve el Blob o lanza ErrorAPI. */
+export async function descargar(ruta: string, params?: Record<string, string | undefined>): Promise<Blob> {
+  const consulta = params
+    ? '?' + new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => !!e[1])).toString()
+    : ''
+  const headers: Record<string, string> = tokenAcceso ? { Authorization: `Bearer ${tokenAcceso}` } : {}
+  let respuesta = await fetch(`${BASE}${ruta}${consulta}`, { headers })
+  if (respuesta.status === 401 && sesion.tieneRefresh() && (await refrescar())) {
+    respuesta = await fetch(`${BASE}${ruta}${consulta}`, { headers: { Authorization: `Bearer ${tokenAcceso}` } })
+  }
+  if (!respuesta.ok) throw await aErrorAPI(respuesta)
+  return respuesta.blob()
+}
+
 export function mensajeDeError(error: unknown): string {
   if (error instanceof ErrorAPI) {
     const detalles = error.detalles

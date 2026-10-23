@@ -222,9 +222,9 @@ async def test_contrato_con_tenant_no_vinculado(cliente, auth, datos):
 
 # -------------------------------------------------------------------- alertas
 
-async def test_catalogo_tiene_los_20_tipos(cliente, auth):
+async def test_catalogo_tiene_los_20_tipos_mas_los_de_cada_modulo(cliente, auth):
     catalogo = (await cliente.get("/api/alertas/catalogo", headers=await auth(OP))).json()
-    assert len(catalogo) == 20
+    assert len(catalogo) == 21  # 20 del diseño + MATRIZ_SEVERIDAD_INCOMPLETA (P02)
     assert {"SLA_RESPUESTA_EN_RIESGO", "COTIZACION_ESCALADA_DIRECCION", "TECNICO_SIN_SENAL"} <= {a["clave"] for a in catalogo}
 
 

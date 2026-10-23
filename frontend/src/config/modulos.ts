@@ -39,7 +39,7 @@ export const MODULOS: Modulo[] = [
 
   // ------------------------------------------------------------ P02–P10
   { id: 'catalogos', nombre: 'Catálogos maestros', descripcion: 'Técnicos, equipos, fallas, severidades e importador', prompt: 'P02',
-    grupo: 'Administración', roles: ['superadmin', 'admin_prestador', 'admin_empresa'] },
+    grupo: 'Administración', ruta: '/catalogos', roles: ['superadmin', 'admin_prestador', 'admin_empresa', 'admin_un', 'mesa_control', 'despachador'] },
   { id: 'formularios', nombre: 'Formularios dinámicos', descripcion: 'Constructor con 22 tipos de campo', prompt: 'P03',
     grupo: 'Administración', roles: ['superadmin', 'admin_prestador'] },
   { id: 'folios', nombre: 'Folios', descripcion: 'Ciclo de vida, validaciones y aprobaciones', prompt: 'P04', grupo: 'Operación',

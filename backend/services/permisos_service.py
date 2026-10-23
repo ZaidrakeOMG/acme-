@@ -6,7 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.errors import ErrorAPI
 from models.base import AplicaPermiso
-from models.permisos import PermisoCatalogo, PermisoDespachador, PermisoDespachadorLog, PermisoTecnico
+from models.permisos import (
+    GrupoTecnicoPermiso, PermisoCatalogo, PermisoDespachador, PermisoDespachadorLog, PermisoTecnico, TecnicoGrupo,
+    TecnicoPermisoOverride,
+)
 
 
 async def catalogo(db: AsyncSession, aplica_a: AplicaPermiso) -> list[PermisoCatalogo]:
@@ -98,3 +101,34 @@ async def actualizar_despachador(db: AsyncSession, prestador_id: UUID, valores: 
                                      permiso_clave=clave, valor_anterior=anterior, valor_nuevo=habilitado, modificado_por=actor_id))
     await db.flush()
     return cambios
+
+
+# --------------------------------------------- técnico individual (§6.8.3)
+
+async def efectivos_de_tecnico(db: AsyncSession, prestador_id: UUID, usuario_id: UUID) -> list[dict]:
+    """Resolución: override individual > grupo del técnico > valor base del prestador > default del catálogo."""
+    base = {r.permiso_clave: r.habilitado for r in (await db.execute(
+        select(PermisoTecnico).where(PermisoTecnico.prestador_id == prestador_id))).scalars()}
+    asignacion = (await db.execute(select(TecnicoGrupo).where(TecnicoGrupo.tecnico_id == usuario_id))).scalar_one_or_none()
+    grupo = {}
+    if asignacion:
+        grupo = {r.permiso_clave: r.habilitado for r in (await db.execute(
+            select(GrupoTecnicoPermiso).where(GrupoTecnicoPermiso.grupo_id == asignacion.grupo_id))).scalars()}
+    overrides = {r.permiso_clave: r for r in (await db.execute(
+        select(TecnicoPermisoOverride).where(TecnicoPermisoOverride.tecnico_id == usuario_id))).scalars()}
+    resultado = []
+    for p in await catalogo(db, AplicaPermiso.tecnico):
+        if p.clave in overrides:
+            valor, origen, razon = overrides[p.clave].habilitado, "override", overrides[p.clave].razon
+        elif p.clave in grupo:
+            valor, origen, razon = grupo[p.clave], "grupo", None
+        elif p.clave in base:
+            valor, origen, razon = base[p.clave], "prestador", None
+        else:
+            valor, origen, razon = p.valor_default, "catalogo", None
+        resultado.append({"clave": p.clave, "descripcion": p.descripcion, "habilitado": valor, "origen": origen, "razon": razon})
+    return resultado
+
+
+async def validar_claves_tecnico(db: AsyncSession, claves: set[str]) -> None:
+    await _validar_claves(db, AplicaPermiso.tecnico, {c: True for c in claves})

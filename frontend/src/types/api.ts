@@ -194,3 +194,156 @@ export interface EventoAuditoria {
   recurso_id: string | null
   ip_origen: string | null
 }
+
+// ------------------------------------------------------------- P02 catálogos
+
+export type EstadoActivo = 'activo' | 'inactivo' | 'baja'
+
+export interface Habilidad {
+  id: string
+  prestador_id: string
+  clave: string
+  nombre: string
+  descripcion: string
+  activa: boolean
+}
+
+export interface HabilidadDeTecnico {
+  habilidad_id: string
+  clave: string
+  nombre: string
+  certificada: boolean
+  fecha_certificacion: string | null
+  vigencia_hasta: string | null
+  origen: 'manual' | 'curso'
+  vigente: boolean
+}
+
+export interface Tecnico {
+  id: string
+  prestador_id: string
+  usuario_id: string
+  nombre: string
+  email: string
+  numero_empleado: string | null
+  telefono: string | null
+  vehiculo_placas: string | null
+  estado: EstadoActivo
+  fecha_ingreso: string | null
+  habilidades: HabilidadDeTecnico[]
+  tenants_habilitados: string[]
+  grupo_id: string | null
+}
+
+export interface GrupoTecnicos {
+  id: string
+  prestador_id: string
+  nombre: string
+  descripcion: string
+  permisos: Record<string, boolean>
+}
+
+export interface PermisoEfectivoTecnico {
+  clave: string
+  descripcion: string
+  habilitado: boolean
+  origen: 'override' | 'grupo' | 'prestador' | 'catalogo'
+  razon: string | null
+}
+
+export interface Severidad {
+  id: string
+  prestador_id: string
+  clave: string
+  nombre: string
+  orden: number
+  color_hex: string
+  tiempo_respuesta_horas: number
+  tiempo_resolucion_horas: number
+  activo: boolean
+}
+
+export interface FamiliaEquipo {
+  id: string
+  tenant_id: string | null
+  nombre: string
+  descripcion: string
+  activa: boolean
+  es_global: boolean
+}
+
+export interface TipoEquipo {
+  id: string
+  familia_id: string
+  tenant_id: string | null
+  nombre: string
+  descripcion: string
+  activa: boolean
+  es_global: boolean
+}
+
+export interface Equipo {
+  id: string
+  tenant_id: string
+  un_id: string
+  tipo_equipo_id: string
+  familia_id: string | null
+  codigo: string
+  nombre: string
+  marca: string | null
+  modelo: string | null
+  numero_serie: string | null
+  fecha_instalacion: string | null
+  valor_reposicion: string | null
+  estado: EstadoActivo
+  garantia_vigente_hasta: string | null
+  contrato_id: string | null
+  notas: string
+  con_contrato_activo: boolean
+  en_garantia: boolean
+}
+
+export interface TipoFalla {
+  id: string
+  prestador_id: string
+  descripcion: string
+  familia_equipo_id: string
+  requiere_revision_manual: boolean
+  activa: boolean
+}
+
+export interface Matriz {
+  tenant_id: string
+  tipos_falla: { id: string; descripcion: string; familia_equipo_id: string; prestador_id: string }[]
+  tipos_equipo: { id: string; nombre: string; familia_id: string; en_uso: boolean }[]
+  niveles: { id: string; prestador_id: string; clave: string; nombre: string; orden: number; color_hex: string }[]
+  celdas: { tipo_falla_id: string; tipo_equipo_id: string; nivel_severidad_id: string }[]
+  faltantes_en_uso: number
+}
+
+export interface CatalogoImportable {
+  clave: string
+  nombre: string
+  propietario: 'tenant' | 'prestador'
+  columnas: { nombre: string; requerida: boolean; descripcion: string; ejemplo: string }[]
+}
+
+export interface ErrorFila {
+  fila: number
+  columna: string | null
+  motivo: string
+}
+
+export interface Importacion {
+  id: string
+  catalogo: string
+  archivo_nombre: string
+  total_filas: number
+  filas_ok: number
+  filas_error: number
+  errores_json: ErrorFila[]
+  duplicados_json: ErrorFila[]
+  estado: 'vista_previa' | 'confirmada' | 'cancelada'
+  vista_previa: Record<string, unknown>[]
+  resultado: { creados: number; actualizados: number } | null
+}

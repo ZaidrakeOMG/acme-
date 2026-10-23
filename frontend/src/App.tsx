@@ -9,6 +9,7 @@ import { Contratos } from './pages/admin/Contratos'
 import { Prestadores, Tenants } from './pages/admin/Organizaciones'
 import { Unidades } from './pages/admin/Unidades'
 import { Usuarios } from './pages/admin/Usuarios'
+import { Catalogos } from './pages/catalogos/Catalogos'
 import { Login } from './pages/Login'
 import { RoleHub } from './pages/RoleHub'
 import { Seguridad } from './pages/Seguridad'
@@ -21,6 +22,7 @@ const PAGINAS: Record<string, ReactNode> = {
   contratos: <Contratos />,
   alertas: <Alertas />,
   auditoria: <Auditoria />,
+  catalogos: <Catalogos />,
 }
 
 function SinPermiso() {

@@ -13,7 +13,7 @@ from models.base import Rol
 from models.organizaciones import Prestador
 from schemas.comun import RESPUESTAS_ERROR
 from schemas.organizaciones import DatosFiscales, PrestadorCambios, PrestadorEntrada, PrestadorSalida
-from services import auditoria, permisos_service
+from services import auditoria, catalogos_service, permisos_service
 from services.almacenamiento import obtener_almacenamiento
 
 router = APIRouter(prefix="/api/prestadores", tags=["Prestadores"], responses=RESPUESTAS_ERROR)
@@ -48,7 +48,7 @@ async def listar(db: DB, actor: Actor = Depends(ADMIN)):
 
 
 @router.post("", response_model=PrestadorSalida, status_code=201, summary="Crear prestador",
-             description="Crea el prestador y sus permisos configurables con los valores por defecto (§6.8.3 y §6.8.3b).")
+             description="Crea el prestador, sus permisos configurables con los valores por defecto (§6.8.3 y §6.8.3b) y sus 5 niveles de severidad (§6.10.1).")
 async def crear(datos: PrestadorEntrada, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN)):
     valores = datos.model_dump(exclude={"datos_fiscales"})
     p = Prestador(**valores)
@@ -57,6 +57,7 @@ async def crear(datos: PrestadorEntrada, request: Request, db: DB, actor: Actor 
     db.add(p)
     await db.flush()
     await permisos_service.sembrar_defaults(db, p.id)
+    await catalogos_service.sembrar_niveles(db, p.id)
     await auditoria.registrar_actor(db, actor, "prestadores.alta", request, prestador_id=p.id, recurso_tipo="prestador",
                                     recurso_id=p.id, despues=auditoria.instantanea(p))
     await db.commit()

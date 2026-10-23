@@ -7,6 +7,7 @@ from sqlalchemy import Date, ForeignKey, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from models.catalogos import CoberturaContrato
 from models.base import (
     Base, ConVersion, EstadoRegistro, ModalidadContrato, NivelSeveridad, TipoPenalizacion, UnidadTiempo, pg_enum,
 )
@@ -25,6 +26,9 @@ class Contrato(ConVersion, Base):
     preventivos_iguala_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     penalizacion_tope_porcentaje: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     calificacion_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    cobertura: Mapped[CoberturaContrato] = mapped_column(
+        pg_enum(CoberturaContrato, "cobertura_contrato"), default=CoberturaContrato.todas_las_un
+    )
     estado: Mapped[EstadoRegistro] = mapped_column(pg_enum(EstadoRegistro, "estado_registro"), default=EstadoRegistro.activo)
 
 
@@ -35,6 +39,7 @@ class ContratoSLA(ConVersion, Base):
     prestador_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("prestadores.id"))
     contrato_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("contratos.id"))
     nivel_severidad: Mapped[NivelSeveridad] = mapped_column(pg_enum(NivelSeveridad, "nivel_severidad"))
+    nivel_severidad_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("niveles_severidad.id"))
     tiempo_respuesta_horas: Mapped[int] = mapped_column(Integer)
     tiempo_resolucion_horas: Mapped[int] = mapped_column(Integer)
     unidad_expresion: Mapped[UnidadTiempo] = mapped_column(pg_enum(UnidadTiempo, "unidad_tiempo"), default=UnidadTiempo.horas)

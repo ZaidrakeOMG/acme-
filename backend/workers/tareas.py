@@ -94,3 +94,7 @@ def crear_particiones_auditoria() -> int:
 @celery_app.task(name="acma.purgar_sesiones_expiradas")
 def purgar_sesiones_expiradas() -> int:
     return asyncio.run(purgar_sesiones_async())
+
+
+# Evaluadores de alertas por módulo (se registran al importar).
+from workers import evaluadores  # noqa: E402,F401

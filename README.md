@@ -88,7 +88,7 @@ con `MFA_OBLIGATORIO=true` (pruebas y producción) el primer login pide enrolar 
 | mesa_control | mesa.control@acma.dev |
 | despachador | despachador@acma.dev |
 | supervisor_prestador | supervisor.prestador@acma.dev |
-| tecnico | tecnico1@acma.dev, tecnico2@acma.dev |
+| tecnico | tecnico1@acma.dev … tecnico4@acma.dev (con habilidades) |
 | admin_empresa | admin.empresa@acma.dev |
 | admin_un | admin.un@acma.dev (Sucursal Centro y Polanco) |
 | supervisor_operadores | supervisor.operadores@acma.dev (grupo Zona Metropolitana) |
@@ -117,16 +117,23 @@ acma/
   docs/prompts/                     prompts de desarrollo (P01…P11)
   backend/
     main.py                         app FastAPI
+    core/sql_migracion.py           helpers para migraciones con SQL explícito
     core/                           config, db, rls, security, errors, middleware, dependencias
     models/  schemas/  routers/  services/
     workers/                        celery_app.py y tareas.py
-    alembic/versions/0001_cimientos.py
+    alembic/versions/0001_cimientos.py, 0002_catalogos.py
     scripts/                        seed_dev.py, generar_secretos.py
     tests/
   frontend/
     src/ (components, pages, hooks, services, contexts, types, config)
     public/  tests/
 ```
+
+## Catálogos maestros (P02)
+
+Tarjeta **Catálogos maestros** del hub: técnicos y habilidades, severidades, familias y tipos de equipo, equipos por UN (con
+indicador de contrato activo y garantía), tipos de falla, matriz de severidad e **importador CSV/Excel**. Para importar:
+descarga la plantilla del catálogo, llénala, súbela, revisa la vista previa (errores por fila y duplicados) y confirma.
 
 ## Problemas conocidos en Windows
 

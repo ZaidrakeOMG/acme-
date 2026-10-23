@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-19 · P01 Cimientos**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-23 · P02 Catálogos maestros**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -14,7 +14,7 @@
 | Prompt | Contenido | Estado |
 |---|---|---|
 | P01 | Cimientos: repo, Docker, modelo base, RLS, auth + MFA, API base, PWA con login y hub | ✅ 2026-10-19 |
-| P02 | Catálogos maestros (técnicos y habilidades, equipos, fallas, severidades, importador) | Pendiente |
+| P02 | Catálogos maestros (técnicos y habilidades, equipos, fallas, severidades, matriz, importador) | ✅ 2026-10-23 |
 | P03 | Motor de formularios | Pendiente |
 | P04 | Folios | Pendiente |
 | P05 | Apps PWA operador/técnico, offline y chat | Pendiente |
@@ -24,6 +24,13 @@
 | P09 | Inventario, caja chica manual, presupuestos y activos | Pendiente |
 | P10 | Contratos/SLA (contador), alertas por módulo y BI | Pendiente |
 | P11 | Endurecimiento y despliegue | Pendiente |
+
+## Verificación al cierre de P02
+
+- `pytest`: **96 pruebas en verde** (76 de P01 + 20 de catálogos, matriz e importador).
+- `vitest`: **27 pruebas en verde** (19 de P01 + 8 de catálogos: pestañas por rol, celda de matriz, importación).
+- `tsc --noEmit` limpio; `npm run build` verde.
+- Verificado a mano en el navegador: pestañas de catálogos, matriz editable, importación con vista previa.
 
 ## Verificación al cierre de P01
 
@@ -63,6 +70,30 @@
 - Almacenamiento: `services.almacenamiento.obtener_almacenamiento()` (MinIO o memoria en pruebas).
 - `DATABASE_READ_URL` opcional → `core.db.engine_lectura` (igual al principal si está vacía).
 
+### Catálogos maestros (P02)
+- Migración `0002_catalogos.py` usa los helpers de `core/sql_migracion.py` (`ex`, `rls`, `versionar`, `politicas_tenant`,
+  `politicas_prestador`). Una migración que inserte o actualice filas debe empezar con
+  `SELECT set_config('app.rol','sistema',true)`: la RLS forzada aplica también al dueño del esquema.
+- Tablas: `habilidades`, `tecnicos`, `tecnico_habilidades`, `tecnico_tenants_habilitados` (§6.10.8), `niveles_severidad`,
+  `familias_equipo` y `tipos_equipo` (`tenant_id` NULL = global de plataforma), `equipos`, `tipos_falla`,
+  `tipo_falla_severidad`, `importaciones_catalogo`. Nuevos: `contratos.cobertura` y `contrato_sla.nivel_severidad_id`.
+- **Contrato activo de un equipo**: función SQL `acma_equipo_con_contrato_activo(equipo_id)` (respeta la RLS del llamador) y
+  `services.catalogos_service.equipo_con_contrato_activo`. `GET /api/catalogos/equipos?con_contrato=true` la aplica; P04 la
+  usa en el selector filtrado y en la validación de captura.
+- **Severidad automática**: `catalogos_service.resolver_severidad(db, tenant, tipo_falla, tipo_equipo)` y
+  `GET /api/catalogos/matriz-severidad/resolver` (404 `SEVERIDAD_NO_CONFIGURADA` → el folio va a En revisión en P04).
+  Devuelve también `requiere_revision_manual` del tipo de falla.
+- **Permisos efectivos del técnico**: `permisos_service.efectivos_de_tecnico` (override > grupo > prestador > catálogo);
+  `GET /api/catalogos/tecnicos/{id}/permisos-efectivos`.
+- **Importador** (`services/importador_service.py`): registro `CATALOGOS` con columnas, validación por fila y aplicación;
+  flujo `POST /api/catalogos/importar/{catalogo}` → `…/{id}/confirmar | cancelar`; plantillas en `…/{catalogo}/plantilla`.
+  Para agregar un catálogo: entrada en `CATALOGOS` y ramas en `Contexto.cargar`, `_validar_fila` y `aplicar`.
+- **Evaluadores de alertas** viven en `workers/evaluadores.py` (importado por `workers/tareas.py`). Un evaluador no debe
+  repetir una alerta mientras exista una `disparada` sin atender para la misma entidad (patrón de `matriz_incompleta`).
+- Frontend: `src/components/Buscador.tsx` (`Buscador` con retardo y `SelectorBusqueda` tipo combobox para P04),
+  `pages/catalogos/Catalogos.tsx` con `useAmbito()` (tenant/prestador del usuario o los que elige el superadmin) y una
+  pestaña por catálogo en `pages/catalogos/pestanas/`.
+
 ### Frontend
 - `src/config/modulos.ts` define los 25 módulos de Fase 1, su prompt y los roles que los ven. Al construir un módulo:
   agregar `ruta`, la página en `App.tsx` (`PAGINAS`) y ajustar roles.
@@ -92,6 +123,19 @@
     geolocalización aproximada en auditoría de login, llaves de cifrado por tenant para Object Storage, protección contra
     repetición del mismo código TOTP dentro de su ventana de 30 s.
 12. **Imagen de MinIO** en `latest` (la etiqueta fija elegida no existe en Docker Hub); fijar por digest en P11.
+13. **Niveles de severidad: 5, no 3.** §6.3 muestra 3 niveles de ejemplo (Crítico/Urgente/Normal) pero §6.10.1 y §4.1 fijan
+    5; se siguen los 5, con clave y orden fijos por prestador (solo nombre, color y tiempos son editables).
+14. **`contratos.cobertura`** (`todas_las_un` | `equipos_especificos`, default `todas_las_un`) agregado para la regla de
+    contrato activo; el diseño no lo definía.
+15. **Tipos de falla solo sobre familias globales**: el prestador define síntomas por familia de plataforma; las familias
+    propias de un tenant no admiten tipos de falla del prestador (si hiciera falta, se revisa en P04).
+16. **`contrato_sla` conserva el ENUM `nivel_severidad`** además de `nivel_severidad_id`; P10 decide cuál manda.
+17. **Importador**: los duplicados contra la base se omiten (no actualizan), salvo `severidades` y `matriz_severidad`, que
+    actualizan por clave. Las contraseñas de técnicos importados viajan en el archivo y no se devuelven en la vista previa.
+18. **Alerta `MATRIZ_SEVERIDAD_INCOMPLETA`**: umbral 0 (dispara con 1 combinación faltante), destinatario admin_empresa,
+    sin repetir mientras haya una sin atender. Solo cuentan tipos de equipo con equipos activos del tenant.
+19. **Catálogos en lectura para técnico, despachador y mesa de control** (equipos, tipos de falla, familias) para preparar
+    P04; el hub muestra el módulo también a admin_un, mesa de control y despachador.
 
 ## Notas de entorno (esta máquina)
 
