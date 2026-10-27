@@ -120,6 +120,9 @@ async def sembrar(db) -> bool:
     await db.flush()
     await sembrar_catalogos(db, prestador, tenant, unidades, usuarios, niveles)
     await sembrar_formularios(db, prestador, tenant, usuarios)
+    await db.flush()
+    from scripts.seed_folios import sembrar_folios  # P04 (busca por sí mismo lo que necesita)
+    await sembrar_folios(db)
     await db.commit()
     return True
 
@@ -242,7 +245,11 @@ async def main() -> None:
         for email, _ in TECNICOS_NUEVOS:
             print(f"  {'tecnico':<24} {email}")
     else:
-        print("Los datos demo ya existían; no se modificó nada.")
+        from scripts.seed_folios import sembrar_folios
+        async with nueva_sesion(CONTEXTO_SISTEMA) as db:
+            folios = await sembrar_folios(db)
+            await db.commit()
+        print("Los datos demo ya existían;", "se agregaron los folios demo (P04)." if folios else "no se modificó nada.")
 
 
 

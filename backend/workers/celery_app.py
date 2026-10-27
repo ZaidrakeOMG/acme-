@@ -20,6 +20,7 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
     beat_schedule={
         "evaluar-alertas": {"task": "acma.evaluar_alertas", "schedule": 60.0},
+        "timeouts-aprobacion": {"task": "acma.evaluar_timeouts_aprobacion", "schedule": 60.0},
         "particiones-auditoria": {"task": "acma.crear_particiones_auditoria", "schedule": 24 * 3600.0},
         "purgar-sesiones": {"task": "acma.purgar_sesiones_expiradas", "schedule": 6 * 3600.0},
     },

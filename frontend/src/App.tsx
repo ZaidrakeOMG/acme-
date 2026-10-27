@@ -10,6 +10,11 @@ import { Prestadores, Tenants } from './pages/admin/Organizaciones'
 import { Unidades } from './pages/admin/Unidades'
 import { Usuarios } from './pages/admin/Usuarios'
 import { Catalogos } from './pages/catalogos/Catalogos'
+import { Aprobaciones } from './pages/folios/Aprobaciones'
+import { CapturaFolio } from './pages/folios/CapturaFolio'
+import { FolioDetalle } from './pages/folios/FolioDetalle'
+import { Folios } from './pages/folios/Folios'
+import { ROLES_APROBADOR, ROLES_CAPTURA } from './pages/folios/comunes'
 import { Constructor } from './pages/formularios/Constructor'
 import { Formularios } from './pages/formularios/Formularios'
 import { Llenar } from './pages/formularios/Llenar'
@@ -30,6 +35,7 @@ const PAGINAS: Record<string, ReactNode> = {
   catalogos: <Catalogos />,
   formularios: <Formularios />,
   mis_formularios: <MisFormularios />,
+  folios: <Folios />,
 }
 
 function SinPermiso() {
@@ -61,6 +67,9 @@ export function App() {
         <Route path="formularios/plantillas" element={['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Plantillas /> : <SinPermiso />} />
         <Route path="formularios/constructor/:formularioId?" element={['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Constructor /> : <SinPermiso />} />
         <Route path="formularios/llenar/:formularioId" element={<Llenar />} />
+        <Route path="folios/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio /> : <SinPermiso />} />
+        <Route path="folios/aprobaciones" element={ROLES_APROBADOR.includes(usuario.rol) ? <Aprobaciones /> : <SinPermiso />} />
+        <Route path="folios/:folioId" element={<FolioDetalle />} />
         {MODULOS.filter((m) => m.ruta).map((m) => (
           <Route
             key={m.id}

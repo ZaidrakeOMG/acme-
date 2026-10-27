@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
@@ -168,18 +169,21 @@ class SeveridadSalida(ConVersionSalida):
 
 
 class FamiliaEntrada(BaseModel):
+    habilidad_clave: str | None = Field(default=None, max_length=60, description="P04: habilidad requerida para asignar técnico")
     nombre: str = Field(min_length=2, max_length=120)
     descripcion: str = Field(default="", max_length=1000)
     global_: bool = Field(default=False, alias="global", description="Solo superadmin: catálogo de plataforma")
 
 
 class FamiliaCambios(BaseModel):
+    habilidad_clave: str | None = Field(default=None, max_length=60)
     nombre: str | None = Field(default=None, min_length=2, max_length=120)
     descripcion: str | None = Field(default=None, max_length=1000)
     activa: bool | None = None
 
 
 class FamiliaSalida(ConVersionSalida):
+    habilidad_clave: str | None = None
     tenant_id: UUID | None
     nombre: str
     descripcion: str
@@ -225,6 +229,7 @@ class EquipoEntrada(BaseModel):
     garantia_vigente_hasta: date | None = None
     contrato_id: UUID | None = None
     notas: str = Field(default="", max_length=2000)
+    criticidad: Literal["A", "B", "C", "D"] | None = Field(default=None, description="P04: criticidad del activo (manual en Fase 1)")
 
 
 class EquipoCambios(BaseModel):
@@ -241,6 +246,7 @@ class EquipoCambios(BaseModel):
     contrato_id: UUID | None = None
     estado: EstadoActivo | None = None
     notas: str | None = Field(default=None, max_length=2000)
+    criticidad: Literal["A", "B", "C", "D"] | None = None
 
 
 class EquipoSalida(ConVersionSalida):
@@ -259,6 +265,7 @@ class EquipoSalida(ConVersionSalida):
     garantia_vigente_hasta: date | None
     contrato_id: UUID | None
     notas: str
+    criticidad: Literal["A", "B", "C", "D"] | None = None
     con_contrato_activo: bool = False
     en_garantia: bool = False
 

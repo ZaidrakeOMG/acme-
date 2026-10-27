@@ -98,7 +98,7 @@ async def modificar(contrato_id: UUID, datos: ContratoCambios, request: Request,
     antes = (await _salida(db, c)).model_dump(mode="json")
     cambios = datos.model_dump(exclude_unset=True, exclude={"slas"})
     for k, v in cambios.items():
-        if v is not None or k in ("folios_correctivos_iguala", "penalizacion_tope_porcentaje"):
+        if v is not None or k in ("folios_correctivos_iguala", "penalizacion_tope_porcentaje", "horario_servicio_json"):
             setattr(c, k, v)
     if c.fecha_fin < c.fecha_inicio:
         raise ErrorAPI(422, "VIGENCIA_INVALIDA", "La fecha de fin debe ser posterior a la de inicio")

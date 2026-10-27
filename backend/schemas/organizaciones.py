@@ -253,7 +253,14 @@ class ContratoEntrada(BaseModel):
     preventivos_iguala_json: dict[str, Any] = Field(default_factory=dict)
     penalizacion_tope_porcentaje: Decimal | None = Field(default=None, ge=0, le=100)
     calificacion_json: dict[str, Any] = Field(default_factory=dict)
+    horario_servicio_json: dict[str, Any] | None = Field(default=None, description='P04: {"lunes": [["08:00","18:00"]], ...}; vacío = 24/7')
     slas: list[SLAEntrada]
+
+    @field_validator("horario_servicio_json")
+    @classmethod
+    def _horario(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        from schemas.folios import HorarioServicio
+        return HorarioServicio.validar(v)
 
     @field_validator("slas")
     @classmethod
@@ -278,8 +285,15 @@ class ContratoCambios(BaseModel):
     preventivos_iguala_json: dict[str, Any] | None = None
     penalizacion_tope_porcentaje: Decimal | None = Field(default=None, ge=0, le=100)
     calificacion_json: dict[str, Any] | None = None
+    horario_servicio_json: dict[str, Any] | None = None
     estado: EstadoRegistro | None = None
     slas: list[SLAEntrada] | None = None
+
+    @field_validator("horario_servicio_json")
+    @classmethod
+    def _horario(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        from schemas.folios import HorarioServicio
+        return HorarioServicio.validar(v)
 
     @field_validator("slas")
     @classmethod
@@ -298,6 +312,7 @@ class ContratoSalida(ConVersionSalida):
     preventivos_iguala_json: dict[str, Any]
     penalizacion_tope_porcentaje: Decimal | None
     calificacion_json: dict[str, Any]
+    horario_servicio_json: dict[str, Any] | None = None
     estado: EstadoRegistro
     slas: list[SLASalida] = Field(default_factory=list)
 

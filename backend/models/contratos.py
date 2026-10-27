@@ -26,6 +26,8 @@ class Contrato(ConVersion, Base):
     preventivos_iguala_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     penalizacion_tope_porcentaje: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     calificacion_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    # P04: {"lunes": [["08:00","18:00"]], ...}; None = servicio 24/7 (§6.8.6 "fuera del horario del contrato").
+    horario_servicio_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     cobertura: Mapped[CoberturaContrato] = mapped_column(
         pg_enum(CoberturaContrato, "cobertura_contrato"), default=CoberturaContrato.todas_las_un
     )

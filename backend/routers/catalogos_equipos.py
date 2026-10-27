@@ -74,7 +74,7 @@ def _ambito_global(actor: Actor, es_global: bool, tenant_id: UUID | None) -> UUI
 async def crear_familia(datos: FamiliaEntrada, request: Request, db: DB, actor: Actor = Depends(ADMIN_TENANT),
                         tenant_id: UUID | None = None):
     t = _ambito_global(actor, datos.global_, tenant_id)
-    f = FamiliaEquipo(tenant_id=t, nombre=datos.nombre, descripcion=datos.descripcion)
+    f = FamiliaEquipo(tenant_id=t, nombre=datos.nombre, descripcion=datos.descripcion, habilidad_clave=datos.habilidad_clave)
     db.add(f)
     await db.flush()
     await auditoria.registrar_actor(db, actor, "catalogos.familia_alta", request, tenant_id=t, recurso_tipo="familia_equipo",
@@ -261,7 +261,7 @@ async def modificar_equipo(equipo_id: UUID, datos: EquipoCambios, request: Reque
     cambios = datos.model_dump(exclude_unset=True)
     await _validar_equipo(db, actor, e.tenant_id, cambios.get("un_id"), cambios.get("tipo_equipo_id"), cambios.get("contrato_id"))
     antes = auditoria.instantanea(e)
-    nulos_permitidos = {"marca", "modelo", "numero_serie", "fecha_instalacion", "valor_reposicion", "garantia_vigente_hasta", "contrato_id"}
+    nulos_permitidos = {"marca", "modelo", "numero_serie", "fecha_instalacion", "valor_reposicion", "garantia_vigente_hasta", "contrato_id", "criticidad"}
     for k, v in cambios.items():
         if v is not None or k in nulos_permitidos:
             setattr(e, k, v)

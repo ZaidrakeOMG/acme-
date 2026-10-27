@@ -18,7 +18,8 @@ describe('RoleHub', () => {
     await entrarComo('superadmin')
     await screen.findByRole('heading', { name: /Hola/ })
     for (const m of MODULOS) expect(screen.getByTestId(`modulo-${m.id}`)).toBeInTheDocument()
-    expect(within(screen.getByTestId('modulo-folios')).getByText('Disponible en el prompt P04')).toBeInTheDocument()
+    expect(within(screen.getByTestId('modulo-app_campo')).getByText('Disponible en el prompt P05')).toBeInTheDocument()
+    expect(screen.getByTestId('modulo-folios')).toHaveAttribute('href', '/folios')
     expect(screen.getByTestId('modulo-usuarios')).toHaveAttribute('href', '/usuarios')
   })
 

@@ -95,7 +95,7 @@ async def test_evaluar_alertas_registra_en_historial(datos):
         resumen = await tareas.evaluar_alertas_async()
     finally:
         tareas.EVALUADORES.pop(clave)
-    assert resumen["disparadas"] == 1 and resumen["sin_evaluador"] == 19
+    assert resumen["disparadas"] == 1 and resumen["sin_evaluador"] == 21  # 25 alertas - 4 evaluadores (3 reales + el falso)
     async with nueva_sesion(CONTEXTO_SISTEMA) as db:
         h = (await db.execute(select(AlertaHistorial).where(AlertaHistorial.clave_alerta == clave))).scalars().all()
     assert any(x.datos_contexto_json == {"consumo": 72} and float(x.umbral_en_momento) == 70 for x in h)

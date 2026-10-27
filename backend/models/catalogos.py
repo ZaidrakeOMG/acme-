@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, SmallInteger, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base, ConVersion, pg_enum
@@ -102,6 +102,7 @@ class FamiliaEquipo(ConVersion, Base):
     nombre: Mapped[str] = mapped_column(String(120))
     descripcion: Mapped[str] = mapped_column(Text, default="")
     activa: Mapped[bool] = mapped_column(Boolean, default=True)
+    habilidad_clave: Mapped[str | None] = mapped_column(String(60))  # P04: habilidad requerida al asignar técnico
 
 
 class TipoEquipo(ConVersion, Base):
@@ -131,6 +132,8 @@ class Equipo(ConVersion, Base):
     garantia_vigente_hasta: Mapped[date | None] = mapped_column(Date)
     contrato_id: Mapped[uuid.UUID | None] = _fk("contratos", True)
     notas: Mapped[str] = mapped_column(Text, default="")
+    # P04: criticidad A/B/C/D capturada a mano por Admin empresa (cálculo automático §6.9.3 en Fase 2).
+    criticidad: Mapped[str | None] = mapped_column(ENUM("A", "B", "C", "D", name="criticidad_activo", create_type=False), nullable=True)
 
 
 class TipoFalla(ConVersion, Base):

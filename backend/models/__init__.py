@@ -6,6 +6,13 @@ from models.catalogos import (
     NivelSeveridadCatalogo, Tecnico, TecnicoHabilidad, TecnicoTenantHabilitado, TipoEquipo, TipoFalla, TipoFallaSeveridad,
 )
 from models.contratos import Contrato, ContratoSLA
+from models.folios import (
+    AprobacionAlertaTimeout, AprobacionDecision, AprobacionFlujo, AprobacionNivelConfig, AprobacionRegla, CanalAprobacion,
+    ComportamientoTimeout, Criticidad, CriterioAprobacion, DecisionAprobacion, EstadoFlujo, EstadoFolio, Folio, FolioEncuesta,
+    FolioEstadoHistorial, FolioEvidencia, FolioFormularioAtencion, FolioFormularioCaptura, FolioKeywordAlerta, FolioPoliticasTenant,
+    FolioRefaccion, FolioSLA, ModuloDestino, OrigenRefaccion, RazonRechazo, RevisionManualTrigger, SeveridadOrigen,
+    TipoEvidenciaFolio, TipoFolio, TriggerRevision,
+)
 from models.formularios import (
     CalidadFotoDefault, CatalogoPersonalizado, CatalogoPersonalizadoOpcion, EstadoFormulario, EstadoRespuesta, Formulario,
     FormularioAsignacion, FormularioEvidencia, FormularioPermisoMesa, FormularioRespuesta, FormularioVersion, OrigenRespuesta,
@@ -20,6 +27,11 @@ from models.unidades import GrupoUN, GrupoUNMiembro, UnidadNegocio, UsuarioGrupo
 from models.usuarios import HistorialContrasena, Sesion, Usuario
 
 __all__ = [
+    "AprobacionAlertaTimeout", "AprobacionDecision", "AprobacionFlujo", "AprobacionNivelConfig", "AprobacionRegla", "CanalAprobacion",
+    "ComportamientoTimeout", "Criticidad", "CriterioAprobacion", "DecisionAprobacion", "EstadoFlujo", "EstadoFolio", "Folio", "FolioEncuesta",
+    "FolioEstadoHistorial", "FolioEvidencia", "FolioFormularioAtencion", "FolioFormularioCaptura", "FolioKeywordAlerta", "FolioPoliticasTenant",
+    "FolioRefaccion", "FolioSLA", "ModuloDestino", "OrigenRefaccion", "RazonRechazo", "RevisionManualTrigger", "SeveridadOrigen",
+    "TipoEvidenciaFolio", "TipoFolio", "TriggerRevision",
     "CalidadFotoDefault", "CatalogoPersonalizado", "CatalogoPersonalizadoOpcion", "EstadoFormulario", "EstadoRespuesta",
     "Formulario", "FormularioAsignacion", "FormularioEvidencia", "FormularioPermisoMesa", "FormularioRespuesta",
     "FormularioVersion", "OrigenRespuesta", "TipoEvidencia", "TipoFormulario",

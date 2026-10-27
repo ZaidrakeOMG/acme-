@@ -79,6 +79,23 @@ async def purgar_sesiones_async(url: str | None = None) -> int:
         return resultado.rowcount or 0
 
 
+async def evaluar_timeouts_aprobacion_async(url: str | None = None) -> dict:
+    """§6.8.7: aplica el comportamiento de timeout configurado por nivel a los flujos vencidos (cada minuto)."""
+    from services import aprobacion_service
+
+    async with sesion_tarea(url=url) as db:
+        resumen = await aprobacion_service.evaluar_timeouts(db)
+        await db.commit()
+    return resumen
+
+
+@celery_app.task(name="acma.evaluar_timeouts_aprobacion")
+def evaluar_timeouts_aprobacion() -> dict:
+    resumen = asyncio.run(evaluar_timeouts_aprobacion_async())
+    log.info("evaluar_timeouts_aprobacion: %s", resumen)
+    return resumen
+
+
 @celery_app.task(name="acma.evaluar_alertas")
 def evaluar_alertas() -> dict:
     resumen = asyncio.run(evaluar_alertas_async())

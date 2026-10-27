@@ -2,6 +2,44 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-10-27 · P04 — Folios: ciclo de vida, validaciones y aprobación multinivel
+
+**Base de datos (migración 0004)**
+- 16 tablas: folios (numero correlativo por tenant con prefijo, 11 estados, severidad y origen, confirmación de UN,
+  duplicado con justificación, monto estimado), folio_estados_historial y aprobacion_decisiones (append-only, también
+  para superadmin), folio_formulario_captura/atencion, folio_evidencias, folio_refacciones, folio_sla, folio_encuesta,
+  revision_manual_triggers, folio_keywords_alerta, folio_politicas_tenant, aprobacion_reglas, aprobacion_flujos,
+  aprobacion_niveles_config (CHECK del Nivel 3) y aprobacion_alertas_timeout. Trigger de inmutabilidad del folio
+  cerrado/cancelado; función `acma_siguiente_numero_folio()` (acma_auth); `contratos.horario_servicio_json`,
+  `equipos.criticidad`, `familias_equipo.habilidad_clave`; 3 alertas nuevas (25 en el catálogo).
+
+**Backend**
+- Motor de estados `folio_estados.py` con la tabla literal de §6.8.6 y `transicionar()` como única puerta de cambio de estado
+  (409 `TRANSICION_NO_PERMITIDA` / `CIERRE_INCOMPLETO`, historial, auditoría, fechas, suscriptores para P05/P06/P07/P10).
+- Captura `folios_captura_service.py` con las 8 validaciones en orden, duplicado con bloqueo total o confirmación fuerte,
+  severidad automática y override, permisos configurables de técnico y despachador, alcance por rol y archivo completo.
+- Aprobación `aprobacion_service.py`: nivel de entrada (monto, criticidad, tipo de trabajo; la más restrictiva gana),
+  auto-aprobación de críticos, bandeja por nivel, aprobación en cadena, rechazo con 4 razones → módulo destino y evento
+  `folio.derivado_a_modulo`, timeouts con las cuatro opciones (Celery cada minuto). Evaluador `FOLIO_EN_REVISION_SIN_ATENDER`.
+- 32 endpoints bajo `/api/folios`; stub `services/notificaciones.py`.
+- Seed: políticas y prefijo `CD`, 6 reglas, 3 niveles, criticidad en 12 equipos, 4 palabras clave, horario de servicio y 15
+  folios (uno por trigger, flujo en Nivel 1 y 2, pendiente de información, autorizado, asignado, en ejecución, cerrado
+  con atención y firma, cancelado por rechazo).
+
+**Frontend**
+- Módulo Folios: listado con filtros y Kanban, detalle con todas las secciones del archivo, línea de tiempo, acciones
+  según la tabla de transiciones del servidor y panel de aprobación; captura con selector de UN, equipos con contrato,
+  falla por familia, formulario dinámico de P03, tarjeta de duplicado con justificación y confirmación obligatoria de UN
+  («Sí, es esta unidad» / «No, quiero cambiarla»); bandeja de aprobación con rechazo en dos pasos y configuración del
+  flujo para Admin empresa; `services/notificaciones.ts` (stub en consola).
+
+**Pruebas:** 185 pytest y 39 vitest en verde; `tsc --noEmit` limpio; `npm run build` verde.
+
+**Incidencias resueltas:** Docker Desktop otra vez con sockets huérfanos (mismo remedio); `ALTER FUNCTION … OWNER TO
+acma_auth` requiere `GRANT CREATE ON SCHEMA` temporal y privilegios de tabla para la función SECURITY DEFINER; el
+`now()` de PostgreSQL empataba el orden del historial (timestamps explícitos); las pruebas de catálogos cambian las
+habilidades del técnico demo (las pruebas de folios las fijan); el evaluador de matriz ignoraba alertas por folio.
+
 ## 2026-10-23 · P03 — Motor de formularios dinámicos
 
 **Base de datos (migración 0003)**

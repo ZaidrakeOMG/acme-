@@ -25,7 +25,7 @@ async def matriz_incompleta(db: AsyncSession, alerta: AlertaCatalogo) -> int:
             continue
         pendiente = (await db.execute(select(AlertaHistorial.id).where(
             AlertaHistorial.clave_alerta == alerta.clave, AlertaHistorial.tenant_id == tenant.id,
-            AlertaHistorial.estado == EstadoAlerta.disparada))).first()
+            AlertaHistorial.entidad_tipo == "tenant", AlertaHistorial.estado == EstadoAlerta.disparada))).first()
         if pendiente:
             continue
         h = await alertas_service.disparar(
@@ -61,5 +61,36 @@ async def geolocalizacion_fuera_de_un(db: AsyncSession, alerta: AlertaCatalogo) 
         h = await alertas_service.disparar(db, alerta.clave, tenant_id=r.tenant_id, prestador_id=r.prestador_id,
                                            entidad_tipo="formulario_respuesta", entidad_id=r.id,
                                            datos={"campo": clave, "distancia_m": d.get("distancia_m"), "radio_m": d.get("radio_m"), "un_id": str(r.un_id)})
+        disparadas += 1 if h else 0
+    return disparadas
+
+
+@registrar_evaluador("FOLIO_EN_REVISION_SIN_ATENDER")
+async def folio_en_revision_sin_atender(db: AsyncSession, alerta: AlertaCatalogo) -> int:
+    """Folios en `en_revision` por excepción de captura (sin flujo de aprobación abierto) con más de X horas sin atender."""
+    from datetime import UTC, datetime, timedelta
+
+    from models.folios import AprobacionFlujo, EstadoFlujo, EstadoFolio, Folio
+
+    ahora = datetime.now(UTC)
+    folios = (await db.execute(select(Folio).where(Folio.estado == EstadoFolio.en_revision))).scalars().all()
+    disparadas = 0
+    cache: dict = {}
+    for f in folios:
+        if f.tenant_id not in cache:
+            conf = await alertas_service.listar_efectivas(db, f.tenant_id, None)
+            cache[f.tenant_id] = next(c["umbral_valor"] for c in conf if c["clave"] == alerta.clave)
+        if f.updated_at > ahora - timedelta(hours=float(cache[f.tenant_id])):
+            continue
+        con_flujo = (await db.execute(select(AprobacionFlujo.id).where(
+            AprobacionFlujo.folio_id == f.id, AprobacionFlujo.estado.in_((EstadoFlujo.activo, EstadoFlujo.bloqueado))))).first()
+        if con_flujo:
+            continue
+        ya = (await db.execute(select(AlertaHistorial.id).where(
+            AlertaHistorial.clave_alerta == alerta.clave, AlertaHistorial.entidad_id == f.id, AlertaHistorial.estado == EstadoAlerta.disparada))).first()
+        if ya:
+            continue
+        h = await alertas_service.disparar(db, alerta.clave, tenant_id=f.tenant_id, prestador_id=f.prestador_id, entidad_tipo="folio",
+                                           entidad_id=f.id, datos={"numero_folio": f.numero_folio, "horas": round((ahora - f.updated_at).total_seconds() / 3600, 1)})
         disparadas += 1 if h else 0
     return disparadas

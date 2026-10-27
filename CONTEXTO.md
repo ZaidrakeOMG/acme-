@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-23 · P03 Motor de formularios**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-27 · P04 Folios**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -16,7 +16,7 @@
 | P01 | Cimientos: repo, Docker, modelo base, RLS, auth + MFA, API base, PWA con login y hub | ✅ 2026-10-19 |
 | P02 | Catálogos maestros (técnicos y habilidades, equipos, fallas, severidades, matriz, importador) | ✅ 2026-10-23 |
 | P03 | Motor de formularios: 22 tipos de campo, constructor, versiones, asignaciones, respuestas y evidencias | ✅ 2026-10-23 |
-| P04 | Folios | Pendiente |
+| P04 | Folios: ciclo de vida de 11 estados, validaciones automáticas en captura y aprobación multinivel | ✅ 2026-10-27 |
 | P05 | Apps PWA operador/técnico, offline y chat | Pendiente |
 | P06 | Preventivos y reasignación forzada | Pendiente |
 | P07 | Minuta y seguimiento | Pendiente |
@@ -24,6 +24,16 @@
 | P09 | Inventario, caja chica manual, presupuestos y activos | Pendiente |
 | P10 | Contratos/SLA (contador), alertas por módulo y BI | Pendiente |
 | P11 | Endurecimiento y despliegue | Pendiente |
+
+## Verificación al cierre de P04
+
+- `pytest`: **185 pruebas en verde** (131 anteriores + 54 de folios: 8 validaciones de captura, duplicados con y sin bloqueo,
+  severidad automática y override, transiciones por rol y 409, cierre incompleto, inmutabilidad de cerrado/cancelado,
+  historial y decisiones append-only incluso superadmin, alcance por rol, aislamiento, RLS en tablas nuevas, nivel de
+  entrada por criterio, cadena, 4 razones de rechazo, auto-aprobación de críticos, 4 timeouts y restricción del Nivel 3).
+- `vitest`: **39 pruebas en verde** (33 anteriores + 6: captura con confirmación de UN, tarjeta de duplicado con justificación,
+  botones por rol/estado en el detalle, bandeja con rechazo en dos pasos, listado y Kanban).
+- `tsc --noEmit` limpio; `npm run build` verde.
 
 ## Verificación al cierre de P03
 
@@ -135,6 +145,86 @@
   «Cierre de correctivo (global)» publicados y asignados a Refrigeración, y «Cierre de correctivo · Cliente Demo»
   específico del tenant (gana en `resolver`).
 
+### Folios (P04)
+- **Tablas (0004)**: `folios` (número correlativo `PREFIJO-000001` por tenant vía `acma_siguiente_numero_folio()`, 11 estados,
+  severidad + origen, confirmación de UN con timestamp/geo, duplicado con justificación y referencia, monto estimado,
+  fechas de atención/cierre, cancelación), `folio_estados_historial` (**append-only**, con `evento`: `transicion`,
+  `comentario`, `aprobacion.*`, `revision.resuelta`, `severidad.override`, `atencion.vinculada`, `confirmacion_un`,
+  `folio.derivado_a_modulo`), `folio_formulario_captura`, `folio_formulario_atencion`, `folio_evidencias`,
+  `folio_refacciones` (`articulo_id` sin FK hasta P09), `folio_sla` (prometido al autorizar; real y pausas en P10),
+  `folio_encuesta`, `revision_manual_triggers` (con `resuelto`), `folio_keywords_alerta`, `folio_politicas_tenant`
+  (bloqueo de duplicados, revisión por garantía, auto-autorización de críticos, `aprobacion_secuencial`, prefijo y
+  contador) y las 5 de aprobación: `aprobacion_reglas`, `aprobacion_flujos`, `aprobacion_niveles_config` (CHECK Nivel 3),
+  `aprobacion_decisiones` (**append-only, también para superadmin**), `aprobacion_alertas_timeout`. Además
+  `contratos.horario_servicio_json`, `equipos.criticidad` (A/B/C/D) y `familias_equipo.habilidad_clave`. Alertas nuevas:
+  `APROBACION_PENDIENTE_VENCIDA`, `APROBACION_BLOQUEADA`, `FOLIO_EN_REVISION_SIN_ATENDER` (evaluador en Celery).
+- **Trigger `acma_folio_inmutable()`**: un folio `cerrado` o `cancelado` rechaza cualquier UPDATE (salvo
+  `updated_at`/`version_hash`); `DELETE` prohibido siempre. Solo se admiten comentarios en el historial.
+- **Motor de estados** `services/folio_estados.py`: tabla `TRANSICIONES` literal de §6.8.6 (origen → destino → roles,
+  con el actor `sistema`); `transicionar(db, folio, nuevo_estado, actor, notas, contexto, request)` es la **única** forma de
+  cambiar `folios.estado` (409 `TRANSICION_NO_PERMITIDA` con `roles_permitidos` y `destinos_posibles`; 409
+  `CIERRE_INCOMPLETO` si faltan formulario de atención o firma; fija `fecha_inicio_atencion` y `fecha_cierre`; escribe
+  historial + auditoría `folio.transicion.<estado>`). `ACTOR_SISTEMA` para transiciones automáticas; `comentar()` para
+  eventos sin cambio de estado; `suscribir(fn)` registra consumidores en proceso (P05 chat/offline, P06 rutas y
+  reasignación, P07 seguimiento, P10 SLA) con firma `async fn(db, folio, anterior, nuevo, actor, contexto)`.
+
+  | Origen | Destinos → roles |
+  |---|---|
+  | capturado | en_revision → sistema · autorizado → sistema · cancelado → despachador, admin_prestador, admin_empresa, sistema |
+  | en_revision | autorizado → despachador, admin_prestador, sistema · pendiente_informacion → despachador, admin_prestador · cancelado → despachador, admin_prestador, admin_empresa, sistema |
+  | pendiente_informacion | en_revision → operador, admin_un, supervisor_operadores, admin_empresa, mesa_control · cancelado → despachador, admin_prestador, admin_empresa |
+  | autorizado | asignado → despachador, sistema · cancelado → despachador, admin_prestador, admin_empresa |
+  | asignado | en_camino → sistema, tecnico · reasignado → despachador, sistema · cancelado → (los tres) |
+  | reasignado | asignado → sistema, despachador |
+  | en_camino | en_ejecucion → sistema, tecnico · cancelado → (los tres) |
+  | en_ejecucion | cerrado → tecnico, sistema · pendiente_refaccion → tecnico |
+  | pendiente_refaccion | en_ejecucion → admin_prestador, despachador · reasignado → despachador, admin_prestador · cancelado → (los tres) |
+  | cerrado / cancelado | — (finales; superadmin puede ejecutar cualquier transición existente en la tabla) |
+
+- **Captura** `services/folios_captura_service.py` (`POST /api/folios`): roles que capturan siempre (operador, admin UN,
+  admin empresa, supervisor de operadores, mesa de control); técnico con `crear_folio_en_campo` y despachador con
+  `crear_folios` del cliente. Orden literal de validaciones: 1 confirmación de UN (si falta, queda `capturado` con
+  trigger `confirmacion_un_faltante` y notificación; se completa con `POST /{id}/confirmar-un`) · 2 contrato activo
+  (`sin_contrato`) · 3 duplicado abierto (409 `FOLIO_DUPLICADO_BLOQUEADO` con auditoría, o 422 `JUSTIFICACION_REQUERIDA`
+  hasta enviar `folio_duplicado_justificacion`) · 4 severidad por matriz (`severidad_no_configurada` + alerta
+  `MATRIZ_SEVERIDAD_INCOMPLETA`) · 5 garantía con `revision_obligatoria_garantia` (`garantia`) · 6 flag del tipo de
+  falla (`tipo_falla_flag`) · 7 horario del contrato en la zona horaria de la UN (`fuera_horario`) · 8 palabras clave
+  (`keyword_alerta`). Varios triggers se acumulan; con alguno el folio pasa a `en_revision` (sistema); si todas pasan,
+  entra al punto de decisión D_MULTI. `respuesta_id` del formulario de captura es opcional (sin formulario resuelto se
+  captura igual). Override de severidad: `PUT /{id}/severidad` (despachador/admin prestador, en revisión, razón).
+- **Aprobación** `services/aprobacion_service.py`: `nivel_entrada(reglas, monto, criticidad, tipo_folio)` → la regla más
+  restrictiva gana; reglas por `monto` (`<`, `<=`, `>`, `>=`, `entre`), `criticidad` (`en`) y `tipo_trabajo` (`igual`,
+  `en`). Sin reglas aplicables → `autorizado` directo. Críticos A/B con `autorizacion_automatica_criticos` → `autorizado`
+  con decisión `auto_aprobado` (canal `sistema`). El flujo vive dentro de `en_revision`: `aprobacion_flujos.nivel_actual`
+  y `vence_at` en el detalle. Aprobadores: Nivel 1 `admin_un` (UN del folio en `usuario_un`), Nivel 2
+  `supervisor_operadores` (UN directa o por grupo), Nivel 3 `admin_empresa`. `aprobar` en el último nivel → `autorizado`
+  (y SLA prometido); nivel intermedio (solo con `aprobacion_secuencial` o tras escalado) → sube y notifica. `rechazar`
+  exige `razon_rechazo` → `modulo_destino`, folio `cancelado` y evento `folio.derivado_a_modulo` en el historial con
+  `{modulo_destino, razon_rechazo, decision_id, modulo_destino_id: null, procesado_por_p07: false}`.
+- **Timeouts**: `aprobacion_alertas_timeout.vence_at` = momento real de programación + `tiempo_limite_horas`; Celery
+  `acma.evaluar_timeouts_aprobacion` cada 60 s (`aprobacion_service.evaluar_timeouts`) aplica `escalar`,
+  `bloquear_alertar` (flujo `bloqueado`, el aprobador aún decide), `autorizar_automatico` y `depende_criticidad`
+  (A/B autoriza, C/D bloquea); el Nivel 3 solo admite las dos últimas (422 en API, CHECK en BD).
+- **Endpoints** `/api/folios`: listado con alcance por rol y filtros; `verificar-duplicado`; `pendientes-aprobacion`;
+  `politicas`; `keywords`; `aprobacion/configuracion|reglas|niveles`; `POST` captura; `GET /{id}` (archivo completo con
+  secciones vacías `chat`, `reasignaciones`, `financiero`, más `acciones` válidas para el actor y `puede_aprobar`);
+  `historial`; `transicion` genérica y atajos (`autorizar`, `pedir-informacion`, `responder-informacion`, `asignar`,
+  `reasignar`, `en-camino`, `confirmar-llegada`, `pendiente-refaccion`, `reanudar`, `cerrar`, `cancelar`,
+  `confirmar-un`, `comentario`); `monto-estimado`; `severidad`; `atencion` (vincula la respuesta enviada del técnico y
+  registra sus evidencias; la firma cuenta para el cierre); `evidencias`; `refacciones`; `aprobacion/aprobar|rechazar`.
+- **Eventos a consumir en prompts siguientes**: P05 — `POST /{id}/atencion`, `POST /{id}/evidencias` y las transiciones
+  `en-camino`/`confirmar-llegada`/`cerrar` desde la app del técnico; `confirmar-un` desde la del operador; `capturarFolio`
+  en `frontend/src/services/folios.ts` es la puerta a interceptar con la cola offline. P06 — `reasignado → asignado` con
+  razón (hoy `reasignar` + `asignar`), asignación automática con `ACTOR_SISTEMA`, `orden_en_ruta`/`ventana_*`. P07 —
+  historial `folio.derivado_a_modulo` (crear el registro del módulo y llenar `aprobacion_decisiones.modulo_destino_id`),
+  canales `push`/`minuta` reales (`services/notificaciones.py` es un stub en log). P10 — `folio_sla` real y pausas a
+  partir de `fecha_inicio_atencion`/`fecha_cierre` y del historial.
+- **Frontend**: `types/folios.ts`, `services/folios.ts` (incluye `ACCIONES` destino → ruta y la tabla de transiciones
+  cacheada), `pages/folios/{Folios,FolioDetalle,CapturaFolio,Aprobaciones}.tsx`, `services/notificaciones.ts` (stub).
+- **Seed** (`scripts/seed_folios.py`): políticas (`CD-`), 6 reglas (A 5,000 / B 20,000, A/B → N2, preventivo → N1,
+  especial → N2), 3 niveles (4 h escalar · 12 h depende_criticidad · 24 h bloquear), criticidad en los 12 equipos,
+  4 palabras clave, horario L–V 08–20 / S 09–14 y 15 folios (CD-000001 cerrado … CD-000015 en ejecución).
+
 ### Frontend
 - `src/config/modulos.ts` define los 25 módulos de Fase 1, su prompt y los roles que los ven. Al construir un módulo:
   agregar `ruta`, la página en `App.tsx` (`PAGINAS`) y ajustar roles.
@@ -193,6 +283,31 @@
 19. **Catálogos en lectura para técnico, despachador y mesa de control** (equipos, tipos de falla, familias) para preparar
     P04; el hub muestra el módulo también a admin_un, mesa de control y despachador.
 
+27. **Técnico solo ve sus folios** (cierra la decisión 3 de P01 en ese sentido): asignados a él o capturados por él
+    (`crear_folio_en_campo`); también en la RLS de `folios`.
+28. **Sin reglas de aprobación (o ninguna aplicable) el folio pasa directo a `autorizado`**; `monto_estimado` nulo se
+    evalúa como 0 (Nivel 1 por monto).
+29. **Nivel 2 = `supervisor_operadores`** (el documento lo llama "Supervisor regional"); aprueba las UNs de su grupo o
+    asignadas en `usuario_un`.
+30. **`aprobacion_secuencial`** (política del tenant, default false): §6.8.7 dice que el flujo comienza en el nivel de
+    entrada; con la política activa comienza en Nivel 1 y sube hasta el requerido (aprobación en cadena).
+31. **Autorizar en revisión con reglas configuradas**: si el despachador/admin prestador resuelve la excepción y el tenant
+    tiene reglas aplicables, el folio no pasa a `autorizado` sino que inicia el flujo multinivel (`revision.resuelta`).
+32. **Monto estimado** lo fijan Mesa de control, Despachador y Admin prestador en `capturado`/`en_revision`; el documento
+    no define quién lo captura.
+33. **`folio_duplicado_ref_id` / justificación** solo se guardan cuando hay folio abierto; `respuesta_id` del formulario de
+    captura es opcional.
+34. **Habilidad requerida al asignar** = `familias_equipo.habilidad_clave` (nuevo campo; si es nulo se compara por nombre de
+    familia). El seed mapea Refrigeración → refrigeracion, Climatización → hvac, Iluminación → iluminacion.
+35. **`revision_obligatoria_garantia`** vive en `folio_politicas_tenant` y la puede fijar el Admin prestador (el documento
+    dice "configurado por el prestador") además del Admin empresa.
+36. **`equipos.criticidad`** manual (Fase 1); el cálculo automático de §6.9.3 llega en Fase 2.
+37. **Alertas al despachador por `sin_contrato`/`fuera_horario`** se emiten como notificación (stub) y no como alerta del
+    catálogo (no existe una clave de diseño para ellas); los triggers quedan en `revision_manual_triggers`.
+38. **Comentarios en folios finales**: `folio_estados_historial.evento = comentario` con `estado_anterior = estado_nuevo`.
+39. **`folios.tecnico_id` referencia `usuarios.id`** (no `tecnicos.id`), igual que los permisos de técnico; el vehículo se
+    copia al historial al asignar porque los usuarios del tenant no leen `tecnicos` (RLS).
+
 ## Notas de entorno (esta máquina)
 
 - Python 3.12 instalado con `py install 3.12`; el venv vive en `backend/.venv`.
@@ -200,3 +315,5 @@
 - Node 25 trae un `localStorage` experimental que tapa el de jsdom; `frontend/tests/setup.ts` instala uno en memoria.
 - 2026-10-19: Docker Desktop no arrancaba por sockets huérfanos; se renombraron `%LOCALAPPDATA%\Docker\run` y
   `%LOCALAPPDATA%\docker-secrets-engine` (copias `*.viejo-20261019`, se pueden borrar).
+- 2026-10-27: mismo problema (`dockerInference`); copias `*.huerfano-20261027-*`, se pueden borrar.
+- Zona horaria del horario de servicio: `zoneinfo` + paquete `tzdata` (ya en el venv) porque Windows no trae la base IANA.

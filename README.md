@@ -61,7 +61,7 @@ cd $env:USERPROFILE\Desktop\acma\backend
 ```
 
 ```powershell
-# Beat de Celery (evaluar_alertas cada 60 s, particiones de auditoría diarias, purga de sesiones)
+# Beat de Celery (evaluar_alertas y evaluar_timeouts_aprobacion cada 60 s, particiones de auditoría diarias, purga de sesiones)
 cd $env:USERPROFILE\Desktop\acma\backend
 .\.venv\Scripts\celery -A workers.celery_app beat -l info
 ```
@@ -121,8 +121,8 @@ acma/
     core/                           config, db, rls, security, errors, middleware, dependencias
     models/  schemas/  routers/  services/
     workers/                        celery_app.py y tareas.py
-    alembic/versions/0001_cimientos.py, 0002_catalogos.py, 0003_formularios.py
-    scripts/                        seed_dev.py, generar_secretos.py
+    alembic/versions/0001_cimientos.py, 0002_catalogos.py, 0003_formularios.py, 0004_folios.py
+    scripts/                        seed_dev.py, seed_folios.py, generar_secretos.py
     tests/
   frontend/
     src/ (components, pages, hooks, services, contexts, types, config)
@@ -140,6 +140,14 @@ descarga la plantilla del catálogo, llénala, súbela, revisa la vista previa (
 Tarjeta **Formularios dinámicos** (superadmin, admin prestador y mesa de control): constructor visual con los 22 tipos de
 campo, plantillas base, versiones y asignaciones. Tarjeta **Mis formularios** (cualquier rol): llenar los formularios
 dirigidos a tu rol, reanudar en progreso y consultar enviados. Contrato de los tipos: `docs/formularios/tipos_de_campo.md`.
+
+## Folios (P04)
+
+Tarjeta **Folios** (todos los roles operativos): captura con validaciones automáticas de §6.8.6 (UN confirmada, contrato
+activo, duplicado, severidad por matriz, garantía, flag del tipo de falla, horario del contrato y palabras clave), ciclo de
+vida de 11 estados con acciones según rol, y **Aprobaciones** para Admin UN, Supervisor de operadores y Admin empresa
+(Aprobar / Rechazar con razón → módulo de seguimiento). El Admin empresa configura umbrales, reglas y niveles en la misma
+pantalla. Los 15 folios demo tienen prefijo `CD-`.
 
 ## Problemas conocidos en Windows
 
