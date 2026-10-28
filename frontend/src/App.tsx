@@ -24,10 +24,15 @@ import { Formularios } from './pages/formularios/Formularios'
 import { Llenar } from './pages/formularios/Llenar'
 import { MisFormularios } from './pages/formularios/MisFormularios'
 import { Plantillas } from './pages/formularios/Plantillas'
+import { Autorizaciones } from './pages/preventivos/Autorizaciones'
+import { Calendario } from './pages/preventivos/Calendario'
+import { Planes } from './pages/preventivos/Planes'
+import { Reporte as ReporteReasignaciones } from './pages/reasignaciones/Reporte'
 import { Login } from './pages/Login'
 import { RoleHub } from './pages/RoleHub'
 import { Seguridad } from './pages/Seguridad'
 import { Sincronizacion } from './pages/Sincronizacion'
+import { ROLES_CALENDARIO, ROLES_PLANES } from './types/preventivos'
 
 const PAGINAS: Record<string, ReactNode> = {
   usuarios: <Usuarios />,
@@ -42,6 +47,8 @@ const PAGINAS: Record<string, ReactNode> = {
   mis_formularios: <MisFormularios />,
   folios: <Folios />,
   app_campo: <Campo />,
+  preventivos: <Calendario />,
+  reasignaciones: <ReporteReasignaciones />,
 }
 
 function SinPermiso() {
@@ -77,6 +84,8 @@ export function App() {
         <Route path="folios/aprobaciones" element={ROLES_APROBADOR.includes(usuario.rol) ? <Aprobaciones /> : <SinPermiso />} />
         <Route path="folios/:folioId" element={<FolioDetalle />} />
         <Route path="sincronizacion" element={<Sincronizacion />} />
+        <Route path="preventivos/planes" element={ROLES_PLANES.includes(usuario.rol) || ['admin_empresa', 'admin_un', 'mesa_control'].includes(usuario.rol) ? <Planes /> : <SinPermiso />} />
+        <Route path="preventivos/autorizaciones" element={ROLES_CALENDARIO.includes(usuario.rol) ? <Autorizaciones /> : <SinPermiso />} />
         <Route path="campo/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio modoCampo /> : <SinPermiso />} />
         <Route path="campo/folio/:folioId/cierre" element={['operador', 'admin_un', 'superadmin'].includes(usuario.rol) ? <CierreOperador /> : <SinPermiso />} />
         <Route path="campo/folio/:folioId" element={usuario.rol === 'tecnico' ? <AtencionTecnico /> : <DetalleOperador />} />

@@ -113,5 +113,6 @@ def purgar_sesiones_expiradas() -> int:
     return asyncio.run(purgar_sesiones_async())
 
 
-# Evaluadores de alertas por módulo (se registran al importar).
+# Evaluadores de alertas por módulo y tareas de otros módulos (se registran al importar).
 from workers import evaluadores  # noqa: E402,F401
+from workers.tareas import preventivos  # noqa: E402,F401

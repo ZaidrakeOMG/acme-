@@ -181,6 +181,8 @@ async def transicionar(db: AsyncSession, folio: Folio, nuevo_estado: EstadoFolio
     contexto = dict(contexto or {})
     origen = folio.estado
     exigir(actor, origen, nuevo_estado)
+    for validador in VALIDADORES:  # P06: p. ej. cancelar un preventivo exige autorización formal
+        await validador(db, folio, nuevo_estado, actor, contexto)
     if nuevo_estado == E.cerrado:
         faltan = await requisitos_cierre(db, folio)
         if faltan:
@@ -220,6 +222,13 @@ async def transicionar(db: AsyncSession, folio: Folio, nuevo_estado: EstadoFolio
 SUSCRIPTORES: list = []
 # Evento `folio.creado` (P05 crea los chats) — firma: async def fn(db, folio, actor) -> None
 SUSCRIPTORES_CREACION: list = []
+# Validadores previos (pueden lanzar ErrorAPI) — firma: async def fn(db, folio, nuevo_estado, actor, contexto) -> None
+VALIDADORES: list = []
+
+
+def suscribir_validacion(fn):
+    VALIDADORES.append(fn)
+    return fn
 
 
 def suscribir(fn):

@@ -27,10 +27,18 @@ from models.permisos import (
     GrupoTecnicoPermiso, GrupoTecnicos, PermisoCatalogo, PermisoDespachador, PermisoDespachadorLog,
     PermisoTecnico, TecnicoGrupo, TecnicoPermisoOverride,
 )
+from models.preventivos import (
+    AutorizacionPreventivo, CalendarioPublicacion, EquipoPlan, EstadoAutorizacion, EstadoEjecucionPlan, EstadoPlan, EstadoPreventivo,
+    OrigenPreventivo, PlanEjecucion, PlanMantenimiento, PlanMaterial, PlanTarea, PlanTrigger, PreventivoCalendario, RazonReasignacion,
+    Reasignacion, ReasignacionValidacion, TipoAutorizacionPreventivo, TipoReasignacion, TipoTrigger,
+)
 from models.unidades import GrupoUN, GrupoUNMiembro, UnidadNegocio, UsuarioGrupo, UsuarioUN
 from models.usuarios import HistorialContrasena, Sesion, Usuario
 
 __all__ = [
+    "AutorizacionPreventivo", "CalendarioPublicacion", "EquipoPlan", "EstadoAutorizacion", "EstadoEjecucionPlan", "EstadoPlan", "EstadoPreventivo",
+    "OrigenPreventivo", "PlanEjecucion", "PlanMantenimiento", "PlanMaterial", "PlanTarea", "PlanTrigger", "PreventivoCalendario", "RazonReasignacion",
+    "Reasignacion", "ReasignacionValidacion", "TipoAutorizacionPreventivo", "TipoReasignacion", "TipoTrigger",
     "CanalChat", "Chat", "ChatArchivo", "ChatEventoSistema", "ChatMensaje", "ChatParticipante", "EstadoChat", "ReglaConflicto",
     "ResultadoMutacion", "SincronizacionConflicto", "SincronizacionDispositivo", "SincronizacionMutacion", "SuscripcionPush", "TipoMensaje",
     "AprobacionAlertaTimeout", "AprobacionDecision", "AprobacionFlujo", "AprobacionNivelConfig", "AprobacionRegla", "CanalAprobacion",

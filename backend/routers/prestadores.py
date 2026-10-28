@@ -58,6 +58,8 @@ async def crear(datos: PrestadorEntrada, request: Request, db: DB, actor: Actor 
     await db.flush()
     await permisos_service.sembrar_defaults(db, p.id)
     await catalogos_service.sembrar_niveles(db, p.id)
+    from services import reasignacion_service
+    await reasignacion_service.sembrar_razones(db, p.id)  # P06: catálogo literal de §6.8.2
     await auditoria.registrar_actor(db, actor, "prestadores.alta", request, prestador_id=p.id, recurso_tipo="prestador",
                                     recurso_id=p.id, despues=auditoria.instantanea(p))
     await db.commit()

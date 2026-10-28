@@ -2,6 +2,41 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-10-28 · P06 — Calendario de preventivos, planes con triggers y reasignación forzada
+
+**Base de datos (migración 0006)**
+- 12 tablas: planes_mantenimiento, plan_triggers, plan_tareas, plan_materiales, plan_ejecuciones, equipo_planes,
+  preventivos_calendario (unifica §6.9.1 y §7.6), calendario_publicaciones, autorizaciones_preventivo,
+  razones_reasignacion (7 literales sembradas), reasignaciones y reasignacion_validaciones; `folios.plan_id` y
+  `folios.calendario_id`; FK de `formulario_asignaciones.plan_mantenimiento_id`. 8 ENUM nuevos. 3 alertas nuevas
+  (preventivo vencido, autorización pendiente, calendario sin publicar). RLS por prestador con lectura del tenant y
+  políticas por comando en las tablas ligadas al folio.
+
+**Backend**
+- `planes_service` (triggers de Fase 1 con 403 para los de Fase 2, próxima fecha, versión, equipos), `preventivos_service`
+  (calendario, publicación con evento `calendario.publicado`, generación de folios preventivos directo a Autorizado,
+  solicitudes y autorizaciones formales de reprogramación/cancelación, validador en el motor de estados, cierre con
+  desvío y `texto_desvio()` literal), `reasignacion_service` (candidatos, restricción dura de habilidad, advertencias con
+  confirmación, razón del catálogo, chat y push, historial y reporte), tarea Celery `acma.generar_preventivos_programados`
+  (beat 02:00) + `POST /api/preventivos/generar`, catálogo importable `calendario_preventivos`, 22 rutas nuevas en
+  `routers/preventivos.py` y `routers/reasignaciones.py`; `tecnico_con_habilidad` considera las habilidades de las tareas
+  del plan; el paquete offline del técnico resuelve el formulario `preventivo`; `GET /api/folios/{id}` trae `plan_id`,
+  `plan_nombre`, `calendario_id` y las reasignaciones reales. Se retiró la ruta transitoria `reasignar` de P04.
+- Seed `seed_preventivos.py`: formulario preventivo del prestador, 3 planes, 6 equipos con plan, 8 filas de calendario
+  (ejecutados con desvío ±, reprogramado, cancelado, programados), noviembre publicado y 3 reasignaciones.
+
+**Frontend**
+- Páginas Calendario, Planes (editor con Fase 2 deshabilitada), Autorizaciones y Reporte de reasignaciones (+ catálogo de
+  razones); módulos `preventivos` y `reasignaciones` con ruta; `FolioDetalle` con modal **Reasignar**, panel de preventivo
+  y sección de reasignaciones; app del técnico con insignia Preventivo, lista de verificación del plan y materiales.
+
+**Pruebas:** 226 pytest y 54 vitest en verde; `tsc --noEmit` limpio; `npm run build` verde.
+
+**Incidencias resueltas:** la cancelación autorizada no puede ejecutarla el rol `sistema` (la tabla §6.8.6 no lo permite
+desde asignado): la ejecuta el solicitante con la autorización en el contexto. `notificaciones.ENVIADAS` es un deque
+acotado: las pruebas buscan por contenido. La alerta `CALENDARIO_MES_SIN_PUBLICAR` depende del día del mes: la prueba de
+auditoría ya no exige un conteo exacto de disparos.
+
 ## 2026-10-28 · P05 — Apps PWA del operador y del técnico, modo offline y chat
 
 **Base de datos (migración 0005)**

@@ -8,7 +8,7 @@ from core.errors import registrar_manejadores
 from core.middleware import configurar_cors, instalar_middleware
 from routers import (
     alertas, auditoria, auth, catalogos_equipos, catalogos_importar, catalogos_tecnicos, chat, configuracion, contratos,
-    folios, formularios, grupos_un, prestadores, push, sync, tenants, unidades_negocio, usuarios,
+    folios, formularios, grupos_un, prestadores, preventivos, push, reasignaciones, sync, tenants, unidades_negocio, usuarios,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 app = FastAPI(
     title="ACMA API",
     version="0.1.0",
-    description="Plataforma SaaS multitenant de gestión de mantenimiento. Fase 1 · P01 Cimientos + P02 Catálogos + P03 Formularios + P04 Folios + P05 Campo, offline y chat.\n\n"
+    description="Plataforma SaaS multitenant de gestión de mantenimiento. Fase 1 · P01 Cimientos + P02 Catálogos + P03 Formularios + P04 Folios + P05 Campo, offline y chat + P06 Preventivos y reasignaciones.\n\n"
                 "Errores con formato estándar `{codigo, mensaje, detalles}`. Autenticación Bearer JWT (15 min) "
                 "con refresh rotativo (7 días) y MFA TOTP para roles críticos.",
     docs_url=None if config.es_produccion else "/docs",
@@ -29,7 +29,7 @@ instalar_middleware(app)
 configurar_cors(app)
 
 for modulo in (auth, usuarios, tenants, prestadores, unidades_negocio, grupos_un, contratos, alertas, configuracion, auditoria,
-               catalogos_tecnicos, catalogos_equipos, catalogos_importar, formularios, folios, chat, sync, push):
+               catalogos_tecnicos, catalogos_equipos, catalogos_importar, formularios, folios, chat, sync, push, preventivos, reasignaciones):
     app.include_router(modulo.router)
 
 

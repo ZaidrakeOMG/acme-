@@ -94,3 +94,89 @@ async def folio_en_revision_sin_atender(db: AsyncSession, alerta: AlertaCatalogo
                                            entidad_id=f.id, datos={"numero_folio": f.numero_folio, "horas": round((ahora - f.updated_at).total_seconds() / 3600, 1)})
         disparadas += 1 if h else 0
     return disparadas
+
+
+# ----------------------------------------------------------------- P06
+
+async def _umbral_p06(db, alerta, tenant_id):
+    conf = await alertas_service.listar_efectivas(db, tenant_id, None)
+    return next(c["umbral_valor"] for c in conf if c["clave"] == alerta.clave)
+
+
+async def _ya_disparada(db, alerta, entidad_id) -> bool:
+    return (await db.execute(select(AlertaHistorial.id).where(AlertaHistorial.clave_alerta == alerta.clave, AlertaHistorial.entidad_id == entidad_id,
+                                                              AlertaHistorial.estado == EstadoAlerta.disparada))).first() is not None
+
+
+@registrar_evaluador("PREVENTIVO_VENCIDO_SIN_EJECUTAR")
+async def preventivo_vencido(db: AsyncSession, alerta: AlertaCatalogo) -> int:
+    """Preventivos programados/generados cuya fecha + ventana del plan + umbral (días) ya pasó sin cierre."""
+    from datetime import date, timedelta
+
+    from models.preventivos import EstadoPreventivo, PlanMantenimiento, PreventivoCalendario
+
+    hoy = date.today()
+    filas = (await db.execute(select(PreventivoCalendario).where(PreventivoCalendario.estado.in_((EstadoPreventivo.programado, EstadoPreventivo.generado))))).scalars().all()
+    disparadas = 0
+    for f in filas:
+        ventana = 0
+        if f.plan_id:
+            plan = await db.get(PlanMantenimiento, f.plan_id)
+            ventana = plan.tiempo_ventana_dias if plan else 0
+        if hoy <= f.fecha_programada + timedelta(days=ventana + int(await _umbral_p06(db, alerta, f.tenant_id))):
+            continue
+        if await _ya_disparada(db, alerta, f.id):
+            continue
+        h = await alertas_service.disparar(db, alerta.clave, tenant_id=f.tenant_id, prestador_id=f.prestador_id, entidad_tipo="preventivo_calendario", entidad_id=f.id,
+                                           datos={"fecha_programada": f.fecha_programada.isoformat(), "ventana_dias": ventana, "folio_id": str(f.folio_id) if f.folio_id else None})
+        disparadas += 1 if h else 0
+    return disparadas
+
+
+@registrar_evaluador("AUTORIZACION_PREVENTIVO_PENDIENTE")
+async def autorizacion_preventivo_pendiente(db: AsyncSession, alerta: AlertaCatalogo) -> int:
+    from datetime import UTC, datetime, timedelta
+
+    from models.preventivos import AutorizacionPreventivo, EstadoAutorizacion
+
+    ahora = datetime.now(UTC)
+    pendientes = (await db.execute(select(AutorizacionPreventivo).where(AutorizacionPreventivo.estado == EstadoAutorizacion.pendiente))).scalars().all()
+    disparadas = 0
+    for a in pendientes:
+        if a.fecha_solicitud > ahora - timedelta(hours=float(await _umbral_p06(db, alerta, a.tenant_id))):
+            continue
+        if await _ya_disparada(db, alerta, a.id):
+            continue
+        h = await alertas_service.disparar(db, alerta.clave, tenant_id=a.tenant_id, prestador_id=a.prestador_id, entidad_tipo="autorizacion_preventivo", entidad_id=a.id,
+                                           datos={"folio_id": str(a.folio_id), "tipo": a.tipo.value, "horas": round((ahora - a.fecha_solicitud).total_seconds() / 3600, 1)})
+        disparadas += 1 if h else 0
+    return disparadas
+
+
+@registrar_evaluador("CALENDARIO_MES_SIN_PUBLICAR")
+async def calendario_mes_sin_publicar(db: AsyncSession, alerta: AlertaCatalogo) -> int:
+    """A partir del día umbral del mes, cada vínculo tenant-prestador sin calendario publicado del mes siguiente dispara una vez por mes."""
+    from datetime import date
+
+    from models.organizaciones import TenantPrestador
+    from models.preventivos import CalendarioPublicacion
+
+    hoy = date.today()
+    siguiente = date(hoy.year + (hoy.month == 12), hoy.month % 12 + 1, 1)
+    vinculos = (await db.execute(select(TenantPrestador).where(TenantPrestador.estado == EstadoRegistro.activo))).scalars().all()
+    disparadas = 0
+    for v in vinculos:
+        if hoy.day < int(await _umbral_p06(db, alerta, v.tenant_id)):
+            continue
+        publicado = (await db.execute(select(CalendarioPublicacion.id).where(CalendarioPublicacion.prestador_id == v.prestador_id,
+                                                                             CalendarioPublicacion.tenant_id == v.tenant_id, CalendarioPublicacion.mes == siguiente))).first()
+        if publicado:
+            continue
+        reciente = (await db.execute(select(AlertaHistorial.id).where(AlertaHistorial.clave_alerta == alerta.clave, AlertaHistorial.entidad_id == v.id,
+                                                                      AlertaHistorial.datos_contexto_json["mes"].astext == siguiente.isoformat()))).first()
+        if reciente:
+            continue
+        h = await alertas_service.disparar(db, alerta.clave, tenant_id=v.tenant_id, prestador_id=v.prestador_id, entidad_tipo="tenant_prestador", entidad_id=v.id,
+                                           datos={"mes": siguiente.isoformat()})
+        disparadas += 1 if h else 0
+    return disparadas

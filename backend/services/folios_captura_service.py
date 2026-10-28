@@ -384,6 +384,18 @@ async def tecnico_con_habilidad(db: AsyncSession, tecnico_usuario_id: UUID, foli
                               .where(TecnicoHabilidad.tecnico_id == tecnico.id, Habilidad.activa.is_(True)))).all()
     req = _normalizar(requerida)
     tiene = any(_normalizar(clave) == req or _normalizar(nombre).startswith(req) or req.startswith(_normalizar(clave)) for clave, nombre in filas)
+    if folio.plan_id:
+        # P06: las tareas del plan exigen todas sus habilidades certificadas (§6.9.1).
+        from models.preventivos import PlanTarea
+        requeridas = set((await db.execute(select(PlanTarea.habilidad_requerida_id).where(
+            PlanTarea.plan_id == folio.plan_id, PlanTarea.habilidad_requerida_id.is_not(None)))).scalars())
+        if requeridas:
+            certificadas = set((await db.execute(select(TecnicoHabilidad.habilidad_id).where(
+                TecnicoHabilidad.tecnico_id == tecnico.id, TecnicoHabilidad.certificada.is_(True)))).scalars())
+            faltan = requeridas - certificadas
+            if faltan:
+                nombres = (await db.execute(select(Habilidad.clave).where(Habilidad.id.in_(faltan)))).scalars().all()
+                return usuario, False, f"{requerida} + plan: {', '.join(sorted(nombres))}"
     return usuario, tiene, requerida
 
 
@@ -549,6 +561,10 @@ async def resumen(db: AsyncSession, folios: list[Folio], ahora: datetime | None 
             RevisionManualTrigger.folio_id.in_(ids), RevisionManualTrigger.resuelto.is_(False)).group_by(RevisionManualTrigger.folio_id))).all():
         triggers[folio_id] = n
     niveles_cache: dict[UUID, dict] = {}
+    planes: dict[UUID, str] = {}
+    if any(f.plan_id for f in folios):
+        from models.preventivos import PlanMantenimiento
+        planes = {p.id: p.nombre for p in (await db.execute(select(PlanMantenimiento).where(PlanMantenimiento.id.in_({f.plan_id for f in folios if f.plan_id})))).scalars()}
     salida = []
     for f in folios:
         un, eq, tf, sev = unidades.get(f.un_id), equipos.get(f.equipo_id), fallas.get(f.tipo_falla_id), severidades.get(f.severidad_id)
@@ -564,7 +580,8 @@ async def resumen(db: AsyncSession, folios: list[Folio], ahora: datetime | None 
             **{k: getattr(f, k) for k in ("id", "created_at", "updated_at", "version_hash", "numero_folio", "tenant_id", "prestador_id", "un_id",
                                           "equipo_id", "tipo_falla_id", "tipo_folio", "estado", "prioridad", "descripcion", "tecnico_id",
                                           "severidad_origen", "confirmacion_un", "monto_estimado", "capturado_por", "capturado_at", "fecha_falla",
-                                          "fecha_inicio_atencion", "fecha_cierre", "razon_cancelacion")},
+                                          "fecha_inicio_atencion", "fecha_cierre", "razon_cancelacion", "plan_id", "calendario_id")},
+            "plan_nombre": planes.get(f.plan_id),
             "un_nombre": un.nombre if un else None, "un_codigo": un.codigo if un else None,
             "equipo_codigo": eq.codigo if eq else None, "equipo_nombre": eq.nombre if eq else None, "criticidad": eq.criticidad if eq else None,
             "tipo_falla": tf.descripcion if tf else None,
@@ -594,6 +611,12 @@ async def _vinculo(db: AsyncSession, v) -> dict[str, Any] | None:
     f = await db.get(Formulario, v.formulario_id)
     return {"respuesta_id": v.respuesta_id, "formulario_id": v.formulario_id, "formulario_nombre": f.nombre if f else None,
             "version_formulario": v.version_formulario, "timestamp": v.timestamp, "respuestas_json": r.respuestas_json if r else {}}
+
+
+async def _reasignaciones(db: AsyncSession, folio: Folio) -> list[dict[str, Any]]:
+    from services import reasignacion_service  # import local: reasignacion_service depende de este módulo
+
+    return await reasignacion_service.historial_folio(db, folio.id)
 
 
 async def detalle(db: AsyncSession, actor: Actor, folio: Folio) -> dict[str, Any]:
@@ -635,7 +658,7 @@ async def detalle(db: AsyncSession, actor: Actor, folio: Folio) -> dict[str, Any
     puede_aprobar = bool(flujo) and folio.estado == EstadoFolio.en_revision and await aprobacion_service.es_aprobador(db, actor, folio, flujo)
     return {
         "folio": base, "captura": captura, "formulario_captura": await _vinculo(db, cap), "asignacion": asignacion, "historial": hist,
-        "reasignaciones": [], "evidencias": evidencias, "formulario_atencion": await _vinculo(db, ate), "refacciones": refacciones,
+        "reasignaciones": await _reasignaciones(db, folio), "evidencias": evidencias, "formulario_atencion": await _vinculo(db, ate), "refacciones": refacciones,
         "sla": sla, "encuesta": encuesta, "triggers_revision": triggers, "aprobacion": base["flujo"],
         "decisiones": [{"id": d.id, "flujo_id": d.flujo_id, "nivel": d.nivel, "actor_id": d.actor_id, "actor_nombre": nombres.get(d.actor_id),
                         "decision": d.decision, "razon_rechazo": d.razon_rechazo, "modulo_destino": d.modulo_destino,

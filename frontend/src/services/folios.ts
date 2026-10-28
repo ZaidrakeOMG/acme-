@@ -23,7 +23,6 @@ export const ACCIONES: { destino: EstadoFolio; ruta: string; etiqueta: string; c
   { destino: 'pendiente_informacion', ruta: 'pedir-informacion', etiqueta: 'Pedir información', campo: 'notas' },
   { destino: 'en_revision', ruta: 'responder-informacion', etiqueta: 'Responder información', campo: 'notas', desde: ['pendiente_informacion'] },
   { destino: 'asignado', ruta: 'asignar', etiqueta: 'Asignar técnico', campo: 'tecnico' },
-  { destino: 'reasignado', ruta: 'reasignar', etiqueta: 'Reasignar', campo: 'notas' },
   { destino: 'en_camino', ruta: 'en-camino', etiqueta: 'En camino' },
   { destino: 'en_ejecucion', ruta: 'confirmar-llegada', etiqueta: 'Confirmar llegada', desde: ['en_camino'] },
   { destino: 'en_ejecucion', ruta: 'reanudar', etiqueta: 'Reanudar ejecución', desde: ['pendiente_refaccion'] },

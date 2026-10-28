@@ -15,6 +15,7 @@ import { esSinConexion, syncEngine } from '../../../services/syncEngine'
 import type { Evidencia, Formulario, Respuesta } from '../../../types/formularios'
 import type { EstadoFolio, FolioDetalle } from '../../../types/folios'
 import { EstadoInsignia, SeveridadInsignia, fecha } from '../../folios/comunes'
+import { PlanDelTecnico } from './PlanDelTecnico'
 
 const ORDEN_ACCIONES: EstadoFolio[] = ['en_camino', 'en_ejecucion', 'pendiente_refaccion', 'cerrado']
 
@@ -73,7 +74,7 @@ export function AtencionTecnico() {
         let f: Formulario | null = null
         if (syncEngine.enLinea()) {
           try {
-            f = await api<Formulario>('/formularios/resolver', { params: { tipo: 'atencion_tecnico', tipo_folio: d.folio.tipo_folio, tenant_id: d.folio.tenant_id, equipo_id: d.folio.equipo_id } })
+            f = await api<Formulario>('/formularios/resolver', { params: { tipo: d.folio.tipo_folio === 'preventivo' ? 'preventivo' : 'atencion_tecnico', tipo_folio: d.folio.tipo_folio, tenant_id: d.folio.tenant_id, equipo_id: d.folio.equipo_id, plan_id: d.folio.plan_id ?? undefined } })
           } catch (e) {
             if (!esSinConexion(e) && (e as { estado?: number }).estado !== 404) throw e
           }
@@ -81,7 +82,7 @@ export function AtencionTecnico() {
         if (!f) {
           const mapa = ((await baseLocal.metadatos.get('sync.formulario_por_folio'))?.valor as Record<string, string> | undefined) ?? {}
           const id = mapa[folioId]
-          const cache = id ? await baseLocal.formularios_cache.get(id) : (await baseLocal.formularios_cache.where('tipo').equals('atencion_tecnico').first())
+          const cache = id ? await baseLocal.formularios_cache.get(id) : (await baseLocal.formularios_cache.where('tipo').equals(d.folio.tipo_folio === 'preventivo' ? 'preventivo' : 'atencion_tecnico').first())
           if (cache) f = cache.datos as unknown as Formulario
         }
         if (!f) return
@@ -174,8 +175,9 @@ export function AtencionTecnico() {
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between gap-2">
           <span className="font-mono text-lg font-semibold">{f.numero_folio}</span>
-          <EstadoInsignia estado={f.estado} />
+          <span className="flex gap-1">{f.tipo_folio === 'preventivo' && <Insignia tono="acento">Preventivo</Insignia>}<EstadoInsignia estado={f.estado} /></span>
         </div>
+        {f.tipo_folio === 'preventivo' && f.plan_nombre && <p className="mt-1 text-xs text-slate-600">Plan: {f.plan_nombre}</p>}
         <p className="mt-2 text-base text-slate-800">{f.descripcion}</p>
         <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
           <SeveridadInsignia severidad={f.severidad} />
@@ -207,6 +209,8 @@ export function AtencionTecnico() {
           )}
         </div>
       )}
+
+      {f.tipo_folio === 'preventivo' && <PlanDelTecnico folioId={f.id} alUsarMaterial={(m) => setRefaccion({ ...refaccion, descripcion: m.descripcion, cantidad: String(Number(m.cantidad_estandar) || 1) })} />}
 
       {formulario && respuesta && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">

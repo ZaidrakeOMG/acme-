@@ -24,7 +24,7 @@ def _xlsx(nombre: str, filas: list[list]) -> dict:
 
 async def test_catalogos_y_plantillas(cliente, auth):
     lista = (await cliente.get("/api/catalogos/importar/catalogos", headers=await auth(AE))).json()
-    assert {c["clave"] for c in lista} == {"tecnicos", "unidades_negocio", "severidades", "familias_equipo", "tipos_equipo",
+    assert {c["clave"] for c in lista} == {"tecnicos", "unidades_negocio", "severidades", "familias_equipo", "tipos_equipo", "calendario_preventivos",
                                            "tipos_falla", "equipos", "matriz_severidad"}
     for cat in lista:
         r = await cliente.get(f"/api/catalogos/importar/{cat['clave']}/plantilla", headers=await auth(AE))

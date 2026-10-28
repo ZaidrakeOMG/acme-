@@ -24,6 +24,8 @@ from models.catalogos import (
     Equipo, FamiliaEquipo, Habilidad, NivelSeveridadCatalogo, Tecnico, TecnicoHabilidad, TipoEquipo, TipoFalla,
     TipoFallaSeveridad,
 )
+from models.organizaciones import Tenant, TenantPrestador
+from models.preventivos import OrigenPreventivo, PlanMantenimiento, PreventivoCalendario
 from models.unidades import GrupoUN, GrupoUNMiembro, UnidadNegocio
 from models.usuarios import Usuario
 
@@ -106,6 +108,15 @@ CATALOGOS: dict[str, Catalogo] = {
         Columna("tipo_equipo", True, "Nombre del tipo de equipo", "Refrigerador vertical"),
         Columna("severidad", True, "Clave del nivel: muy_baja, baja, media, alta, critica", "critica"),
     ], ("tipo_falla", "tipo_equipo")),
+    "calendario_preventivos": Catalogo("calendario_preventivos", "Calendario de preventivos", Dominio.prestador, [
+        Columna("cliente", True, "RFC o razón social del cliente", "CDE200101XY2"),
+        Columna("un_codigo", True, "Código de la UN", "SUC-001"),
+        Columna("fecha", True, "Fecha programada (AAAA-MM-DD)", "2026-11-15"),
+        Columna("equipo_codigo", False, "Código del equipo (vacío = preventivo de la UN)", "EQ-0001"),
+        Columna("plan", False, "Nombre del plan de mantenimiento", "Mantenimiento trimestral de refrigeradores"),
+        Columna("tecnico_email", False, "Correo del técnico asignado", "tecnico1@acma.dev"),
+        Columna("descripcion", False, "Descripción", "Limpieza de condensadores"),
+    ], ("cliente", "un_codigo", "equipo_codigo", "fecha")),
 }
 
 
@@ -279,6 +290,24 @@ class Contexto:
         if catalogo == "equipos":
             self.d["codigos_equipo"] = {c.lower() for c in (await db.execute(
                 select(Equipo.codigo).where(Equipo.tenant_id == t))).scalars()}
+        if catalogo == "calendario_preventivos":
+            vinculos = (await db.execute(select(TenantPrestador.tenant_id).where(TenantPrestador.prestador_id == p))).scalars().all()
+            tenants = (await db.execute(select(Tenant).where(Tenant.id.in_(vinculos)))).scalars().all() if vinculos else []
+            self.d["clientes"] = {}
+            for x in tenants:
+                self.d["clientes"][x.rfc.lower()] = x
+                self.d["clientes"][x.razon_social.lower()] = x
+            ids = [x.id for x in tenants]
+            self.d["un_por_tenant"] = {(u.tenant_id, u.codigo.lower()): u for u in (await db.execute(
+                select(UnidadNegocio).where(UnidadNegocio.tenant_id.in_(ids)))).scalars()} if ids else {}
+            self.d["equipo_por_tenant"] = {(e.tenant_id, e.codigo.lower()): e for e in (await db.execute(
+                select(Equipo).where(Equipo.tenant_id.in_(ids)))).scalars()} if ids else {}
+            self.d["tecnicos_email"] = {u.email.lower(): u.id for u in (await db.execute(
+                select(Usuario).where(Usuario.prestador_id == p, Usuario.rol == Rol.tecnico))).scalars()}
+            self.d["planes"] = {x.nombre.lower(): x for x in (await db.execute(
+                select(PlanMantenimiento).where(PlanMantenimiento.prestador_id == p))).scalars()}
+            self.d["calendario"] = {(c.tenant_id, c.un_id, c.equipo_id, c.fecha_programada) for c in (await db.execute(
+                select(PreventivoCalendario).where(PreventivoCalendario.prestador_id == p))).scalars()}
         if catalogo == "matriz_severidad":
             from services.catalogos_service import prestadores_del_tenant
             prestadores = await prestadores_del_tenant(db, t)
@@ -419,6 +448,44 @@ def _validar_fila(catalogo: str, f: dict[str, str], ctx: Contexto) -> tuple[dict
         n["_etiqueta"] = f"{f.get('tipo_falla', '')} × {f.get('tipo_equipo', '')}"
         return (n, False, errores)  # las celdas existentes se actualizan
 
+    if catalogo == "calendario_preventivos":
+        tenant = d["clientes"].get(f.get("cliente", "").strip().lower())
+        if tenant is None:
+            errores.append(("cliente", f"El cliente «{f.get('cliente', '')}» no existe o no está vinculado al prestador"))
+        un = d["un_por_tenant"].get((tenant.id, f.get("un_codigo", "").strip().lower())) if tenant else None
+        if tenant and un is None:
+            errores.append(("un_codigo", f"La UN «{f.get('un_codigo', '')}» no existe en ese cliente"))
+        equipo = None
+        if f.get("equipo_codigo", "").strip():
+            equipo = d["equipo_por_tenant"].get((tenant.id, f["equipo_codigo"].strip().lower())) if tenant else None
+            if tenant and equipo is None:
+                errores.append(("equipo_codigo", f"El equipo «{f['equipo_codigo']}» no existe en ese cliente"))
+            elif equipo and un and equipo.un_id != un.id:
+                errores.append(("equipo_codigo", "El equipo no pertenece a esa UN"))
+        plan = None
+        if f.get("plan", "").strip():
+            plan = d["planes"].get(f["plan"].strip().lower())
+            if plan is None:
+                errores.append(("plan", f"El plan «{f['plan']}» no existe"))
+            elif equipo and plan.tipo_equipo_id != equipo.tipo_equipo_id:
+                errores.append(("plan", "El plan es para otro tipo de equipo"))
+        tecnico = None
+        if f.get("tecnico_email", "").strip():
+            tecnico = d["tecnicos_email"].get(f["tecnico_email"].strip().lower())
+            if tecnico is None:
+                errores.append(("tecnico_email", f"El técnico «{f['tecnico_email']}» no existe en el prestador"))
+        fecha = None
+        try:
+            fecha = _fecha(f.get("fecha", ""))
+        except ValueError as e:
+            errores.append(("fecha", str(e)))
+        n.update({"tenant_id": str(tenant.id) if tenant else None, "un_id": str(un.id) if un else None, "equipo_id": str(equipo.id) if equipo else None,
+                  "plan_id": str(plan.id) if plan else None, "tecnico_id": str(tecnico) if tecnico else None, "fecha_programada": str(fecha) if fecha else None,
+                  "descripcion": f.get("descripcion", "").strip(),
+                  "_etiqueta": f"{f.get('un_codigo', '')} {f.get('equipo_codigo', '') or '(UN)'} {f.get('fecha', '')}"})
+        duplicado = bool(tenant and un and fecha) and (tenant.id, un.id, equipo.id if equipo else None, fecha) in d["calendario"]
+        return (n, duplicado, errores)
+
     raise ErrorAPI(404, "CATALOGO_DESCONOCIDO", f"Catálogo {catalogo} no soportado")
 
 
@@ -522,6 +589,15 @@ async def aplicar(db: AsyncSession, catalogo: str, filas: list[dict[str, Any]], 
             else:
                 actualizados += 1
             celda.nivel_severidad_id, celda.configurado_por, celda.activa = UUID(f["nivel_severidad_id"]), actor_id, True
+    elif catalogo == "calendario_preventivos":
+        for f in filas:
+            fecha = _fecha(f["fecha_programada"])
+            db.add(PreventivoCalendario(prestador_id=prestador_id, tenant_id=UUID(f["tenant_id"]), un_id=UUID(f["un_id"]),
+                                        equipo_id=UUID(f["equipo_id"]) if f.get("equipo_id") else None, plan_id=UUID(f["plan_id"]) if f.get("plan_id") else None,
+                                        tecnico_id=UUID(f["tecnico_id"]) if f.get("tecnico_id") else None, fecha_programada=fecha, fecha_programada_original=fecha,
+                                        origen=OrigenPreventivo.plan if f.get("plan_id") else OrigenPreventivo.manual, descripcion=f.get("descripcion") or "",
+                                        cargado_por=actor_id))
+            creados += 1
     await db.flush()
     return {"creados": creados, "actualizados": actualizados}
 

@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-28 · P05 Apps de campo, offline y chat**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-28 · P06 Preventivos y reasignación forzada**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -18,12 +18,27 @@
 | P03 | Motor de formularios: 22 tipos de campo, constructor, versiones, asignaciones, respuestas y evidencias | ✅ 2026-10-23 |
 | P04 | Folios: ciclo de vida de 11 estados, validaciones automáticas en captura y aprobación multinivel | ✅ 2026-10-27 |
 | P05 | Apps PWA del operador y del técnico, modo offline (cola idempotente) y chat archivado con tiempo real | ✅ 2026-10-28 |
-| P06 | Preventivos y reasignación forzada | Pendiente |
+| P06 | Calendario de preventivos, planes con triggers de Fase 1, autorizaciones y reasignación forzada | ✅ 2026-10-28 |
 | P07 | Minuta y seguimiento | Pendiente |
 | P08 | Trabajos especiales y OC | Pendiente |
 | P09 | Inventario, caja chica manual, presupuestos y activos | Pendiente |
 | P10 | Contratos/SLA (contador), alertas por módulo y BI | Pendiente |
 | P11 | Endurecimiento y despliegue | Pendiente |
+
+## Verificación al cierre de P06
+
+- `pytest`: **226 pruebas en verde** (203 anteriores + 23: próxima fecha y validación de triggers, plan completo, 403 de
+  Fase 2, asignación a equipos con recálculo, edición con versión y aislamiento; texto literal de desvío, carga/consulta/
+  edición por rol, publicación con notificación, importador `calendario_preventivos`, generación desde calendario
+  manual; generación nocturna idempotente, habilidades del plan + tareas y paquete del técnico, cancelación con
+  autorización, reprogramación autorizada y rechazada, cierre con desvío y recálculo, las tres alertas; catálogo de
+  razones, candidatos y restricciones con confirmación, sin habilidad con permiso, estados no reasignables y roles,
+  reporte de causas). La prueba de reasignación de P04 usa ahora la reasignación forzada real.
+- `vitest`: **54 pruebas en verde** (45 anteriores + 9: calendario con desvío y publicación, editor de planes con Fase 2
+  deshabilitada, técnico con tareas y materiales, solicitud de reprogramación desde el folio, bandeja de
+  autorizaciones; modal de reasignación con 409 y confirmación, razón sin habilidad, sin botón para el operador,
+  reporte con porcentajes).
+- `tsc --noEmit` limpio; `npm run build` verde. Datos demo regenerados con `seed_preventivos` sobre la base existente.
 
 ## Verificación al cierre de P05
 
@@ -318,6 +333,93 @@
   15 folios (creados por el gancho o rellenados), mensajes en CD-000015 (uno con retraso), CD-000001 (cerrado, inmutables)
   y CD-000014, y una suscripción push demo del operador.
 
+### Preventivos y reasignaciones (P06)
+- **Tablas (0006)**: `planes_mantenimiento` (prestador, tenant opcional = todos los clientes, tipo de equipo, versión,
+  estado, `tiempo_ventana_dias`, formulario y severidad opcionales), `plan_triggers` (ENUM `tipo_trigger_plan`: Fase 1
+  `tiempo_fijo` {cada_dias} | {cada, unidad} y `calendario` {mes, dia} | {fechas}; `medidor_umbral`, `medidor_intervalo`,
+  `evento`, `combinado` existen en el ENUM pero responden **403 TRIGGER_FASE_2**), `plan_tareas` (orden, minutos,
+  `habilidad_requerida_id`), `plan_materiales` (`articulo_id` sin FK hasta P09), `plan_ejecuciones` (dedupe por plan +
+  equipo + fecha), `equipo_planes` (UNIQUE equipo-plan; `fecha_proxima_ejecucion`, `fecha_ultima_ejecucion`,
+  `ultimo_valor_medidor` para Fase 2), **`preventivos_calendario`** (una sola tabla para §6.9.1 y §7.6: UN obligatoria,
+  equipo/plan/técnico opcionales, `fecha_programada`, `fecha_programada_original`, `fecha_real`, `desvio_dias`, estado
+  `programado|generado|ejecutado|reprogramado|cancelado`, `folio_id`, `origen manual|plan`, `reprogramado_desde_id`),
+  `calendario_publicaciones` (UNIQUE prestador-tenant-mes), `autorizaciones_preventivo` (tipo reprogramación/cancelación,
+  solicitante, autorizador, canal `canal_aprobacion`, `fecha_nueva`, estado), `razones_reasignacion` (UNIQUE
+  prestador-descripción; 7 literales de §6.8.2 sembradas por la migración y por `POST /api/prestadores`),
+  `reasignaciones` (origen, destino, tipo `forzada|automatica`, razón, comentario, despachador) y
+  `reasignacion_validaciones` (`habilidad_ok`, `refaccion_ok` NULL hasta P09, advertencias). `folios.plan_id` y
+  `folios.calendario_id`; FK real de `formulario_asignaciones.plan_mantenimiento_id`. Tres alertas nuevas:
+  `PREVENTIVO_VENCIDO_SIN_EJECUTAR` (umbral días tras fecha + ventana), `AUTORIZACION_PREVENTIVO_PENDIENTE` (24 h) y
+  `CALENDARIO_MES_SIN_PUBLICAR` (día 25). RLS: tablas del prestador con `politicas_prestador(lectura_tenants=True)`; las
+  ligadas al folio con políticas por comando como en P05.
+- **Planes** (`services/planes_service.py`, `/api/planes`): `validar_trigger`, `proxima_fecha_trigger(tipo, parametros,
+  desde, hoy)` (tiempo fijo = última ejecución + intervalo, con recorte de fin de mes; calendario = siguiente fecha
+  fija posterior a hoy), `crear/editar` (editar reemplaza triggers/tareas/materiales, sube `version` una vez y recalcula
+  la próxima fecha de los equipos), `asignar_equipo(plan, equipo, fecha_base)` (valida tipo de equipo y cliente
+  vinculado) y `desactivar_equipo`. Admin prestador y Despachador editan; Admin empresa/Admin UN consultan.
+- **Calendario** (`services/preventivos_service.py`): `GET/POST /api/preventivos/calendario` (filas con `un_id`,
+  `equipo_id?`, `plan_id?`, `tecnico_id?`, `fecha_programada`), `PATCH …/calendario/{id}` (la fecha solo sin folio:
+  409 `REQUIERE_AUTORIZACION`), `POST …/calendario/publicar?mes=AAAA-MM&tenant_id` (409 `MES_VACIO`; emite
+  `calendario.publicado` → `notificaciones.enviar` roles admin_empresa/admin_un canales push+email y push web; **P07
+  conecta el correo**), `GET …/publicaciones`, catálogo importable **`calendario_preventivos`** (cliente por RFC o razón
+  social, UN, fecha, equipo/plan/técnico opcionales; duplicado por tenant+UN+equipo+fecha). `texto_desvio(desvio)` es el
+  literal de §7.6: «realizado en la fecha programada», «realizado N día(s) antes de lo programado», «realizado con N
+  día(s) de retraso», «pendiente de ejecución»; se expone en cada fila y en `GET /api/preventivos/texto-desvio`.
+- **Generación nocturna**: tarea Celery `acma.generar_preventivos_programados` (beat 02:00, `workers/tareas/preventivos.py`)
+  = `generar_programados(db, hoy, horizonte_dias=7)`: equipos con `fecha_proxima_ejecucion ≤ hoy+horizonte` → fila de
+  calendario `origen=plan` + `generar_folio_preventivo` (folio `tipo_folio=preventivo` capturado por el sistema con
+  confirmación de UN, severidad del plan o la más baja del prestador, formulario del plan o resuelto por P03 con
+  `plan_id`, historial `capturado → autorizado` por `sistema` sin flujo de aprobación) + `plan_ejecuciones` + próxima
+  fecha recalculada; después las filas manuales con equipo dentro del horizonte. Idempotente; cada equipo en su savepoint.
+  `POST /api/preventivos/generar?hoy=&horizonte_dias=` ejecuta lo mismo a demanda (pruebas y operación).
+- **Ciclo**: asignación con `tecnico_con_habilidad` ampliado (habilidad de la familia **y** las de `plan_tareas`: mensaje
+  «refrigeracion + plan: plomeria»); `GET /api/preventivos/{folio_id}/plan` da tareas y materiales al técnico y el
+  paquete offline resuelve el formulario tipo `preventivo` por folio. Reprogramación y cancelación: `POST
+  /api/preventivos/{folio_id}/solicitar-reprogramacion|solicitar-cancelacion` (Despachador/Mesa/Admin prestador; una
+  pendiente por folio: 409 `SOLICITUD_PENDIENTE`; 409 `NO_ES_PREVENTIVO`, `FOLIO_FINAL`; 422 `FECHA_REQUERIDA`) →
+  `autorizaciones_preventivo` + evento `preventivo.solicitud_*` en historial y chat operativo + notificación
+  `autorizacion.solicitada` (push + email P07) a los Admin UN de la UN y Admin empresa; `GET /api/preventivos/autorizaciones`
+  (bandeja con `puede_resolver`), `POST …/{id}/autorizar|rechazar` {notas, canal app|push|minuta}. Autorizada:
+  reprogramación = nueva fila del calendario con `reprogramado_desde_id` (la original queda `reprogramado` y conserva la
+  fecha original), `folio.calendario_id` y `fecha_falla` actualizados, evento `preventivo.reprogramado`; cancelación =
+  `transicionar(cancelado)` ejecutada por el solicitante con `autorizacion_id` en el contexto. Validador
+  `folio_estados.suscribir_validacion`: un preventivo **no** se cancela desde los roles del prestador sin
+  `contexto.autorizacion_id` (409 `REQUIERE_AUTORIZACION`); Admin empresa sí puede directamente. Al cerrar
+  (`_al_cerrar_preventivo`): `fecha_real`, `desvio_dias`, estado `ejecutado`, `plan_ejecuciones` y
+  `equipo_planes.fecha_ultima/proxima`.
+- **Reasignación forzada** (`services/reasignacion_service.py`): `GET /api/folios/{id}/reasignacion/candidatos` (técnicos
+  activos del prestador con `habilidad_ok`, `habilidad_requerida`, `carga_dia`, `refaccion_ok` NULL, `es_actual`,
+  advertencias), `POST /api/folios/{id}/reasignar` {tecnico_destino_id, razon_id, comentario, confirmar_advertencias,
+  razon_sin_habilidad}: 409 `REASIGNACION_NO_PERMITIDA` en ejecución («el técnico ya está en la unidad»), en camino o
+  estados no reasignables (válidos: asignado, pendiente_refaccion); 422 `MISMO_TECNICO`, `RAZON_INVALIDA`
+  (catálogo del prestador, activa), `RAZON_REQUERIDA`; 403 `TECNICO_SIN_HABILIDAD` salvo Admin prestador o despachador
+  con `asignar_tecnico_sin_habilidad` (y razón); 409 `CONFIRMACION_REQUERIDA` con la lista de advertencias (hoy siempre
+  «Refacción no verificada» hasta P09) si no se confirma. Ejecuta `reasignado → asignado` (misma operación, historial
+  de P04 con `sin_habilidad`/`razon`), guarda `reasignaciones` + `reasignacion_validaciones`, saca al técnico anterior
+  del chat de campo y mete al nuevo, evento `folio.reasignado` en campo y operativo, push a ambos técnicos.
+  `GET /api/folios/{id}/reasignaciones` (también en `GET /api/folios/{id}` → `reasignaciones`),
+  `GET /api/reasignaciones/reporte?desde&hasta&tenant_id` (total y % por razón, técnico origen/destino y tipo),
+  `GET/POST/PATCH /api/reasignaciones/razones`. La ruta transitoria `POST /api/folios/{id}/reasignar` de P04 (solo
+  marcar `reasignado`) se sustituyó por esta.
+- **Frontend**: `types/preventivos.ts`, `services/preventivos.ts`; módulos `preventivos` (`/preventivos/calendario`,
+  `pages/preventivos/Calendario.tsx`: mes, cliente, estados, carga por filas, edición, publicar, «Generar folios ahora»,
+  desvío literal por fila), `/preventivos/planes` (`Planes.tsx`: lista, editor con los 6 triggers del ENUM y los de Fase
+  2 deshabilitados, tareas con habilidad, materiales, equipos con fecha base), `/preventivos/autorizaciones`
+  (`Autorizaciones.tsx`), `reasignaciones` (`/reasignaciones/reporte`, `pages/reasignaciones/Reporte.tsx` con catálogo
+  de razones). `FolioDetalle`: botón **Reasignar** (`pages/folios/Reasignar.tsx`: candidatos con insignias, razón del
+  catálogo, advertencias con casilla de confirmación ante 409, razón sin habilidad) y `PanelPreventivo` (solicitar
+  reprogramación/cancelación, autorizar/rechazar, histórico). App del técnico: insignia **Preventivo** + plan, lista de
+  verificación de tareas (`PlanDelTecnico.tsx`, marcas en IndexedDB, operable sin red) y materiales «Usar como refacción».
+- **Seed** (`scripts/seed_preventivos.py`): formulario «Inspección preventiva · Prestador Demo» asignado a `preventivo`,
+  3 planes (trimestral de refrigeradores cada 3 meses, semestral de minisplits cada 180 días, anual de iluminación el
+  15/01) con 9 tareas y 6 materiales, 6 equipo_planes, generación simulada del 05 y 20 de octubre, calendario con 8 filas
+  (2 ejecutados con desvío +2/−3, 1 reprogramado + su nueva fecha, 1 cancelado, 3 programados de noviembre: uno de UN
+  completa), noviembre publicado, 7 razones y 3 reasignaciones (una sin habilidad por el Admin prestador).
+- **Para P07**: eventos `calendario.publicado` y `autorizacion.solicitada`/`*_autorizada` ya pasan por `notificaciones.enviar`
+  con canal `email`; la minuta puede leer `preventivos_calendario` y `texto_desvio`. **Para P09**: `plan_materiales.articulo_id`,
+  `reasignacion_validaciones.refaccion_ok` y la advertencia «Refacción no verificada» se resuelven con el inventario del
+  vehículo. **Para P10**: `plan_ejecuciones.desvio_dias` y la alerta de preventivo vencido alimentan los KPIs.
+
 ### Frontend
 - `src/config/modulos.ts` define los 25 módulos de Fase 1, su prompt y los roles que los ven. Al construir un módulo:
   agregar `ruta`, la página en `App.tsx` (`PAGINAS`) y ajustar roles.
@@ -420,6 +522,31 @@
     lecturas de folios/catálogos para las apps usan además IndexedDB (fuente offline principal).
 48. **Política RLS de `folios`** corregida en 0005 (escritura por comando) para que la restricción de lectura del técnico
     aplique también a nivel de BD.
+49. **Una sola tabla de calendario** (`preventivos_calendario`) para `calendarios_preventivos` (§6.9.1) y
+    `preventivos_calendario` (§7.6): misma información con origen `manual|plan`. `plan_ejecuciones` conserva el histórico
+    por plan y equipo.
+50. **Preventivos de UN completa** (sin equipo) se programan y publican, pero **no generan folio** hasta asignarles un
+    equipo: el folio exige `equipo_id`. La tarea nocturna los reporta como `omitidos`.
+51. **Fecha próxima por tiempo fijo** = última ejecución (o fecha base) + intervalo, aunque quede en el pasado: un plan
+    atrasado genera su folio en la siguiente corrida y la alerta `PREVENTIVO_VENCIDO_SIN_EJECUTAR` lo marca.
+52. **El folio preventivo nace autorizado sin flujo de aprobación** («autorizado al configurar el plan»). La regla de
+    aprobación `tipo_trabajo = preventivo` queda para preventivos capturados a mano.
+53. **Reprogramación de preventivos ≠ rechazo «reprogramar» de §6.8.7**: aquí el folio no se cancela; se crea una fila
+    nueva del calendario ligada a la original y el folio conserva número e historial.
+54. **Cancelar un preventivo exige autorización formal** del Admin UN de la UN o del Admin empresa cuando lo pide el
+    prestador (validador en el motor de estados); el Admin empresa puede cancelarlo directamente.
+55. **Severidad del preventivo**: la del plan si la tiene; si no, el nivel más bajo del prestador (no hay tipo de falla
+    para la matriz).
+56. **En camino no se reasigna** (la tabla §6.8.6 no tiene `en_camino → reasignado`); solo `asignado` y
+    `pendiente_refaccion`. En ejecución está prohibido por diseño.
+57. **Reasignación forzada = `reasignado → asignado` en una sola operación** (el estado intermedio queda en el historial);
+    la tabla literal se respeta usando al despachador como actor (o `sistema` si actúa el Admin prestador).
+58. **Advertencia de refacción siempre presente** hasta P09 («Refacción no verificada»), por lo que toda reasignación
+    pide `confirmar_advertencias`. P09 la sustituye por la verificación real del inventario del vehículo.
+59. **Umbrales de las alertas nuevas**: vencido 0 días tras fecha + ventana del plan; autorización pendiente 24 h;
+    calendario sin publicar desde el día 25 (una vez por mes y vínculo tenant-prestador).
+60. **Publicar un mes vacío responde 409** (`MES_VACIO`); volver a publicar actualiza la misma publicación y vuelve a
+    notificar.
 
 ## Notas de entorno (esta máquina)
 

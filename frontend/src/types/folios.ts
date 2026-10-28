@@ -1,5 +1,6 @@
 /** Espejo de backend/schemas/folios.py (P04). */
 import type { Rol } from './api'
+import type { ReasignacionFolio } from './preventivos'
 
 export const ESTADOS_FOLIO = ['capturado', 'en_revision', 'pendiente_informacion', 'autorizado', 'asignado', 'reasignado', 'en_camino', 'en_ejecucion', 'pendiente_refaccion', 'cerrado', 'cancelado'] as const
 export type EstadoFolio = (typeof ESTADOS_FOLIO)[number]
@@ -85,6 +86,9 @@ export interface FolioResumen {
   flujo: FlujoResumen | null
   triggers_pendientes: number
   antiguedad_horas: number
+  plan_id?: string | null          // P06
+  calendario_id?: string | null    // P06
+  plan_nombre?: string | null
 }
 
 export interface HistorialFolio {
@@ -135,7 +139,7 @@ export interface FolioDetalle {
   formulario_captura: VinculoFormulario | null
   asignacion: { tecnico_id: string | null; tecnico_nombre: string | null; asignado_at: string | null; vehiculo: string | null; orden_en_ruta: number | null; ventana_inicio: string | null; ventana_fin: string | null }
   historial: HistorialFolio[]
-  reasignaciones: unknown[]
+  reasignaciones: ReasignacionFolio[]
   evidencias: EvidenciaFolio[]
   formulario_atencion: VinculoFormulario | null
   refacciones: RefaccionFolio[]

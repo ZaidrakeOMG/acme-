@@ -158,6 +158,17 @@ fotos, refacciones y las acciones del ciclo de vida. Todo lo hecho sin conexión
 en las apps de campo, con tiempo real por WebSocket (fallback SSE). Para las notificaciones push genera claves VAPID con
 `.\.venv\Scripts\python -m scripts.generar_vapid` y pégalas en `.env`; sin ellas el envío solo se registra en el log.
 
+## Preventivos y reasignaciones (P06)
+
+Tarjeta **Preventivos y planes** (`/preventivos/calendario`): el prestador carga el calendario del mes (fila por fila o
+importando el catálogo `calendario_preventivos`), lo publica (aviso al Admin empresa y Admin UN) y ve el desvío literal de
+cada preventivo («realizado con 2 días de retraso»). En **Planes** define triggers de tiempo fijo o calendario (los de
+Fase 2 aparecen deshabilitados), tareas con habilidad requerida, materiales y equipos; la tarea nocturna
+(`acma.generar_preventivos_programados`, 02:00) o el botón «Generar folios ahora» crean los folios preventivos directo en
+Autorizado. Reprogramar o cancelar un preventivo pasa por **Autorizaciones** (Admin UN / Admin empresa). Tarjeta
+**Reasignaciones** (`/reasignaciones/reporte`): causas por período y catálogo de razones; la reasignación forzada se hace
+desde el detalle del folio con el botón **Reasignar** (habilidad = restricción dura, advertencias con confirmación).
+
 ## Problemas conocidos en Windows
 
 - **Docker Desktop no arranca** y el log menciona `remove …\dockerInference` o `…\engine.sock`: quedaron sockets huérfanos.

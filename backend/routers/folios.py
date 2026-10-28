@@ -272,12 +272,6 @@ async def asignar(folio_id: UUID, datos: AsignarEntrada, request: Request, db: D
     return await _resumen(db, folio)
 
 
-@router.post("/{folio_id}/reasignar", response_model=FolioResumen, summary="Marcar reasignación (estado transitorio)",
-             description="asignado/pendiente_refaccion → reasignado. La reasignación forzada con razones llega en P06; después se vuelve a `asignar`.")
-async def reasignar(folio_id: UUID, datos: NotasEntrada, request: Request, db: DB, actor: Actor = Depends(TODOS)):
-    return await _transicion(db, actor, folio_id, EstadoFolio.reasignado, datos.notas, None, request)
-
-
 @router.post("/{folio_id}/en-camino", response_model=FolioResumen, summary="Técnico en camino")
 async def en_camino(folio_id: UUID, datos: LlegadaEntrada, request: Request, db: DB, actor: Actor = Depends(TODOS)):
     return await _transicion(db, actor, folio_id, EstadoFolio.en_camino, datos.notas, {"geolat": datos.geolat, "geolng": datos.geolng}, request)

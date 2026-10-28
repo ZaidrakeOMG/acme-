@@ -9,6 +9,8 @@ import { NOMBRE_ESTADO, NOMBRE_TRIGGER, RAZONES_RECHAZO } from '../../types/foli
 import { api, mensajeDeError } from '../../services/api'
 import { ACCIONES, accionFolio, aprobarFolio, comentarFolio, fijarMonto, obtenerFolio, overrideSeveridad, rechazarFolio, transiciones } from '../../services/folios'
 import { notificar } from '../../services/notificaciones'
+import { ROLES_AUTORIZAN, ROLES_REASIGNAN, ROLES_SOLICITAN } from '../../types/preventivos'
+import { PanelPreventivo, ReasignarModal } from './Reasignar'
 import { EstadoInsignia, SeveridadInsignia, fecha } from './comunes'
 
 type Accion = (typeof ACCIONES)[number]
@@ -31,6 +33,7 @@ export function FolioDetalle() {
   const [severidades, setSeveridades] = useState<Severidad[]>([])
   const [override, setOverride] = useState({ severidad_id: '', razon: '' })
   const [destinosTabla, setDestinosTabla] = useState<Set<string>>(new Set())
+  const [reasignando, setReasignando] = useState(false)
 
   const cargar = useCallback(async () => {
     if (!folioId) return
@@ -93,6 +96,8 @@ export function FolioDetalle() {
   const esPrestador = ['mesa_control', 'despachador', 'admin_prestador', 'superadmin'].includes(usuario.rol)
   const puedeOverride = ['despachador', 'admin_prestador', 'superadmin'].includes(usuario.rol) && f.estado === 'en_revision'
   const final = f.estado === 'cerrado' || f.estado === 'cancelado'
+  const puedeReasignar = ROLES_REASIGNAN.includes(usuario.rol) && ['asignado', 'pendiente_refaccion'].includes(f.estado)
+  const esPreventivo = f.tipo_folio === 'preventivo'
 
   return (
     <div className="space-y-5">
@@ -104,12 +109,13 @@ export function FolioDetalle() {
             <EstadoInsignia estado={f.estado} />
             <SeveridadInsignia severidad={f.severidad} />
             {f.severidad_origen === 'override_admin' && <Insignia tono="alerta">Severidad modificada</Insignia>}
-            <Insignia>{f.tipo_folio}</Insignia>
+            <Insignia tono={esPreventivo ? 'acento' : 'neutro'}>{esPreventivo ? `Preventivo${f.plan_nombre ? ` · ${f.plan_nombre}` : ''}` : f.tipo_folio}</Insignia>
             {f.criticidad && <Insignia tono="acento">Criticidad {f.criticidad}</Insignia>}
             {final && <Insignia>Archivo inmutable</Insignia>}
           </div>
         </div>
         <div className="flex flex-wrap gap-2" data-testid="acciones">
+          {puedeReasignar && <Boton variante="secundario" onClick={() => setReasignando(true)}>Reasignar</Boton>}
           {acciones.map((a) => (
             <Boton key={a.ruta} variante={a.destino === 'cancelado' ? 'peligro' : a.destino === 'cerrado' || a.destino === 'autorizado' ? 'primario' : 'secundario'} onClick={() => void ejecutar(a)}>
               {a.etiqueta}
@@ -177,6 +183,10 @@ export function FolioDetalle() {
         </Tarjeta>
       )}
 
+      {esPreventivo && (
+        <PanelPreventivo folio={f} puedeSolicitar={ROLES_SOLICITAN.includes(usuario.rol) && !final} puedeAutorizar={ROLES_AUTORIZAN.includes(usuario.rol)} alCambiar={cargar} />
+      )}
+
       <div className="grid gap-5 lg:grid-cols-2">
         <Tarjeta titulo="Datos de captura">
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
@@ -233,8 +243,16 @@ export function FolioDetalle() {
           <ul className="text-sm">{d.refacciones.map((r) => <li key={r.id}>{r.cantidad} × {r.descripcion} · {r.origen} · ${r.costo_unitario}</li>)}</ul>
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Encuesta</h3>
           <p className="text-sm">{d.encuesta ? `NPS ${d.encuesta.nps_score}` : 'Sin encuesta (P05).'}</p>
-          <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Reasignaciones · Financiero</h3>
-          <p className="text-sm text-slate-500">Secciones vacías hasta P06 y P09 ({d.reasignaciones.length} reasignaciones).</p>
+          <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Reasignaciones ({d.reasignaciones.length})</h3>
+          {d.reasignaciones.length === 0 ? <p className="text-sm text-slate-500">Sin reasignaciones.</p> : (
+            <ul className="text-sm" data-testid="reasignaciones">
+              {d.reasignaciones.map((r) => (
+                <li key={r.id}>{r.tecnico_origen_nombre ?? '—'} → <strong>{r.tecnico_destino_nombre}</strong> · {r.razon ?? 'sin razón'}{r.comentario && <span className="text-slate-600"> · {r.comentario}</span>} <span className="text-xs text-slate-500">· {r.despachador_nombre ?? r.tipo} · {fecha(r.timestamp)}</span></li>
+              ))}
+            </ul>
+          )}
+          <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Financiero</h3>
+          <p className="text-sm text-slate-500">Sección vacía hasta P09.</p>
         </Tarjeta>
       </div>
 
@@ -264,6 +282,8 @@ export function FolioDetalle() {
           <Boton type="submit" variante="secundario">Comentar</Boton>
         </form>
       </Tarjeta>
+
+      {reasignando && <ReasignarModal folio={f} alCerrar={() => setReasignando(false)} alReasignar={async (nombre) => { setReasignando(false); setAviso(`Folio reasignado a ${nombre}`); await cargar() }} />}
 
       <Modal titulo={accion?.etiqueta ?? ''} abierto={accion !== null} alCerrar={() => setAccion(null)}>
         {accion && (

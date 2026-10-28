@@ -219,6 +219,9 @@ class Folio(ConVersion, Base):
     fecha_cierre: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     razon_cancelacion: Mapped[str | None] = mapped_column(Text)
     cancelado_por: Mapped[uuid.UUID | None] = _fk("usuarios", True)
+    # P06: folio preventivo generado por un plan o por el calendario manual.
+    plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    calendario_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
 
 class FolioEstadoHistorial(Base):

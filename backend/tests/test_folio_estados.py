@@ -198,10 +198,14 @@ async def test_asignacion_valida_habilidad_y_permiso_del_despachador(cliente, au
     ultimo = [x for x in d["historial"] if x["estado_nuevo"] == "asignado"][-1]
     assert ultimo["datos_contexto_json"]["sin_habilidad"] is True and ultimo["datos_contexto_json"]["razon"] == "Único disponible hoy"
     # Reasignación: asignado → reasignado (despachador) → asignado al nuevo técnico.
-    assert (await accion(cliente, auth, DES, f["id"], "reasignar", {"notas": "Cambio de ruta"}))["estado"] == "reasignado"
+    # Reasignación forzada (P06): razón del catálogo + confirmación de advertencias; reasignado → asignado en la misma operación.
     tec = await tecnico_con_habilidades(cliente, auth, TEC, ["refrigeracion", "electricidad"])
-    a = await accion(cliente, auth, DES, f["id"], "asignar", {"tecnico_id": tec})
-    assert a["estado"] == "asignado" and a["tecnico_id"] == tec
+    razones = (await cliente.get("/api/reasignaciones/razones", headers=await auth(DES))).json()
+    r = await accion(cliente, auth, DES, f["id"], "reasignar", {"tecnico_destino_id": tec, "razon_id": razones[0]["id"], "confirmar_advertencias": True}, 201)
+    assert r["tecnico_destino_id"] == tec and r["razon"] == razones[0]["descripcion"]
+    d = await detalle(cliente, auth, f["id"])
+    assert d["folio"]["estado"] == "asignado" and d["folio"]["tecnico_id"] == tec and len(d["reasignaciones"]) == 1
+    assert [h["estado_nuevo"] for h in d["historial"]][-2:] == ["reasignado", "asignado"]
 
 
 async def test_transicion_generica_y_no_permitidas(cliente, auth, datos):

@@ -18,7 +18,7 @@ from core.errors import ErrorAPI, no_encontrado, prohibido
 from models.base import Dominio, EstadoRegistro, Rol
 from models.catalogos import Equipo, EstadoActivo, FamiliaEquipo, NivelSeveridadCatalogo, TipoEquipo, TipoFalla
 from models.chat import ReglaConflicto, ResultadoMutacion, SincronizacionConflicto, SincronizacionDispositivo, SincronizacionMutacion, TipoMensaje
-from models.folios import EstadoFolio, Folio, FolioRefaccion
+from models.folios import EstadoFolio, Folio, FolioRefaccion, TipoFolio
 from models.formularios import EstadoRespuesta, FormularioEvidencia, FormularioRespuesta
 from models.unidades import GrupoUNMiembro, UnidadNegocio, UsuarioGrupo, UsuarioUN
 from schemas.folios import FolioEntrada
@@ -110,8 +110,9 @@ async def catalogos(db: AsyncSession, actor: Actor, desde: datetime | None, disp
         for f in folios:
             equipo = await db.get(Equipo, f.equipo_id)
             tipo = await db.get(TipoEquipo, equipo.tipo_equipo_id) if equipo else None
-            resultado = await formularios.resolver(db, actor, "atencion_tecnico", f.tenant_id, equipo.tipo_equipo_id if equipo else None,
-                                                   tipo.familia_id if tipo else None, None, actor.prestador_id, f.tipo_folio.value)
+            tipo_formulario = "preventivo" if f.tipo_folio == TipoFolio.preventivo else "atencion_tecnico"
+            resultado = await formularios.resolver(db, actor, tipo_formulario, f.tenant_id, equipo.tipo_equipo_id if equipo else None,
+                                                   tipo.familia_id if tipo else None, f.plan_id, actor.prestador_id, f.tipo_folio.value)
             if resultado:
                 formulario = resultado[0]
                 if str(formulario.id) not in atencion:

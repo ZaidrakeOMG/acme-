@@ -181,6 +181,9 @@ class FolioResumen(ConVersionSalida):
     flujo: FlujoResumen | None = None
     triggers_pendientes: int = 0
     antiguedad_horas: float = 0
+    plan_id: UUID | None = None          # P06: plan que originó el preventivo
+    calendario_id: UUID | None = None    # P06: fila del calendario
+    plan_nombre: str | None = None
 
 
 class HistorialSalida(BaseModel):
