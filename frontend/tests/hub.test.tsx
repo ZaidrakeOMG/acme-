@@ -18,8 +18,9 @@ describe('RoleHub', () => {
     await entrarComo('superadmin')
     await screen.findByRole('heading', { name: /Hola/ })
     for (const m of MODULOS) expect(screen.getByTestId(`modulo-${m.id}`)).toBeInTheDocument()
-    expect(within(screen.getByTestId('modulo-app_campo')).getByText('Disponible en el prompt P05')).toBeInTheDocument()
+    expect(within(screen.getByTestId('modulo-preventivos')).getByText('Disponible en el prompt P06')).toBeInTheDocument()
     expect(screen.getByTestId('modulo-folios')).toHaveAttribute('href', '/folios')
+    expect(screen.getByTestId('modulo-app_campo')).toHaveAttribute('href', '/campo')
     expect(screen.getByTestId('modulo-usuarios')).toHaveAttribute('href', '/usuarios')
   })
 
@@ -37,11 +38,12 @@ describe('RoleHub', () => {
     },
   )
 
-  it('operador: sus módulos futuros no son enlaces y muestran el prompt', async () => {
-    await entrarComo('operador')
-    const tarjeta = await screen.findByTestId('modulo-app_campo')
+  it('técnico: sus módulos futuros no son enlaces y muestran el prompt', async () => {
+    await entrarComo('tecnico')
+    const tarjeta = await screen.findByTestId('modulo-inventario')
     expect(tarjeta.tagName).toBe('ARTICLE')
-    expect(within(tarjeta).getByText('Disponible en el prompt P05')).toBeInTheDocument()
+    expect(within(tarjeta).getByText('Disponible en el prompt P09')).toBeInTheDocument()
+    expect(screen.getByTestId('modulo-app_campo')).toHaveAttribute('href', '/campo')
     expect(screen.queryByTestId('modulo-usuarios')).not.toBeInTheDocument()
   })
 

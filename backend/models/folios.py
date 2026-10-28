@@ -148,6 +148,7 @@ class FolioPoliticasTenant(ConVersion, Base):
     aprobacion_secuencial: Mapped[bool] = mapped_column(Boolean, default=False)
     prefijo_folio: Mapped[str] = mapped_column(String(10), default="F")
     ultimo_numero: Mapped[int] = mapped_column(Integer, default=0)
+    plazo_encuesta_horas: Mapped[int] = mapped_column(Integer, default=48)  # P05: ventana para responder la encuesta tras el cierre
 
 
 class FolioKeywordAlerta(ConVersion, Base):

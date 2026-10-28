@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { ChatFolio } from '../../components/chat/ChatFolio'
 import { Aviso, Boton, Campo, Insignia, Modal, Selector, Tarjeta } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Severidad, Tecnico } from '../../types/api'
@@ -232,10 +233,14 @@ export function FolioDetalle() {
           <ul className="text-sm">{d.refacciones.map((r) => <li key={r.id}>{r.cantidad} × {r.descripcion} · {r.origen} · ${r.costo_unitario}</li>)}</ul>
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Encuesta</h3>
           <p className="text-sm">{d.encuesta ? `NPS ${d.encuesta.nps_score}` : 'Sin encuesta (P05).'}</p>
-          <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Chat · Reasignaciones · Financiero</h3>
-          <p className="text-sm text-slate-500">Secciones vacías hasta P05, P06 y P09 ({d.chat.length} mensajes, {d.reasignaciones.length} reasignaciones).</p>
+          <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Reasignaciones · Financiero</h3>
+          <p className="text-sm text-slate-500">Secciones vacías hasta P06 y P09 ({d.reasignaciones.length} reasignaciones).</p>
         </Tarjeta>
       </div>
+
+      <Tarjeta titulo="Chat del folio">
+        <ChatFolio folioId={f.id} />
+      </Tarjeta>
 
       <Tarjeta titulo="Línea de tiempo">
         <ol className="relative ml-2 border-l border-slate-200 text-sm">

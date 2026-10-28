@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { modulosDe, NOMBRE_ROL, type GrupoModulo } from '../config/modulos'
 import { useAuth } from '../contexts/AuthContext'
+import { IndicadorConectividad } from './IndicadorConectividad'
 
 const ORDEN_GRUPOS: GrupoModulo[] = ['Administración', 'Operación', 'Seguimiento', 'Finanzas y activos', 'Análisis']
 
@@ -55,7 +56,7 @@ export function AppShell() {
           <button className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 md:hidden" aria-label="Abrir menú" onClick={() => setMenuAbierto((v) => !v)}>
             ☰
           </button>
-          <div className="min-w-0 flex-1 truncate text-sm text-slate-500">{usuario.tema.prestador ?? 'Plataforma ACMA'}</div>
+          <div className="flex min-w-0 flex-1 items-center gap-3 truncate text-sm text-slate-500"><span className="truncate">{usuario.tema.prestador ?? 'Plataforma ACMA'}</span><IndicadorConectividad /></div>
           <div className="flex items-center gap-3">
             <div className="text-right leading-tight">
               <p className="text-sm font-medium text-slate-900">{usuario.nombre}</p>

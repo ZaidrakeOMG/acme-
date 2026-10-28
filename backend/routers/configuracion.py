@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Path, Request
 from sqlalchemy import select
 
-from core.dependencias import DB, Actor, requiere_rol
+from core.dependencias import DB, Actor, ActorActual, requiere_rol
 from core.errors import ErrorAPI, no_encontrado
 from models.auditoria import ConfiguracionPrestador, ConfiguracionTenant
 from models.base import Rol
@@ -99,6 +99,17 @@ async def guardar_prestador(datos: ValorConfiguracion, request: Request, db: DB,
 
 
 # ----------------------------------------------- permisos configurables
+
+@router.get("/mis-permisos", summary="Permisos efectivos del usuario actual (técnico o despachador)",
+            description="P05: la app de campo decide con ellos si muestra «Nuevo folio» (crear_folio_en_campo) o costos (ver_costo_refacciones).")
+async def mis_permisos(db: DB, actor: ActorActual, tenant_id: UUID | None = None) -> list[dict]:
+    if actor.rol == Rol.tecnico and actor.prestador_id:
+        return await permisos_service.efectivos_de_tecnico(db, actor.prestador_id, actor.id)
+    if actor.rol == Rol.despachador and actor.prestador_id:
+        return [{"clave": p["clave"], "descripcion": p["descripcion"], "habilitado": p["habilitado"], "origen": "prestador", "razon": None}
+                for p in await permisos_service.efectivos_despachador(db, actor.prestador_id, actor.id, tenant_id)]
+    return []
+
 
 @router.get("/permisos-tecnico", response_model=list[PermisoEfectivo], summary="Permisos del técnico (valor base del prestador)",
             description="Catálogo §6.8.3 con el valor configurado por el prestador. Grupos y overrides individuales llegan en P02.")

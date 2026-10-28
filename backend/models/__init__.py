@@ -5,6 +5,10 @@ from models.catalogos import (
     CoberturaContrato, Equipo, EstadoActivo, EstadoImportacion, FamiliaEquipo, Habilidad, ImportacionCatalogo,
     NivelSeveridadCatalogo, Tecnico, TecnicoHabilidad, TecnicoTenantHabilitado, TipoEquipo, TipoFalla, TipoFallaSeveridad,
 )
+from models.chat import (
+    CanalChat, Chat, ChatArchivo, ChatEventoSistema, ChatMensaje, ChatParticipante, EstadoChat, ReglaConflicto, ResultadoMutacion,
+    SincronizacionConflicto, SincronizacionDispositivo, SincronizacionMutacion, SuscripcionPush, TipoMensaje,
+)
 from models.contratos import Contrato, ContratoSLA
 from models.folios import (
     AprobacionAlertaTimeout, AprobacionDecision, AprobacionFlujo, AprobacionNivelConfig, AprobacionRegla, CanalAprobacion,
@@ -27,6 +31,8 @@ from models.unidades import GrupoUN, GrupoUNMiembro, UnidadNegocio, UsuarioGrupo
 from models.usuarios import HistorialContrasena, Sesion, Usuario
 
 __all__ = [
+    "CanalChat", "Chat", "ChatArchivo", "ChatEventoSistema", "ChatMensaje", "ChatParticipante", "EstadoChat", "ReglaConflicto",
+    "ResultadoMutacion", "SincronizacionConflicto", "SincronizacionDispositivo", "SincronizacionMutacion", "SuscripcionPush", "TipoMensaje",
     "AprobacionAlertaTimeout", "AprobacionDecision", "AprobacionFlujo", "AprobacionNivelConfig", "AprobacionRegla", "CanalAprobacion",
     "ComportamientoTimeout", "Criticidad", "CriterioAprobacion", "DecisionAprobacion", "EstadoFlujo", "EstadoFolio", "Folio", "FolioEncuesta",
     "FolioEstadoHistorial", "FolioEvidencia", "FolioFormularioAtencion", "FolioFormularioCaptura", "FolioKeywordAlerta", "FolioPoliticasTenant",

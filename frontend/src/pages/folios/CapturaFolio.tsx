@@ -5,6 +5,9 @@ import { Renderizador } from '../../components/formularios/Renderizador'
 import { Aviso, Boton, Insignia, Selector, Tarjeta } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { api, ErrorAPI, mensajeDeError } from '../../services/api'
+import { capturarFolioCampo, catalogoCampo } from '../../services/campo'
+import { baseLocal } from '../../services/db'
+import { esSinConexion, syncEngine } from '../../services/syncEngine'
 import { capturarFolio, verificarDuplicado } from '../../services/folios'
 import { crearRespuesta, enviarRespuesta, guardarRespuesta } from '../../services/formularios/respuestas'
 import { validar } from '../../services/formularios/validacion'
@@ -27,7 +30,7 @@ function posicion(): Promise<Geo> {
  * formulario dinámico (P03) → verificación de duplicado con confirmación fuerte → confirmación obligatoria de UN.
  * P05 reutiliza esta pantalla en la app del operador con la cola offline.
  */
-export function CapturaFolio() {
+export function CapturaFolio({ modoCampo = false }: { modoCampo?: boolean } = {}) {
   const { usuario } = useAuth()
   const navegar = useNavigate()
   const [unidades, setUnidades] = useState<UnidadNegocio[]>([])
@@ -53,7 +56,7 @@ export function CapturaFolio() {
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    api<UnidadNegocio[]>('/unidades-negocio').then(setUnidades).catch((e) => setError(mensajeDeError(e)))
+    catalogoCampo<UnidadNegocio>('unidades', () => api<UnidadNegocio[]>('/unidades-negocio')).then(setUnidades).catch((e) => setError(mensajeDeError(e)))
     void posicion().then((g) => { geo.current = g })
   }, [])
 
@@ -61,7 +64,8 @@ export function CapturaFolio() {
   useEffect(() => {
     setEquipoId(''); setTipoFallaId(''); setDuplicado(null); setFormulario(null); setRespuesta(null)
     if (!un) { setEquipos(null); return }
-    api<Equipo[]>('/catalogos/equipos', { params: { un_id: un.id, con_contrato: true } }).then(setEquipos).catch((e) => setError(mensajeDeError(e)))
+    catalogoCampo<Equipo>('equipos', () => api<Equipo[]>('/catalogos/equipos', { params: { un_id: un.id, con_contrato: true } }))
+      .then((lista) => setEquipos(lista.filter((e) => e.un_id === un.id && e.con_contrato_activo !== false))).catch((e) => setError(mensajeDeError(e)))
   }, [un])
 
   const equipo = useMemo(() => equipos?.find((e) => e.id === equipoId) ?? null, [equipos, equipoId])
@@ -70,9 +74,22 @@ export function CapturaFolio() {
   useEffect(() => {
     setTipoFallaId(''); setDuplicado(null); setContinuarDistinta(false); setJustificacion(''); setFormulario(null); setRespuesta(null)
     if (!equipo || !un) return
-    api<TipoFalla[]>('/catalogos/tipos-falla', { params: { familia_id: equipo.familia_id ?? undefined } }).then(setFallas).catch(() => setFallas([]))
+    catalogoCampo<TipoFalla>('tipos_falla', () => api<TipoFalla[]>('/catalogos/tipos-falla', { params: { familia_id: equipo.familia_id ?? undefined } }))
+      .then((lista) => setFallas(lista.filter((t) => !equipo.familia_id || t.familia_equipo_id === equipo.familia_id))).catch(() => setFallas([]))
     verificarDuplicado(equipo.id).then(setDuplicado).catch(() => setDuplicado(null))
-    api<Formulario>('/formularios/resolver', { params: { tipo: 'captura_operador', tipo_folio: tipoFolio, tenant_id: un.tenant_id, tipo_equipo_id: equipo.tipo_equipo_id, familia_equipo_id: equipo.familia_id ?? undefined } })
+    const resolverFormulario = async (): Promise<Formulario> => {
+      if (syncEngine.enLinea()) {
+        try {
+          return await api<Formulario>('/formularios/resolver', { params: { tipo: 'captura_operador', tipo_folio: tipoFolio, tenant_id: un.tenant_id, tipo_equipo_id: equipo.tipo_equipo_id, familia_equipo_id: equipo.familia_id ?? undefined } })
+        } catch (e) {
+          if (!esSinConexion(e)) throw e
+        }
+      }
+      const cache = await baseLocal.formularios_cache.where('tipo').equals('captura_operador').first()
+      if (!cache) throw new ErrorAPI(404, { codigo: 'NO_ENCONTRADO', mensaje: 'Sin formulario de captura en caché' })
+      return cache.datos as unknown as Formulario
+    }
+    resolverFormulario()
       .then(async (f) => {
         setFormulario(f)
         const r = await crearRespuesta(f.id, 'folio_captura', { tenant_id: un.tenant_id, un_id: un.id, equipo_id: equipo.id })
@@ -118,13 +135,14 @@ export function CapturaFolio() {
       }
       const ahora = new Date().toISOString()
       const g = geo.current ?? (await posicion())
-      const folio = await capturarFolio({
+      const capturar = modoCampo ? capturarFolioCampo : capturarFolio
+      const folio = await capturar({
         un_id: un.id, equipo_id: equipo.id, tipo_falla_id: tipoFallaId, descripcion: descripcion.trim(), tipo_folio: tipoFolio,
         confirmacion_un: true, confirmacion_un_timestamp: ahora, confirmacion_un_geolat: g?.lat ?? null, confirmacion_un_geolng: g?.lng ?? null,
         geolat_captura: g?.lat ?? null, geolng_captura: g?.lng ?? null, respuesta_id: respuestaId,
         folio_duplicado_justificacion: duplicado?.existe ? justificacion.trim() : null,
       })
-      navegar(`/folios/${folio.id}`)
+      navegar(modoCampo ? `/campo/folio/${folio.id}` : `/folios/${folio.id}`)
     } catch (e) {
       setError(mensajeDeError(e))
       setPaso('captura')
@@ -158,12 +176,18 @@ export function CapturaFolio() {
   }
 
   const buscarUn = async (q: string) => unidades.filter((u) => `${u.codigo} ${u.nombre} ${u.direccion}`.toLowerCase().includes(q.toLowerCase()))
+  const guia = modoCampo ? {
+    un: '¿Dónde está el equipo? Escribe el código o el nombre de tu sucursal.',
+    equipo: 'Solo aparecen equipos con contrato activo. Si no ves el tuyo, avisa a tu administrador.',
+    falla: '¿Qué le pasa al equipo? Elige el síntoma y describe desde cuándo ocurre; la severidad la calcula ACMA.',
+  } : null
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className={`mx-auto space-y-5 ${modoCampo ? 'max-w-lg text-base [&_button]:min-h-11 [&_select]:min-h-11 [&_input]:min-h-11' : 'max-w-3xl'}`}>
+      {modoCampo && !syncEngine.enLinea() && <Aviso tipo="info">Sin conexión: capturas con los catálogos guardados y el folio se enviará al recuperar la señal.</Aviso>}
       <div className="flex items-center justify-between">
         <div>
-          <Link to="/folios" className="text-xs text-primario underline">← Folios</Link>
+          <Link to={modoCampo ? '/campo' : '/folios'} className="text-xs text-primario underline">← {modoCampo ? 'Mis folios' : 'Folios'}</Link>
           <h1 className="text-2xl font-semibold text-slate-900">Nuevo folio</h1>
         </div>
         <Selector etiqueta="Tipo" value={tipoFolio} onChange={(e) => setTipoFolio(e.target.value as TipoFolio)}
@@ -172,12 +196,14 @@ export function CapturaFolio() {
       {error && <Aviso>{error}</Aviso>}
 
       <Tarjeta titulo="1. Unidad de negocio">
+        {guia && <p className="mb-2 text-sm text-slate-600">{guia.un}</p>}
         <SelectorBusqueda etiqueta="Unidad de negocio" minimo={2} valor={un} buscar={buscarUn} alSeleccionar={setUn}
                           mostrar={(u) => <span>{u.codigo} · {u.nombre} <span className="text-xs text-slate-500">{u.direccion}</span></span>} placeholder="Escribe 2 letras del código o nombre…" />
       </Tarjeta>
 
       {un && (
         <Tarjeta titulo="2. Equipo con contrato activo">
+          {guia && <p className="mb-2 text-sm text-slate-600">{guia.equipo}</p>}
           {equipos === null ? <p className="text-sm text-slate-500">Cargando equipos…</p> : equipos.length === 0 ? (
             <Aviso>Ningún equipo de esta unidad tiene contrato activo. No es posible capturar un folio; contacta a tu administrador.</Aviso>
           ) : (
@@ -211,6 +237,7 @@ export function CapturaFolio() {
 
       {equipo && (
         <Tarjeta titulo="3. Falla">
+          {guia && <p className="mb-2 text-sm text-slate-600">{guia.falla}</p>}
           <Selector etiqueta="Tipo de falla" value={tipoFallaId} onChange={(e) => setTipoFallaId(e.target.value)}
                     opciones={[{ valor: '', texto: 'Elegir tipo de falla…' }, ...fallas.map((f) => ({ valor: f.id, texto: f.descripcion }))]} />
           <p className="mb-3 text-xs text-slate-500">La severidad la determina el sistema con la matriz tipo de falla × tipo de equipo.</p>

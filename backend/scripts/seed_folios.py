@@ -23,7 +23,7 @@ from models.organizaciones import Prestador, Tenant
 from models.unidades import UnidadNegocio
 from models.usuarios import Usuario
 from schemas.folios import FolioEntrada
-from services import aprobacion_service, folio_estados
+from services import aprobacion_service, chat_service, folio_estados  # noqa: F401 — chat_service registra el gancho folio.creado
 from services import folios_captura_service as captura
 
 # Criticidad por posición dentro de cada UN (refrigerador B, cámara A, climatización C, iluminación D).

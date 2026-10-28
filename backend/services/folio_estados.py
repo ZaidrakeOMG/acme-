@@ -174,7 +174,7 @@ async def _auditar(db: AsyncSession, folio: Folio, actor: ActorFolio, evento: st
 
 
 async def transicionar(db: AsyncSession, folio: Folio, nuevo_estado: EstadoFolio, actor: ActorFolio, notas: str = "",
-                       contexto: dict[str, Any] | None = None, request: Request | None = None) -> Folio:
+                       contexto: dict[str, Any] | None = None, request: Request | None = None, momento: datetime | None = None) -> Folio:
     """Valida la transición con la tabla de §6.8.6, actualiza el folio, escribe el historial inmutable y la auditoría,
     fija `fecha_inicio_atencion` al entrar a `en_ejecucion` y `fecha_cierre` al entrar a `cerrado`, y notifica a los
     suscriptores (eventos para P05/P06/P07/P10)."""
@@ -189,7 +189,10 @@ async def transicionar(db: AsyncSession, folio: Folio, nuevo_estado: EstadoFolio
     if nuevo_estado == E.cancelado and not (contexto.get("razon_cancelacion") or notas):
         raise ErrorAPI(422, "RAZON_REQUERIDA", "Cancelar un folio requiere razón")
 
-    ahora = datetime.now(UTC)
+    # `momento`: hora real del evento cuando viene de la cola offline (§6.2 client-wins: "hora real de cierre").
+    ahora = momento or datetime.now(UTC)
+    if momento is not None:
+        contexto.setdefault("timestamp_dispositivo", momento.isoformat())
     antes = {"estado": origen.value}
     folio.estado = nuevo_estado
     if nuevo_estado == E.en_ejecucion and folio.fecha_inicio_atencion is None:
@@ -215,8 +218,20 @@ async def transicionar(db: AsyncSession, folio: Folio, nuevo_estado: EstadoFolio
 # Suscriptores en proceso (P05 chat/offline, P06 reasignación/rutas, P07 seguimiento, P10 SLA) — firma:
 #   async def fn(db, folio, estado_anterior, estado_nuevo, actor, contexto) -> None
 SUSCRIPTORES: list = []
+# Evento `folio.creado` (P05 crea los chats) — firma: async def fn(db, folio, actor) -> None
+SUSCRIPTORES_CREACION: list = []
 
 
 def suscribir(fn):
     SUSCRIPTORES.append(fn)
     return fn
+
+
+def suscribir_creacion(fn):
+    SUSCRIPTORES_CREACION.append(fn)
+    return fn
+
+
+async def notificar_creacion(db: AsyncSession, folio: Folio, actor: ActorFolio) -> None:
+    for suscriptor in SUSCRIPTORES_CREACION:
+        await suscriptor(db, folio, actor)

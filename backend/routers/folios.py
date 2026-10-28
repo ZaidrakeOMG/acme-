@@ -3,7 +3,9 @@ aprobación multinivel y configuración del flujo."""
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from datetime import datetime as _dt
+
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from sqlalchemy import select
 
 from core.dependencias import DB, Actor, ActorActual, requiere_rol
@@ -20,7 +22,8 @@ from schemas.folios import (
     PoliticasSalida, RazonEntrada, RechazarEntrada, RefaccionEntrada, RefaccionSalida, ReglaEntrada, ReglaSalida,
     SeveridadOverrideEntrada, TarjetaDuplicado, TransicionEntrada, TransicionTabla, VinculoFormularioSalida,
 )
-from services import aprobacion_service, auditoria, folio_estados
+from schemas.sync import EncuestaEntrada, EncuestaSalida
+from services import aprobacion_service, auditoria, folio_cierre_service, folio_estados
 from services import folios_captura_service as svc
 
 router = APIRouter(prefix="/api/folios", tags=["Folios"], responses=RESPUESTAS_ERROR)
@@ -397,3 +400,33 @@ async def rechazar(folio_id: UUID, datos: RechazarEntrada, request: Request, db:
     await aprobacion_service.rechazar(db, actor, folio, datos.canal, datos.razon_rechazo, datos.notas, request)
     await db.commit()
     return await _resumen(db, folio)
+
+
+# ------------------------------------------------------------ cierre en campo (P05)
+
+@router.post("/{folio_id}/firma", response_model=EvidenciaFolioSalida, status_code=201, summary="Firma del operador (cierre §6.8.6)",
+             description="Multipart: `archivo` (PNG del trazo), `geolat`, `geolng`, `timestamp_dispositivo`. Solo el operador o Admin UN de la unidad, "
+                         "con el folio en ejecución. Registra la evidencia tipo firma y avisa al operador que responda la encuesta.")
+async def firma(folio_id: UUID, request: Request, db: DB, actor: Actor = Depends(TODOS), archivo: UploadFile = File(...),
+                geolat: float | None = Form(default=None), geolng: float | None = Form(default=None), timestamp_dispositivo: _dt | None = Form(default=None)):
+    folio = await svc.obtener(db, actor, folio_id)
+    e = await folio_cierre_service.firmar(db, actor, folio, await archivo.read(), archivo.content_type or "image/png", geolat, geolng, timestamp_dispositivo, request)
+    await db.commit()
+    return EvidenciaFolioSalida.model_validate(e, from_attributes=True)
+
+
+@router.get("/{folio_id}/encuesta/disponible", summary="¿Puede responderse la encuesta?")
+async def encuesta_disponible(folio_id: UUID, db: DB, actor: Actor = Depends(TODOS)):
+    folio = await svc.obtener(db, actor, folio_id)
+    disponible, motivo = await folio_cierre_service.encuesta_disponible(db, folio)
+    return {"disponible": disponible, "motivo": motivo}
+
+
+@router.post("/{folio_id}/encuesta", response_model=EncuestaSalida, status_code=201, summary="Encuesta de satisfacción (NPS 0–10)",
+             description="Usa el formulario de tipo encuesta resuelto por P03 si existe; con calificación ≤ 6 el comentario es obligatorio. "
+                         "Se responde tras la firma, antes o después del cierre dentro del plazo del tenant (48 h por defecto).")
+async def encuesta(folio_id: UUID, datos: EncuestaEntrada, request: Request, db: DB, actor: Actor = Depends(TODOS)):
+    folio = await svc.obtener(db, actor, folio_id)
+    enc = await folio_cierre_service.responder_encuesta(db, actor, folio, datos.nps_score, datos.comentario, datos.respuestas, datos.timestamp_dispositivo, request)
+    await db.commit()
+    return EncuestaSalida(folio_id=enc.folio_id, operador_id=enc.operador_id, nps_score=enc.nps_score, respuesta_id=enc.respuesta_id, timestamp=enc.timestamp)

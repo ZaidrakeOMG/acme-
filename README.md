@@ -121,8 +121,8 @@ acma/
     core/                           config, db, rls, security, errors, middleware, dependencias
     models/  schemas/  routers/  services/
     workers/                        celery_app.py y tareas.py
-    alembic/versions/0001_cimientos.py, 0002_catalogos.py, 0003_formularios.py, 0004_folios.py
-    scripts/                        seed_dev.py, seed_folios.py, generar_secretos.py
+    alembic/versions/0001_cimientos.py … 0005_chat_offline.py
+    scripts/                        seed_dev.py, seed_folios.py, seed_campo.py, generar_secretos.py, generar_vapid.py
     tests/
   frontend/
     src/ (components, pages, hooks, services, contexts, types, config)
@@ -148,6 +148,15 @@ activo, duplicado, severidad por matriz, garantía, flag del tipo de falla, hora
 vida de 11 estados con acciones según rol, y **Aprobaciones** para Admin UN, Supervisor de operadores y Admin empresa
 (Aprobar / Rechazar con razón → módulo de seguimiento). El Admin empresa configura umbrales, reglas y niveles en la misma
 pantalla. Los 15 folios demo tienen prefijo `CD-`.
+
+## Apps de campo, offline y chat (P05)
+
+Tarjeta **App de campo y chat** (`/campo`): el operador y el Admin UN ven los folios de su unidad, capturan (también sin
+señal), firman la orden de servicio y contestan la encuesta; el técnico atiende sus folios con el formulario de atención,
+fotos, refacciones y las acciones del ciclo de vida. Todo lo hecho sin conexión se encola en IndexedDB y se ve en
+**Pendientes de sincronizar** (indicador en la cabecera). El chat del folio (tres canales) está en el detalle del folio y
+en las apps de campo, con tiempo real por WebSocket (fallback SSE). Para las notificaciones push genera claves VAPID con
+`.\.venv\Scripts\python -m scripts.generar_vapid` y pégalas en `.env`; sin ellas el envío solo se registra en el log.
 
 ## Problemas conocidos en Windows
 

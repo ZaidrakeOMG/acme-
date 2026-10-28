@@ -32,6 +32,9 @@ os.environ["DB_POOL_NULO"] = "true"
 os.environ["MFA_OBLIGATORIO"] = "true"
 os.environ["ALMACENAMIENTO_MODO"] = "memoria"
 os.environ["ACMA_ENTORNO"] = "pruebas"
+os.environ["TIEMPO_REAL_MODO"] = "local"
+os.environ["VAPID_CLAVE_PUBLICA"] = ""
+os.environ["VAPID_CLAVE_PRIVADA"] = ""
 
 import pyotp  # noqa: E402
 import pytest  # noqa: E402

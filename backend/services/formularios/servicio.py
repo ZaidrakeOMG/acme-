@@ -530,10 +530,11 @@ async def errores_de(db: AsyncSession, actor: Actor, r: FormularioRespuesta) -> 
     return errores
 
 
-async def enviar(db: AsyncSession, actor: Actor, r: FormularioRespuesta, request: Request) -> FormularioRespuesta:
+async def enviar(db: AsyncSession, actor: Actor, r: FormularioRespuesta, request: Request | None, momento: datetime | None = None) -> FormularioRespuesta:
+    """`momento`: hora real del envío cuando llega desde la cola offline (P05, §6.2 client-wins)."""
     _exigir_autor_en_progreso(actor, r)
     esquema, version = await _esquema_de(db, r)
-    ahora = datetime.now(UTC)
+    ahora = momento or datetime.now(UTC)
     ctx = Contexto(evidencias=await _evidencias_de(db, r.id), sistema=r.contexto_json.get("sistema", {}),
                    sellos=r.contexto_json.get("sellos", {}), iniciado_at=r.iniciado_at.replace(tzinfo=None),
                    enviado_at=ahora.replace(tzinfo=None), resolutor=await _resolutor(db, actor, r, r.respuestas_json))

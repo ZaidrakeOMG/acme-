@@ -27,21 +27,33 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // P01: solo precache del shell. El modo offline completo (datos y cola de sincronización) llega en P05.
+        importScripts: ['sw-push.js'],
+        // Precache del shell y de los módulos de campo; la API va NetworkFirst con respaldo a caché solo en lecturas (P05).
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/ws\//],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET' && !url.pathname.endsWith('/stream'),
+            handler: 'NetworkFirst',
+            options: { cacheName: 'acma-api', networkTimeoutSeconds: 8, expiration: { maxEntries: 500, maxAgeSeconds: 7 * 24 * 3600 }, cacheableResponse: { statuses: [200] } },
+          },
+        ],
       },
     }),
   ],
   server: {
     port: 5173,
-    proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: false } },
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: false },
+      '/ws': { target: 'ws://127.0.0.1:8000', ws: true, changeOrigin: false }, // P05: WebSocket del chat
+    },
   },
   test: {
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./tests/setup.ts'],
+    testTimeout: 20000, // pruebas de interacción en jsdom con IndexedDB simulada
     include: ['tests/**/*.test.{ts,tsx}'],
   },
 })

@@ -311,6 +311,7 @@ async def crear(db: AsyncSession, actor: Actor, datos: FolioEntrada, request: Re
     await auditoria.registrar_actor(db, actor, "folio.capturado", request, recurso_tipo="folio", recurso_id=folio.id, tenant_id=tenant_id,
                                     prestador_id=prestador_id, despues={"numero_folio": numero, "equipo_id": str(equipo.id),
                                                                         "tipo_falla": tipo_falla.descripcion, "duplicado_de": str(existente.id) if existente else None})
+    await folio_estados.notificar_creacion(db, folio, actor)  # evento folio.creado (P05: chats del folio)
     await _validar_y_resolver(db, folio, equipo, tipo_falla, ahora, request)
     return folio
 

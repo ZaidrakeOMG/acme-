@@ -9,6 +9,10 @@ import { Contratos } from './pages/admin/Contratos'
 import { Prestadores, Tenants } from './pages/admin/Organizaciones'
 import { Unidades } from './pages/admin/Unidades'
 import { Usuarios } from './pages/admin/Usuarios'
+import { Campo } from './pages/campo/Campo'
+import { CierreOperador } from './pages/campo/operador/CierreOperador'
+import { DetalleOperador } from './pages/campo/operador/DetalleOperador'
+import { AtencionTecnico } from './pages/campo/tecnico/AtencionTecnico'
 import { Catalogos } from './pages/catalogos/Catalogos'
 import { Aprobaciones } from './pages/folios/Aprobaciones'
 import { CapturaFolio } from './pages/folios/CapturaFolio'
@@ -23,6 +27,7 @@ import { Plantillas } from './pages/formularios/Plantillas'
 import { Login } from './pages/Login'
 import { RoleHub } from './pages/RoleHub'
 import { Seguridad } from './pages/Seguridad'
+import { Sincronizacion } from './pages/Sincronizacion'
 
 const PAGINAS: Record<string, ReactNode> = {
   usuarios: <Usuarios />,
@@ -36,6 +41,7 @@ const PAGINAS: Record<string, ReactNode> = {
   formularios: <Formularios />,
   mis_formularios: <MisFormularios />,
   folios: <Folios />,
+  app_campo: <Campo />,
 }
 
 function SinPermiso() {
@@ -70,6 +76,10 @@ export function App() {
         <Route path="folios/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio /> : <SinPermiso />} />
         <Route path="folios/aprobaciones" element={ROLES_APROBADOR.includes(usuario.rol) ? <Aprobaciones /> : <SinPermiso />} />
         <Route path="folios/:folioId" element={<FolioDetalle />} />
+        <Route path="sincronizacion" element={<Sincronizacion />} />
+        <Route path="campo/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio modoCampo /> : <SinPermiso />} />
+        <Route path="campo/folio/:folioId/cierre" element={['operador', 'admin_un', 'superadmin'].includes(usuario.rol) ? <CierreOperador /> : <SinPermiso />} />
+        <Route path="campo/folio/:folioId" element={usuario.rol === 'tecnico' ? <AtencionTecnico /> : <DetalleOperador />} />
         {MODULOS.filter((m) => m.ruta).map((m) => (
           <Route
             key={m.id}

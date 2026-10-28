@@ -246,7 +246,7 @@ function Anotador({ imagen, alGuardar, alCancelar }: { imagen: string; alGuardar
 
 // ------------------------------------------------------------- Firma y dibujo
 
-function Lienzo({ etiqueta, fondo, permitirColor, permitirGrosor, alGuardar, pantallaCompleta, textoConfirmar }: {
+export function Lienzo({ etiqueta, fondo, permitirColor, permitirGrosor, alGuardar, pantallaCompleta, textoConfirmar }: {
   etiqueta: string; fondo?: string | null; permitirColor?: boolean; permitirGrosor?: boolean; alGuardar: (blob: Blob, tieneTrazo: boolean) => void; pantallaCompleta?: boolean; textoConfirmar: string
 }) {
   const canvas = useRef<HTMLCanvasElement>(null)

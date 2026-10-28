@@ -47,7 +47,7 @@ export const MODULOS: Modulo[] = [
   { id: 'folios', nombre: 'Folios', descripcion: 'Ciclo de vida, validaciones y aprobaciones', prompt: 'P04', grupo: 'Operación',
     ruta: '/folios', roles: ['superadmin', ...PRESTADOR_GESTION, 'admin_empresa', 'admin_un', 'supervisor_operadores', 'operador', 'tecnico'] },
   { id: 'app_campo', nombre: 'App de campo y chat', descripcion: 'Captura, evidencias, firma y modo offline', prompt: 'P05',
-    grupo: 'Operación', roles: ['operador', 'tecnico'] },
+    grupo: 'Operación', ruta: '/campo', roles: ['operador', 'tecnico', 'admin_un'] },
   { id: 'preventivos', nombre: 'Preventivos y planes', descripcion: 'Calendario y triggers por tiempo y calendario', prompt: 'P06',
     grupo: 'Operación', roles: ['superadmin', 'admin_prestador', 'despachador', 'admin_empresa'] },
   { id: 'reasignaciones', nombre: 'Reasignaciones', descripcion: 'Reasignación forzada con razones', prompt: 'P06', grupo: 'Operación',

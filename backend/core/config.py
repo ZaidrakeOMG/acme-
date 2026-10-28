@@ -51,6 +51,13 @@ class Configuracion(BaseSettings):
     # Pool de conexiones. NullPool en pruebas para no atar conexiones a un event loop.
     db_pool_nulo: bool = False
 
+    # P05: tiempo real del chat ("redis" = pub/sub entre procesos; "local" = solo este proceso, pruebas).
+    tiempo_real_modo: str = "redis"
+    # P05: push PWA con web-push (VAPID). Sin claves, el envío solo se registra en el log.
+    vapid_clave_publica: str = ""
+    vapid_clave_privada: str = ""
+    vapid_contacto: str = "mailto:soporte@acma.dev"
+
     @field_validator("acma_entorno")
     @classmethod
     def _entorno_valido(cls, v: str) -> str:

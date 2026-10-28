@@ -1,6 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, refrescar, sesion } from '../services/api'
+import { registrarPush } from '../services/campo'
+import { syncEngine } from '../services/syncEngine'
 import type { PerfilConTema, Tema, Tokens } from '../types/api'
+
+const ROLES_CAMPO = new Set(['operador', 'tecnico', 'admin_un'])
 
 interface EstadoAuth {
   usuario: PerfilConTema | null
@@ -26,6 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const perfil = await api<PerfilConTema>('/auth/yo')
     aplicarTema(perfil.tema)
     setUsuario(perfil)
+    if (ROLES_CAMPO.has(perfil.rol)) {
+      // P05: paquete de catálogos en segundo plano y suscripción push (sin bloquear el inicio de sesión).
+      void syncEngine.refrescarCatalogos().catch(() => undefined)
+      void registrarPush()
+    }
   }, [])
 
   const iniciarSesionCon = useCallback(

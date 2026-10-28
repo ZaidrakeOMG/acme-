@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-27 · P04 Folios**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-28 · P05 Apps de campo, offline y chat**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -17,13 +17,25 @@
 | P02 | Catálogos maestros (técnicos y habilidades, equipos, fallas, severidades, matriz, importador) | ✅ 2026-10-23 |
 | P03 | Motor de formularios: 22 tipos de campo, constructor, versiones, asignaciones, respuestas y evidencias | ✅ 2026-10-23 |
 | P04 | Folios: ciclo de vida de 11 estados, validaciones automáticas en captura y aprobación multinivel | ✅ 2026-10-27 |
-| P05 | Apps PWA operador/técnico, offline y chat | Pendiente |
+| P05 | Apps PWA del operador y del técnico, modo offline (cola idempotente) y chat archivado con tiempo real | ✅ 2026-10-28 |
 | P06 | Preventivos y reasignación forzada | Pendiente |
 | P07 | Minuta y seguimiento | Pendiente |
 | P08 | Trabajos especiales y OC | Pendiente |
 | P09 | Inventario, caja chica manual, presupuestos y activos | Pendiente |
 | P10 | Contratos/SLA (contador), alertas por módulo y BI | Pendiente |
 | P11 | Endurecimiento y despliegue | Pendiente |
+
+## Verificación al cierre de P05
+
+- `pytest`: **203 pruebas en verde** (185 anteriores + 18: sincronización incremental con bajas, lote aplicadas/duplicadas/
+  rechazadas, cierre offline con hora real y conflicto, respuesta y evidencia idempotentes, dos pasos con reintento,
+  refacción/mensaje offline y aislamiento; tres chats y eventos, doble timestamp e idempotencia, permisos por canal, RLS
+  de participantes, inmutabilidad y evidencia posterior, chat archivado, WebSocket con dos clientes y SSE; firma, secuencia
+  atención→firma→encuesta→cierre, plazo de la encuesta, push).
+- `vitest`: **45 pruebas en verde** (39 anteriores + 6: cola FIFO con reintentos y reanudación, atención parcial offline,
+  mensaje encolado con doble timestamp, indicador de conectividad, captura sin red y envío al reconectar, inicio del
+  operador sin acceso a otras UNs).
+- `tsc --noEmit` limpio; `npm run build` verde.
 
 ## Verificación al cierre de P04
 
@@ -225,6 +237,87 @@
   especial → N2), 3 niveles (4 h escalar · 12 h depende_criticidad · 24 h bloquear), criticidad en los 12 equipos,
   4 palabras clave, horario L–V 08–20 / S 09–14 y 15 folios (CD-000001 cerrado … CD-000015 en ejecución).
 
+### Campo, offline y chat (P05)
+- **Tablas (0005)**: chat (`chats` UNIQUE(folio, canal), `chat_participantes`, `chat_mensajes` con `id_cliente` UNIQUE por chat,
+  `timestamp_dispositivo`, `leido_por_json`, `datos_json`, `oculto`; `chat_archivos`; `chat_eventos_sistema`), sincronización
+  (`sincronizacion_dispositivos`, `sincronizacion_conflictos`, `sincronizacion_mutaciones` = bitácora idempotente por
+  (usuario, id_cliente)), `suscripciones_push` y `folio_politicas_tenant.plazo_encuesta_horas` (48). Trigger
+  `acma_chat_mensaje_inmutable()`: en folio cerrado solo cambia `leido_por_json`; sin DELETE. RLS de `chat_mensajes` y
+  `chat_archivos`: lectura solo para participantes activos (y plataforma); **las políticas de escritura van por comando**
+  (INSERT/UPDATE/DELETE), porque una `FOR ALL` también concede SELECT — misma corrección aplicada a `folios` (el técnico ya
+  no lee folios ajenos ni por RLS). Inserciones de mensajes/eventos sin `RETURNING` (ids generados en el cliente) porque
+  quien transiciona puede no ser participante.
+- **Sincronización** (`services/sync_service.py`, `/api/sync`): `GET /catalogos?desde=&dispositivo_id=` → paquete por rol
+  (operador/admin UN/supervisor/admin empresa/mesa: `unidades`, `equipos` con `con_contrato_activo`, `familias_equipo`,
+  `tipos_equipo`, `tipos_falla`, `niveles_severidad`, `formularios` de captura + `formularios_ids`; técnico: `folios`
+  abiertos asignados + `folios_ids`, `formularios` de atención/preventivo, `formulario_por_folio`, `refacciones` [] (P09),
+  `biblioteca` [] (Fase 2)); todo con `activo` para bajas lógicas y `servidor_at` como siguiente `desde`.
+  `POST /mutaciones` {dispositivo_id, version_app, plataforma, mutaciones[{id_cliente, tipo, timestamp_dispositivo,
+  payload}]} → por operación `aplicada | duplicada | rechazada {codigo, mensaje}` con `entidad_id`; se aplican en orden
+  dentro de savepoints (una rechazada no detiene), idempotentes por la bitácora, y los ids del payload pueden ser
+  `id_cliente` de operaciones previas (`folio_id`, `respuesta_id`, `referencia_id`). Tipos: `crear_folio` (payload =
+  `FolioEntrada`; `capturado_at` = hora del dispositivo), `transicion` {folio_id, estado, notas, contexto} (→
+  `transicionar(..., momento=timestamp_dispositivo)`: `fecha_inicio_atencion`/`fecha_cierre` reales y
+  `datos_contexto_json.timestamp_dispositivo`; `asignado` con `contexto.tecnico_id` usa `asignar`; `autorizado` en
+  revisión usa `autorizar_manual`), `guardar_respuesta` {respuesta_id | crear{formulario_id, origen, referencia_id,
+  contexto}, respuestas, version_hash?}, `enviar_respuesta` {respuesta_id, respuestas?} (→ `enviar(..., momento)`),
+  `subir_evidencia` {respuesta_id, campo_clave, nombre, mime, hash_sha256, contenido_base64}, `agregar_refaccion`
+  {folio_id, descripcion, cantidad, origen, costo_unitario, articulo_id} y `mensaje_chat` {chat_id, contenido_texto,
+  tipo, contenido_base64?}. Reglas §6.2: catálogos server-wins (el paquete manda); capturas client-wins (se aplican y, si el
+  servidor cambió después de la hora del dispositivo o el `version_hash` difiere, queda un `sincronizacion_conflictos`
+  con `client_wins`); inventario merge con alerta = gancho `aplicar_movimiento_inventario()` que P09 implementa.
+  Evidencias en dos pasos: `POST /evidencias/iniciar` (hash + id_cliente → pendiente | existente | duplicada) y
+  `PUT /evidencias/{id_cliente}/archivo` (multipart reintentable; mismo hash no se duplica). `GET /conflictos`.
+- **Chat** (`services/chat_service.py`, `services/ws_manager.py`, `routers/chat.py`): los tres chats se crean con el
+  evento `folio.creado` (`folio_estados.suscribir_creacion`) con participantes fijos §6.8.1 (campo: quien capturó;
+  operativo: Admin UN de la UN; interno: Admin prestador); el técnico entra a `campo` al asignarse y el despachador a
+  `operativo`/`interno` al actuar. `PUEDE_AGREGAR` literal de la tabla. Eventos de sistema por transición (mensaje
+  `tipo=sistema` + `chat_eventos_sistema`): capturado (campo), asignado/reasignado/en_camino/en_ejecucion/
+  pendiente_refaccion (campo y operativo), autorizado (operativo e interno), cerrado y cancelado (los tres). Folio
+  cerrado: solo `imagen` con `datos_json.evidencia_posterior=true` (§6.8.3c); cancelado antes de asignar: chats
+  `archivado` y mensajes `oculto` (solo superadmin los lee). Endpoints `GET /api/folios/{id}/chats`,
+  `GET/POST /api/chats/{id}/mensajes`, `POST …/mensajes/archivo`, `GET …/archivos/{id}`, `POST …/leido`,
+  `POST/DELETE …/participantes`. Tiempo real: `WS /ws/chats/{chat_id}?token=` (eventos `conectado`, `mensaje`, `leido`,
+  `pong`) y fallback `GET /api/chats/{id}/stream?token=` (SSE, latido cada 15 s); el envío siempre es HTTP POST.
+  `ws_manager.gestor` reparte en el proceso y publica por Redis pub/sub (`TIEMPO_REAL_MODO=redis|local`).
+- **Cierre en campo** (`services/folio_cierre_service.py`): `POST /api/folios/{id}/firma` (multipart; solo operador/Admin
+  UN de la UN con el folio en ejecución; `FolioEvidencia` tipo firma + evento `firma` + push «responde la encuesta»),
+  `GET …/encuesta/disponible` y `POST …/encuesta` {nps_score 0–10, comentario, respuestas, timestamp_dispositivo}
+  (formulario tipo `encuesta` resuelto por P03 → respuesta `origen=encuesta` enviada; comentario obligatorio si
+  nps ≤ 6; disponible tras la firma, antes o después del cierre dentro de `plazo_encuesta_horas`). Al cerrar sin
+  encuesta queda el evento `encuesta.pendiente`. La firma también puede venir del campo `firma` del formulario de
+  atención del técnico (P04 la mapea), que es la «entrega del dispositivo al operador».
+- **Push** (`services/push_service.py`, `/api/push`): `GET /clave-publica`, `POST/DELETE /suscripcion`; envío con
+  `pywebpush` si hay `VAPID_CLAVE_PUBLICA/PRIVADA` (`scripts/generar_vapid.py`), si no solo log; suscriptor de
+  transiciones notifica al operador (todos los cambios) y al técnico (asignación, autorización, cancelación) en una
+  sesión de sistema. `public/sw-push.js` muestra la notificación y abre `datos.url`.
+- **Frontend offline**: `services/db.ts` v2 (`catalogos_cache`, `folios_cache`, `formularios_cache`,
+  `respuestas_borrador`, `evidencias_pendientes`, `mutaciones_pendientes`, `chat_mensajes_cache`, `chat_pendientes`;
+  `usarBaseLocal()` para pruebas), `services/syncEngine.ts` (`encolar`, `encolarEvidencia`, `procesar` serializado,
+  reintentos 1/4/16/64/256 s y `atencion` al 5.º, `reintentar`, `descartar`, `refrescarCatalogos`, `catalogo`,
+  `resolverId`, `conRespaldoOffline`, `simularSinConexion` para pruebas), `services/offline/transporteRespuestas.ts`
+  (transporte híbrido instalado en `main.tsx` con `usarTransporte`), `services/campo.ts` (folios/transiciones/refacciones
+  con respaldo, firma, encuesta, catálogos cacheados, `registrarPush`), `services/chat.ts` (`conectarTiempoReal` WS→SSE),
+  `useConexion` + `IndicadorConectividad` (cabecera), página `/sincronizacion`. Service worker: precache del shell,
+  `NetworkFirst` para `GET /api/*` (no `/stream`), `importScripts('sw-push.js')`. `AuthContext` descarga el paquete de
+  catálogos y registra push al iniciar sesión de operador, técnico y Admin UN.
+- **Pantallas**: `/campo` (`pages/campo/Campo.tsx` por rol) → operador/Admin UN: `InicioOperador` (folios de su UN,
+  técnico, ETA «Fase 2»), `/campo/nuevo` (`CapturaFolio modoCampo`: táctil, guía por paso, catálogos cacheados,
+  captura sin red), `/campo/folio/:id` (`DetalleOperador`: línea de tiempo, chat campo, firma/encuesta),
+  `/campo/folio/:id/cierre` (`CierreOperador`: lienzo a pantalla completa + NPS); técnico: `MisFolios` (hoy/próximos,
+  «Nuevo folio» si `crear_folio_en_campo`), `/campo/folio/:id` (`AtencionTecnico`: acciones por la tabla de P04,
+  formulario de atención resuelto por P03 o desde caché, refacciones con costo si `ver_costo_refacciones`, chat).
+  `components/chat/ChatFolio.tsx` integrado en `FolioDetalle` (todos los roles). `GET /api/configuracion/mis-permisos`
+  da los permisos efectivos del técnico/despachador.
+- **Para P06**: reasignación → `transicionar(reasignado)` emite el evento de chat `folio.reasignado` y `asignar` vuelve a
+  agregar al técnico; rutas/ETA sustituyen el «Fase 2» de las tarjetas. **Para P07**: canales reales de notificación
+  (hoy `notificaciones.py` log + push web); la minuta puede usar `chat_eventos_sistema`. **Para P09**:
+  `sync_service.aplicar_movimiento_inventario()` (merge con alerta de stock negativo) y `refacciones` del paquete.
+  **Para P10**: `fecha_inicio_atencion`/`fecha_cierre` ya traen la hora real del dispositivo.
+- **Seed** (`scripts/seed_campo.py`): formulario «Encuesta de satisfacción (operador)» publicado y asignado, chats de los
+  15 folios (creados por el gancho o rellenados), mensajes en CD-000015 (uno con retraso), CD-000001 (cerrado, inmutables)
+  y CD-000014, y una suscripción push demo del operador.
+
 ### Frontend
 - `src/config/modulos.ts` define los 25 módulos de Fase 1, su prompt y los roles que los ven. Al construir un módulo:
   agregar `ruta`, la página en `App.tsx` (`PAGINAS`) y ajustar roles.
@@ -307,6 +400,26 @@
 38. **Comentarios en folios finales**: `folio_estados_historial.evento = comentario` con `estado_anterior = estado_nuevo`.
 39. **`folios.tecnico_id` referencia `usuarios.id`** (no `tecnicos.id`), igual que los permisos de técnico; el vehículo se
     copia al historial al asignar porque los usuarios del tenant no leen `tecnicos` (RLS).
+40. **`timestamp_dispositivo` como hora real** solo en `transicion`, `enviar_respuesta`, `crear_folio` (`capturado_at`),
+    firma y encuesta; la auditoría conserva la hora del servidor. Si el servidor cambió después de esa hora se registra
+    un conflicto `client_wins` pero la operación se aplica.
+41. **Idempotencia por (usuario, id_cliente)** en `sincronizacion_mutaciones`; para evidencias además por `hash_sha256`
+    dentro de la misma respuesta.
+42. **Participantes iniciales**: el documento fija «despachador asignado»; como el despachador no existe al capturar,
+    entra a operativo/interno con su primera acción (autorizar, asignar, cancelar…). Admin prestador entra a `interno`
+    desde el inicio (todos los activos del prestador).
+43. **Mensajes de texto en folio cerrado: rechazados** (solo evidencia posterior en imagen, §6.8.3c); el chat de un folio
+    cancelado antes de asignar queda archivado y solo superadmin lo audita.
+44. **Encuesta**: plazo `plazo_encuesta_horas` = 48 por defecto (configurable por tenant); con NPS ≤ 6 el comentario es
+    obligatorio; se puede responder antes del cierre (tras la firma).
+45. **Push**: suscripción por `(usuario, endpoint)`; sin claves VAPID el envío solo se registra. El técnico recibe push de
+    asignación, autorización y cancelación; el operador de todo cambio de estado.
+46. **ETA y ruta** se muestran como «Disponible en Fase 2» en las apps de campo; **biblioteca** y **refacciones** del
+    paquete del técnico vienen vacíos hasta Fase 2 / P09.
+47. **Caché de API en el service worker**: `NetworkFirst` 8 s para `GET /api/*`; las escrituras nunca se cachean. Las
+    lecturas de folios/catálogos para las apps usan además IndexedDB (fuente offline principal).
+48. **Política RLS de `folios`** corregida en 0005 (escritura por comando) para que la restricción de lectura del técnico
+    aplique también a nivel de BD.
 
 ## Notas de entorno (esta máquina)
 
@@ -317,3 +430,5 @@
   `%LOCALAPPDATA%\docker-secrets-engine` (copias `*.viejo-20261019`, se pueden borrar).
 - 2026-10-27: mismo problema (`dockerInference`); copias `*.huerfano-20261027-*`, se pueden borrar.
 - Zona horaria del horario de servicio: `zoneinfo` + paquete `tzdata` (ya en el venv) porque Windows no trae la base IANA.
+- `pywebpush` instalado en el venv (P05); `fake-indexeddb` como devDependency del frontend para probar Dexie en vitest.
+- Las pruebas de vitest y pytest se corren por separado: en paralelo con el build, vitest falla por tiempos de espera.

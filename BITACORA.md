@@ -2,6 +2,40 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-10-28 · P05 — Apps PWA del operador y del técnico, modo offline y chat
+
+**Base de datos (migración 0005)**
+- 9 tablas: chats, chat_participantes, chat_mensajes (id_cliente UNIQUE por chat, doble timestamp, leído), chat_archivos,
+  chat_eventos_sistema, sincronizacion_dispositivos, sincronizacion_conflictos, sincronizacion_mutaciones (bitácora
+  idempotente) y suscripciones_push; `plazo_encuesta_horas` en las políticas del tenant. Trigger de inmutabilidad de
+  mensajes en folio cerrado; RLS de mensajes/archivos limitada a participantes (políticas de escritura por comando, misma
+  corrección aplicada a `folios`).
+
+**Backend**
+- Sincronización: paquete incremental de catálogos por rol con bajas lógicas, lote de mutaciones en orden e idempotente
+  (7 tipos) con las reglas de §6.2 (server-wins, client-wins con hora real, merge con alerta como gancho para P09),
+  evidencias en dos pasos y registro de conflictos. `transicionar()` y `enviar()` aceptan `momento`.
+- Chat: tres chats automáticos por folio (gancho `folio.creado`), participantes fijos y permisos literales de §6.8.1,
+  eventos de sistema por transición, evidencia posterior al cierre, archivado de cancelados sin asignar, WebSocket por chat
+  con Redis pub/sub y fallback SSE.
+- Cierre en campo: firma del operador/Admin UN, encuesta NPS con formulario resuelto por P03 y plazo configurable, evento
+  `encuesta.pendiente` al cerrar. Push PWA con web-push (VAPID) y suscripciones por dispositivo; `mis-permisos`.
+- Seed: encuesta publicada, chats y mensajes demo (incluido el folio cerrado) y suscripción push de prueba.
+
+**Frontend**
+- Dexie v2, `syncEngine` (cola FIFO, reintento exponencial, «requiere atención», reanudación tras recarga, refresco de
+  catálogos, ids locales), transporte híbrido de formularios, `useConexion` + indicador global, pantalla «Pendientes de
+  sincronizar», service worker con `NetworkFirst` para la API y manejador de push.
+- App del operador (inicio por UN, captura táctil offline con confirmación de UN, detalle con chat, firma a pantalla
+  completa y encuesta), app del técnico (mis folios hoy/próximos, atención con acciones, formulario de P03, refacciones y
+  chat) y `ChatFolio` con pestañas por canal, tiempo real, adjuntos, leído y participantes, integrado en el detalle.
+
+**Pruebas:** 203 pytest y 45 vitest en verde; `tsc --noEmit` limpio; `npm run build` verde.
+
+**Incidencias resueltas:** una política RLS `FOR ALL` concede SELECT (se separó por comando); `INSERT … RETURNING` exige
+pasar la política de lectura (ids generados en el cliente para mensajes de sistema); el envío push debe correr en sesión
+de sistema; parches con `replace` fallaban por archivos con CRLF (script tolerante a finales de línea).
+
 ## 2026-10-27 · P04 — Folios: ciclo de vida, validaciones y aprobación multinivel
 
 **Base de datos (migración 0004)**

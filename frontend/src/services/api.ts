@@ -36,6 +36,11 @@ function leerRefresh(): string | null {
   }
 }
 
+/** Token de acceso vigente (lo usan WebSocket/SSE, que no envían cabeceras). */
+export function tokenActual(): string | null {
+  return tokenAcceso
+}
+
 export const sesion = {
   guardar(tokens: Tokens) {
     tokenAcceso = tokens.access_token
