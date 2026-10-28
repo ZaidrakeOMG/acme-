@@ -29,6 +29,11 @@ import { Calendario } from './pages/preventivos/Calendario'
 import { Planes } from './pages/preventivos/Planes'
 import { Reporte as ReporteReasignaciones } from './pages/reasignaciones/Reporte'
 import { Login } from './pages/Login'
+import { Clasificacion } from './pages/clasificacion/Clasificacion'
+import { Minutas } from './pages/minutas/Minutas'
+import { ResponderMinuta } from './pages/minutas/ResponderMinuta'
+import { Notificaciones } from './pages/Notificaciones'
+import { Seguimiento } from './pages/seguimiento/Seguimiento'
 import { RoleHub } from './pages/RoleHub'
 import { Seguridad } from './pages/Seguridad'
 import { Sincronizacion } from './pages/Sincronizacion'
@@ -49,6 +54,10 @@ const PAGINAS: Record<string, ReactNode> = {
   app_campo: <Campo />,
   preventivos: <Calendario />,
   reasignaciones: <ReporteReasignaciones />,
+  minuta: <Minutas />,
+  seguimiento: <Seguimiento />,
+  clasificacion: <Clasificacion />,
+  notificaciones: <Notificaciones />,
 }
 
 function SinPermiso() {
@@ -84,6 +93,7 @@ export function App() {
         <Route path="folios/aprobaciones" element={ROLES_APROBADOR.includes(usuario.rol) ? <Aprobaciones /> : <SinPermiso />} />
         <Route path="folios/:folioId" element={<FolioDetalle />} />
         <Route path="sincronizacion" element={<Sincronizacion />} />
+        <Route path="minutas/:minutaId" element={<ResponderMinuta />} />
         <Route path="preventivos/planes" element={ROLES_PLANES.includes(usuario.rol) || ['admin_empresa', 'admin_un', 'mesa_control'].includes(usuario.rol) ? <Planes /> : <SinPermiso />} />
         <Route path="preventivos/autorizaciones" element={ROLES_CALENDARIO.includes(usuario.rol) ? <Autorizaciones /> : <SinPermiso />} />
         <Route path="campo/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio modoCampo /> : <SinPermiso />} />

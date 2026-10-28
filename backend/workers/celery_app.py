@@ -8,7 +8,7 @@ from celery.schedules import crontab
 
 from core.config import config
 
-celery_app = Celery("acma", broker=config.celery_broker_url, backend=config.celery_result_backend, include=["workers.tareas", "workers.tareas.preventivos"])
+celery_app = Celery("acma", broker=config.celery_broker_url, backend=config.celery_result_backend, include=["workers.tareas", "workers.tareas.preventivos", "workers.tareas.notificaciones", "workers.tareas.minuta"])
 celery_app.conf.update(
     timezone="America/Mexico_City",
     enable_utc=True,
@@ -26,6 +26,10 @@ celery_app.conf.update(
         "purgar-sesiones": {"task": "acma.purgar_sesiones_expiradas", "schedule": 6 * 3600.0},
         # P06: generación nocturna de folios preventivos (planes con trigger y calendario manual).
         "generar-preventivos": {"task": "acma.generar_preventivos_programados", "schedule": crontab(hour=2, minute=0)},
+        # P07: minuta a la hora configurada por tenant (se revisa cada 10 min), notificaciones pendientes y calificación diaria.
+        "generar-minutas": {"task": "acma.generar_minutas", "schedule": 600.0},
+        "enviar-notificaciones-pendientes": {"task": "acma.enviar_notificaciones_pendientes", "schedule": 120.0},
+        "calificar-admin-un": {"task": "acma.calificar_admin_un", "schedule": crontab(hour=6, minute=30)},
     },
 )
 

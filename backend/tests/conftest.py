@@ -35,6 +35,8 @@ os.environ["ACMA_ENTORNO"] = "pruebas"
 os.environ["TIEMPO_REAL_MODO"] = "local"
 os.environ["VAPID_CLAVE_PUBLICA"] = ""
 os.environ["VAPID_CLAVE_PRIVADA"] = ""
+os.environ["SMTP_HOST"] = ""
+os.environ["NOTIFICACIONES_ENVIO_INLINE"] = "true"
 
 import pyotp  # noqa: E402
 import pytest  # noqa: E402
@@ -144,9 +146,12 @@ def auth(datos, cliente_factory):
     """auth("operador@acma.dev") -> cabeceras Authorization (cacheadas por correo durante la sesión)."""
 
     async def _auth(email: str) -> dict[str, str]:
-        if email not in _TOKENS:
+        import time
+
+        # El acceso dura 15 min y la suite completa ya supera ese tiempo (P07): se vuelve a iniciar sesión a los 10 min.
+        if email not in _TOKENS or time.monotonic() - _TOKENS[email].get("_emitido", 0) > 600:
             async with cliente_factory() as c:
-                _TOKENS[email] = await iniciar_sesion(c, email, datos["contrasena"])
+                _TOKENS[email] = {**await iniciar_sesion(c, email, datos["contrasena"]), "_emitido": time.monotonic()}
         return {"Authorization": f"Bearer {_TOKENS[email]['access_token']}"}
 
     return _auth

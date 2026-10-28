@@ -130,9 +130,9 @@ async def test_push_suscripcion_y_envio_por_transicion(cliente, auth, datos):
     r = await cliente.post("/api/push/suscripcion", headers=h, json={"endpoint": endpoint, "keys": {"p256dh": "x", "auth": "y"}, "dispositivo_id": "prueba"})
     assert r.status_code == 201
     assert (await cliente.post("/api/push/suscripcion", headers=h, json={"endpoint": endpoint, "keys": {"p256dh": "x2", "auth": "y"}})).status_code == 201  # idempotente
-    antes = len(notificaciones.ENVIADAS)
     f = await autorizar_sin_flujo(cliente, auth, datos, OP)
-    nuevas = [n for n in list(notificaciones.ENVIADAS)[antes:] if "push" in n["canales"] and str(f["capturado_por"]) in n["usuarios"]]
+    # Se busca por contenido: el deque ENVIADAS tiene maxlen y en la suite completa ya está lleno.
+    nuevas = [n for n in notificaciones.ENVIADAS if "push" in n["canales"] and str(f["capturado_por"]) in n["usuarios"] and f["numero_folio"] in n["titulo"]]
     assert nuevas and any("autorizado" in n["titulo"] for n in nuevas)
     async with nueva_sesion(CONTEXTO_SISTEMA) as db:
         fila = (await db.execute(text("SELECT activa, ultimo_envio_at FROM suscripciones_push WHERE endpoint = :e"), {"e": endpoint})).one()

@@ -1,12 +1,13 @@
 /** Espejo de backend/schemas/folios.py (P04). */
 import type { Rol } from './api'
+import type { Hallazgo } from './minutas'
 import type { ReasignacionFolio } from './preventivos'
 
 export const ESTADOS_FOLIO = ['capturado', 'en_revision', 'pendiente_informacion', 'autorizado', 'asignado', 'reasignado', 'en_camino', 'en_ejecucion', 'pendiente_refaccion', 'cerrado', 'cancelado'] as const
 export type EstadoFolio = (typeof ESTADOS_FOLIO)[number]
 export type TipoFolio = 'correctivo' | 'preventivo' | 'especial'
 export type Criticidad = 'A' | 'B' | 'C' | 'D'
-export type TriggerRevision = 'sin_contrato' | 'garantia' | 'tipo_falla_flag' | 'fuera_horario' | 'keyword_alerta' | 'severidad_no_configurada' | 'confirmacion_un_faltante'
+export type TriggerRevision = 'sin_contrato' | 'garantia' | 'tipo_falla_flag' | 'fuera_horario' | 'keyword_alerta' | 'severidad_no_configurada' | 'confirmacion_un_faltante' | 'pendiente_clasificacion'
 export type EstadoFlujo = 'activo' | 'aprobado' | 'rechazado' | 'bloqueado'
 export type RazonRechazo = 'por_presupuesto' | 'requiere_cotizacion' | 'seguimiento_interno' | 'reprogramar'
 export type CanalAprobacion = 'push' | 'app' | 'minuta' | 'sistema'
@@ -21,7 +22,7 @@ export const NOMBRE_ESTADO: Record<EstadoFolio, string> = {
 export const NOMBRE_TRIGGER: Record<TriggerRevision, string> = {
   sin_contrato: 'Equipo sin contrato activo', garantia: 'Equipo en garantía', tipo_falla_flag: 'Tipo de falla con revisión manual',
   fuera_horario: 'Fuera del horario del contrato', keyword_alerta: 'Palabra de alerta en la descripción',
-  severidad_no_configurada: 'Severidad no configurada en la matriz', confirmacion_un_faltante: 'Falta la confirmación de UN',
+  severidad_no_configurada: 'Severidad no configurada en la matriz',   confirmacion_un_faltante: 'Falta la confirmación de UN', pendiente_clasificacion: 'Pendiente de clasificación del Admin UN (§6.10.5)',
 }
 
 /** §6.8.7: las cuatro razones de rechazo y su módulo destino. */
@@ -140,6 +141,9 @@ export interface FolioDetalle {
   asignacion: { tecnico_id: string | null; tecnico_nombre: string | null; asignado_at: string | null; vehiculo: string | null; orden_en_ruta: number | null; ventana_inicio: string | null; ventana_fin: string | null }
   historial: HistorialFolio[]
   reasignaciones: ReasignacionFolio[]
+  hallazgos: Hallazgo[]                                         // P07
+  derivaciones: { modulo: string; ruta: string; registro_id: string; estado: string; origen: string; descripcion: string; numero: string | null; created_at: string }[]  // P07
+  clasificacion: { opcion: string; timestamp: string; dentro_de_plazo: boolean; horas_retraso: string; fecha_tentativa: string | null; modulo_destino: string | null; modulo_registro_id: string | null; admin_un_id: string; notas: string } | null  // P07
   evidencias: EvidenciaFolio[]
   formulario_atencion: VinculoFormulario | null
   refacciones: RefaccionFolio[]

@@ -117,9 +117,9 @@ async def test_rechazo_con_cada_razon_deriva_al_modulo(cliente, auth, datos, raz
     assert r["estado"] == "cancelado" and razon in r["razon_cancelacion"] and r["flujo"]["estado"] == "rechazado"
     d = await detalle(cliente, auth, f["id"])
     dec = d["decisiones"][0]
-    assert dec["decision"] == "rechazado" and dec["razon_rechazo"] == razon and dec["modulo_destino"] == modulo and dec["modulo_destino_id"] is None
+    assert dec["decision"] == "rechazado" and dec["razon_rechazo"] == razon and dec["modulo_destino"] == modulo and dec["modulo_destino_id"] is not None  # P07: registro creado en el módulo
     evento = next(h for h in d["historial"] if h["evento"] == "folio.derivado_a_modulo")
-    assert evento["datos_contexto_json"]["modulo_destino"] == modulo and evento["datos_contexto_json"]["procesado_por_p07"] is False
+    assert evento["datos_contexto_json"]["modulo_destino"] == modulo and evento["datos_contexto_json"]["procesado_por_p07"] is True and evento["datos_contexto_json"]["modulo_destino_id"] == dec["modulo_destino_id"]
     assert d["folio"]["estado"] == "cancelado" and d["acciones"] == []
 
 

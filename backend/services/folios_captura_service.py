@@ -127,6 +127,14 @@ def dentro_de_horario(horario: dict[str, Any] | None, momento: datetime, zona: s
     return any(inicio <= hhmm < fin for inicio, fin in rangos)
 
 
+async def _avisar_despachador(db: AsyncSession, folio: Folio, asunto: str, cuerpo: str) -> None:
+    from services import notificaciones_service
+
+    destinatarios = await notificaciones_service.destinatarios_por_rol(db, ["despachador"], prestador_id=folio.prestador_id)
+    await notificaciones_service.notificar(db, "folio.revision", destinatarios, {"folio_id": str(folio.id)}, asunto=asunto, cuerpo=cuerpo, url=f"/folios/{folio.id}",
+                                           tenant_id=folio.tenant_id, prestador_id=folio.prestador_id, canales=["app", "push"])
+
+
 async def _trigger(db: AsyncSession, folio: Folio, tipo: TriggerRevision, descripcion: str) -> None:
     db.add(RevisionManualTrigger(folio_id=folio.id, tenant_id=folio.tenant_id, prestador_id=folio.prestador_id, trigger_tipo=tipo,
                                  descripcion=descripcion))
@@ -167,8 +175,11 @@ async def _validar_y_resolver(db: AsyncSession, folio: Folio, equipo: Equipo, ti
     # 1. Confirmación de UN.
     if not folio.confirmacion_un:
         await _trigger(db, folio, TriggerRevision.confirmacion_un_faltante, "El operador no confirmó la unidad de negocio")
-        notificaciones.enviar(usuarios=[folio.capturado_por], tenant_id=folio.tenant_id, titulo=f"Folio {folio.numero_folio} en espera",
-                              cuerpo="Confirma la unidad de negocio para continuar", datos={"folio_id": str(folio.id)})
+        from services import notificaciones_service
+
+        await notificaciones_service.notificar(db, "folio.espera", [folio.capturado_por], {"folio_id": str(folio.id)}, asunto=f"Folio {folio.numero_folio} en espera",
+                                               cuerpo="Confirma la unidad de negocio para continuar", url=f"/campo/folio/{folio.id}", tenant_id=folio.tenant_id,
+                                               prestador_id=folio.prestador_id, canales=["app", "push"])
         return
     triggers: list[tuple[TriggerRevision, str]] = []
     # 2. Contrato activo.
@@ -177,8 +188,7 @@ async def _validar_y_resolver(db: AsyncSession, folio: Folio, equipo: Equipo, ti
         detalle = (f"Contrato «{contrato.nombre}» vigente hasta {contrato.fecha_fin.isoformat()}" if contrato
                    else "El equipo no tiene contrato activo")
         triggers.append((TriggerRevision.sin_contrato, detalle))
-        notificaciones.enviar(roles=["despachador"], prestador_id=folio.prestador_id, tenant_id=folio.tenant_id,
-                              titulo=f"Folio {folio.numero_folio}: equipo sin contrato activo", cuerpo=detalle, datos={"folio_id": str(folio.id)})
+        await _avisar_despachador(db, folio, f"Folio {folio.numero_folio}: equipo sin contrato activo", detalle)
     # 4. Severidad por la matriz.
     fila = await catalogos_service.resolver_severidad(db, folio.tenant_id, tipo_falla.id, equipo.tipo_equipo_id)
     if fila is None:
@@ -207,9 +217,7 @@ async def _validar_y_resolver(db: AsyncSession, folio: Folio, equipo: Equipo, ti
         if not dentro_de_horario(contrato.horario_servicio_json, ahora, un.zona_horaria if un else "America/Mexico_City"):
             detalle = f"Capturado fuera del horario de servicio del contrato «{contrato.nombre}»"
             triggers.append((TriggerRevision.fuera_horario, detalle))
-            notificaciones.enviar(roles=["despachador"], prestador_id=folio.prestador_id, tenant_id=folio.tenant_id,
-                                  titulo=f"Folio {folio.numero_folio} fuera de horario", cuerpo=detalle,
-                                  datos={"folio_id": str(folio.id), "horario": contrato.horario_servicio_json})
+            await _avisar_despachador(db, folio, f"Folio {folio.numero_folio} fuera de horario", detalle)
     # 8. Palabras clave de alerta.
     palabras = await keywords_detectadas(db, folio.prestador_id, folio.tenant_id, folio.descripcion)
     if palabras:
@@ -221,6 +229,15 @@ async def _validar_y_resolver(db: AsyncSession, folio: Folio, equipo: Equipo, ti
         await folio_estados.transicionar(db, folio, EstadoFolio.en_revision, ACTOR_SISTEMA,
                                          "Validación automática no resoluble: " + "; ".join(t.value for t, _ in triggers),
                                          {"triggers": [t.value for t, _ in triggers]}, request)
+        return
+    # P07 §6.10.5: el folio no crítico (severidad configurada por el tenant) espera la clasificación del Admin UN.
+    from services import clasificacion_service
+
+    if await clasificacion_service.requiere_clasificacion(db, folio):
+        await _trigger(db, folio, TriggerRevision.pendiente_clasificacion, "Folio no crítico: pendiente de clasificación del Admin UN (§6.10.5)")
+        await folio_estados.transicionar(db, folio, EstadoFolio.en_revision, ACTOR_SISTEMA, "Folio no crítico pendiente de clasificación (§6.10.5)",
+                                         {"triggers": ["pendiente_clasificacion"]}, request)
+        await clasificacion_service.notificar_pendiente(db, folio)
         return
     await aprobacion_service.evaluar_al_capturar(db, folio, equipo, request, ahora)
 
@@ -613,6 +630,26 @@ async def _vinculo(db: AsyncSession, v) -> dict[str, Any] | None:
             "version_formulario": v.version_formulario, "timestamp": v.timestamp, "respuestas_json": r.respuestas_json if r else {}}
 
 
+async def _seguimiento_p07(db: AsyncSession, folio: Folio) -> dict[str, Any]:
+    """Hallazgos del folio, registros en los módulos de seguimiento (rechazo §6.8.7, minuta §7.4 o clasificación §6.10.5) y clasificación."""
+    from models.minutas import Hallazgo
+    from models.seguimiento import Cotizacion, FolioClasificacion, HallazgoPresupuesto, Reprogramacion, SeguimientoInterno
+    from services import hallazgos_service
+
+    hallazgos = list((await db.execute(select(Hallazgo).where(Hallazgo.folio_id == folio.id).order_by(Hallazgo.timestamp))).scalars())
+    derivaciones = []
+    for modulo, modelo, ruta in (("cotizaciones", Cotizacion, "cotizaciones"), ("por_presupuesto", HallazgoPresupuesto, "presupuesto"),
+                                 ("seguimiento_interno", SeguimientoInterno, "interno"), ("reprogramacion", Reprogramacion, "reprogramacion")):
+        for r in (await db.execute(select(modelo).where(modelo.folio_id == folio.id))).scalars():
+            derivaciones.append({"modulo": modulo, "ruta": ruta, "registro_id": r.id, "estado": r.estado.value, "origen": r.origen, "descripcion": r.descripcion,
+                                 "numero": getattr(r, "numero", None), "created_at": r.created_at})
+    clasificacion = (await db.execute(select(FolioClasificacion).where(FolioClasificacion.folio_id == folio.id))).scalar_one_or_none()
+    return {"hallazgos": await hallazgos_service.enriquecer(db, hallazgos), "derivaciones": derivaciones,
+            "clasificacion": {"opcion": clasificacion.opcion_clasificacion.value, "timestamp": clasificacion.timestamp, "dentro_de_plazo": clasificacion.dentro_de_plazo,
+                              "horas_retraso": str(clasificacion.horas_retraso), "fecha_tentativa": clasificacion.fecha_tentativa, "modulo_destino": clasificacion.modulo_destino.value if clasificacion.modulo_destino else None,
+                              "modulo_registro_id": clasificacion.modulo_registro_id, "admin_un_id": clasificacion.admin_un_id, "notas": clasificacion.notas} if clasificacion else None}
+
+
 async def _reasignaciones(db: AsyncSession, folio: Folio) -> list[dict[str, Any]]:
     from services import reasignacion_service  # import local: reasignacion_service depende de este módulo
 
@@ -658,7 +695,7 @@ async def detalle(db: AsyncSession, actor: Actor, folio: Folio) -> dict[str, Any
     puede_aprobar = bool(flujo) and folio.estado == EstadoFolio.en_revision and await aprobacion_service.es_aprobador(db, actor, folio, flujo)
     return {
         "folio": base, "captura": captura, "formulario_captura": await _vinculo(db, cap), "asignacion": asignacion, "historial": hist,
-        "reasignaciones": await _reasignaciones(db, folio), "evidencias": evidencias, "formulario_atencion": await _vinculo(db, ate), "refacciones": refacciones,
+        "reasignaciones": await _reasignaciones(db, folio), "evidencias": evidencias, **await _seguimiento_p07(db, folio), "formulario_atencion": await _vinculo(db, ate), "refacciones": refacciones,
         "sla": sla, "encuesta": encuesta, "triggers_revision": triggers, "aprobacion": base["flujo"],
         "decisiones": [{"id": d.id, "flujo_id": d.flujo_id, "nivel": d.nivel, "actor_id": d.actor_id, "actor_nombre": nombres.get(d.actor_id),
                         "decision": d.decision, "razon_rechazo": d.razon_rechazo, "modulo_destino": d.modulo_destino,

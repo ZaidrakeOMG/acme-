@@ -15,7 +15,7 @@ from core.errors import ErrorAPI, no_encontrado, prohibido
 from models.base import Dominio, EstadoRegistro, Rol
 from models.catalogos import Equipo, EstadoActivo, FamiliaEquipo, Tecnico, TipoEquipo, TipoFalla
 from models.formularios import (
-    CalidadFotoDefault, CatalogoPersonalizado, CatalogoPersonalizadoOpcion, EstadoFormulario, EstadoRespuesta, Formulario,
+    CalidadFotoDefault, CatalogoPersonalizado, CatalogoPersonalizadoOpcion, EstadoFormulario, EstadoRespuesta, OrigenRespuesta, Formulario,
     FormularioAsignacion, FormularioEvidencia, FormularioPermisoMesa, FormularioRespuesta, FormularioVersion, TipoEvidencia,
 )
 from models.organizaciones import TenantPrestador
@@ -548,6 +548,10 @@ async def enviar(db: AsyncSession, actor: Actor, r: FormularioRespuesta, request
     r.estado = EstadoRespuesta.enviado
     r.inmutable = True
     await db.flush()
+    if r.origen == OrigenRespuesta.folio_atencion:
+        from services import hallazgos_service  # P07: campos con genera_hallazgo → hallazgos de la minuta
+
+        await hallazgos_service.desde_respuesta(db, actor, r, esquema)
     await auditoria.registrar_actor(db, actor, "formularios.respuesta_enviada", request, tenant_id=r.tenant_id, prestador_id=r.prestador_id,
                                     recurso_tipo="formulario_respuesta", recurso_id=r.id,
                                     despues={"formulario_id": str(r.formulario_id), "version": version.numero_version, "origen": r.origen.value,

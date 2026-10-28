@@ -64,6 +64,7 @@ class TriggerRevision(str, enum.Enum):
     keyword_alerta = "keyword_alerta"
     severidad_no_configurada = "severidad_no_configurada"
     confirmacion_un_faltante = "confirmacion_un_faltante"
+    pendiente_clasificacion = "pendiente_clasificacion"  # P07 §6.10.5
 
 
 class CriterioAprobacion(str, enum.Enum):
@@ -302,6 +303,8 @@ class FolioSLA(ConVersion, Base):
     tiempo_resolucion_real_min: Mapped[int | None] = mapped_column(Integer)
     cumplimiento_respuesta: Mapped[bool | None] = mapped_column(Boolean)
     cumplimiento_resolucion: Mapped[bool | None] = mapped_column(Boolean)
+    autorizado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # P07: el SLA corre desde aquí (P10)
+    excluir_sla_por_cliente: Mapped[bool] = mapped_column(Boolean, default=False)     # P07: clasificación tardía del Admin UN
 
 
 class FolioEncuesta(ConVersion, Base):

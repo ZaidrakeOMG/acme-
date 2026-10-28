@@ -334,8 +334,21 @@ CONFIG_POR_TIPO: dict[str, type[BaseModel]] = {
 }
 
 
+class HallazgoMapeo(BaseModel):
+    """P07 §7.3: el campo genera un hallazgo al enviar el formulario de atención. Mapeo de qué campos alimentan la descripción
+    (por defecto el propio campo), la urgencia (texto baja/media/alta/critica o slider 1–10) y la foto; `condicion_campo` /
+    `condicion_valor` limitan la generación (p. ej. requiere_correctivo == "si")."""
+    campo_descripcion: str | None = Field(default=None, pattern=_CLAVE.pattern)
+    campo_urgencia: str | None = Field(default=None, pattern=_CLAVE.pattern)
+    urgencia_fija: Literal["baja", "media", "alta", "critica"] | None = None
+    campo_foto: str | None = Field(default=None, pattern=_CLAVE.pattern)
+    condicion_campo: str | None = Field(default=None, pattern=_CLAVE.pattern)
+    condicion_valor: Any = None
+
+
 class Campo(BaseModel):
     clave: str = Field(pattern=_CLAVE.pattern, description="Única en el formulario, sin acentos")
+    genera_hallazgo: HallazgoMapeo | None = Field(default=None, description="P07: crea un hallazgo para la minuta al enviar")
     tipo: TipoCampo
     etiqueta: str = Field(min_length=1, max_length=200)
     ayuda: str | None = Field(default=None, max_length=500)
@@ -398,6 +411,12 @@ class EsquemaFormulario(BaseModel):
             raise ValueError("Claves de sección repetidas")
         existentes = set(claves)
         por_clave = {c.clave: c for c in self.campos}
+        for c in self.campos:
+            m = c.genera_hallazgo
+            if m:
+                for ref in (m.campo_descripcion, m.campo_urgencia, m.campo_foto, m.condicion_campo):
+                    if ref and ref not in existentes:
+                        raise ValueError(f"genera_hallazgo de {c.clave} apunta a un campo inexistente: {ref}")
         for c in self.campos:
             for cond in c.condiciones:
                 if cond.campo_origen not in existentes:

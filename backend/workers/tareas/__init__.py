@@ -114,5 +114,5 @@ def purgar_sesiones_expiradas() -> int:
 
 
 # Evaluadores de alertas por módulo y tareas de otros módulos (se registran al importar).
-from workers import evaluadores  # noqa: E402,F401
-from workers.tareas import preventivos  # noqa: E402,F401
+from workers import evaluadores, evaluadores_seguimiento  # noqa: E402,F401
+from workers.tareas import minuta, notificaciones, preventivos  # noqa: E402,F401

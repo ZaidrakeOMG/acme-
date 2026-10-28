@@ -306,6 +306,9 @@ class FolioDetalle(BaseModel):
     asignacion: AsignacionSalida
     historial: list[HistorialSalida]
     reasignaciones: list[dict[str, Any]] = Field(default_factory=list)   # P06
+    hallazgos: list[dict[str, Any]] = Field(default_factory=list)        # P07
+    derivaciones: list[dict[str, Any]] = Field(default_factory=list)     # P07: registros en los módulos de seguimiento
+    clasificacion: dict[str, Any] | None = None                           # P07 §6.10.5
     evidencias: list[EvidenciaFolioSalida]
     formulario_atencion: VinculoFormularioSalida | None
     refacciones: list[RefaccionSalida]

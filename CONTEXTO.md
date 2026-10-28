@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-28 · P06 Preventivos y reasignación forzada**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-29 · P07 Minuta del día, notificaciones y módulos de seguimiento**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -19,11 +19,25 @@
 | P04 | Folios: ciclo de vida de 11 estados, validaciones automáticas en captura y aprobación multinivel | ✅ 2026-10-27 |
 | P05 | Apps PWA del operador y del técnico, modo offline (cola idempotente) y chat archivado con tiempo real | ✅ 2026-10-28 |
 | P06 | Calendario de preventivos, planes con triggers de Fase 1, autorizaciones y reasignación forzada | ✅ 2026-10-28 |
-| P07 | Minuta y seguimiento | Pendiente |
+| P07 | Minuta del día por UN y global, notificaciones multicanal (correo SMTP), cuatro módulos de seguimiento y clasificación de no críticos | ✅ 2026-10-29 |
 | P08 | Trabajos especiales y OC | Pendiente |
 | P09 | Inventario, caja chica manual, presupuestos y activos | Pendiente |
 | P10 | Contratos/SLA (contador), alertas por módulo y BI | Pendiente |
 | P11 | Endurecimiento y despliegue | Pendiente |
+
+## Verificación al cierre de P07
+
+- `pytest`: **259 pruebas en verde** (226 anteriores + las de P07: preferencias/canales Fase 2/bandeja, correo stub con `.eml`
+  y adjunto, correo por SMTP contra `aiosmtpd`, plantilla del prestador; configuración, generación UN y global con secciones y
+  entrega, modo con validación y ventana vencida, las seis respuestas con su efecto, vencimiento y alerta, recordatorio por
+  período, hallazgos desde formulario y chat; cotizaciones por rol con PDF, rechazo → presupuesto y envío externo, Kanban,
+  historial inmutable, alertas por días, reporte JSON/Excel/PDF; presupuesto reactivar/descartar/revisar, alerta y monto
+  potencial, períodos, derivación §6.8.7; interno transiciones/campos/justificación y alertas; reprogramación con 3 fechas
+  vencidas y escalado, alertas y variantes A/B; clasificación con las cinco opciones, tardía, alertas y calificación). La
+  suite completa supera los 15 minutos: `conftest.auth` vuelve a iniciar sesión a los 10 min.
+- `vitest`: **62 pruebas en verde** (+ responder la minuta con las seis opciones y validación del despachador, Kanban que
+  cambia estado, listado y reporte, clasificación con fecha tentativa, calificación, bandeja y preferencias).
+- `tsc --noEmit` limpio; `npm run build` verde. Datos demo regenerados con `seed_minuta` sobre la base existente.
 
 ## Verificación al cierre de P06
 
@@ -420,6 +434,120 @@
   `reasignacion_validaciones.refaccion_ok` y la advertencia «Refacción no verificada» se resuelven con el inventario del
   vehículo. **Para P10**: `plan_ejecuciones.desvio_dias` y la alerta de preventivo vencido alimentan los KPIs.
 
+### Minuta y seguimiento (P07)
+- **Tablas (0007)**: `hallazgos` (folio opcional, UN, equipo, descripción, `nivel_urgencia`, `foto_evidencia_id`, tipo preventivo/
+  correctivo, origen `formulario_atencion|chat|manual`, `respuesta_id`, `mensaje_id`, estado de respuesta, opción §7.4, módulo y
+  registro destino), `peticiones_cliente`; minuta: `minuta_configuracion` (por prestador-tenant: modo, `hora_envio`, ventana 30
+  min, plazo 24 h y los umbrales de los contadores), `minutas` (UNIQUE tenant-prestador-fecha-tipo-UN; estados `borrador →
+  pendiente_validacion → enviada → respondida | vencida`, `enviada_sin_validacion`, `vence_respuesta_at`, `pdf_key`, `hash_pdf`,
+  `urgente`), `minutas_secciones` (una fila por sección con `contenido_json`), `minutas_respuestas` (opción, canal
+  app/email/push, módulo y registro o folio generado), `minutas_destinatarios`; notificaciones: `notificaciones` (por usuario y
+  canal, estado `pendiente|enviada|fallida|omitida`, `leida_at`, `url`; sin RETURNING como el chat) y `notificacion_preferencias`
+  (`canales_json` por evento, `*` = todos); módulos: `periodos_presupuestales`, `cotizaciones` (`numero` COT-00001 por prestador,
+  `detalle_json.partidas`, `estado_desde`, `trabajo_especial_id` sin FK hasta P08, `pdf_key`/`hash_pdf`,
+  `pasar_a_presupuesto_si_rechaza`), `cotizacion_envios_externos`, `hallazgos_presupuesto` (`ultima_revision`,
+  `historial_revisiones_json`, `reactivado_como`), `seguimientos_internos` (proveedor, fecha acordada, referencia,
+  `ultima_actualizacion`, `justificacion_cierre`), `reprogramaciones` (`fecha_tentativa`, `trabajo_coordinado` + `variante`,
+  `tercero_completo`, `folio_coordinado_id`, `fechas_vencidas_count`, `escalada_empresa`), `modulo_historial` (**append-only**,
+  trigger `acma_auditoria_inmutable`); clasificación: `clasificacion_configuracion` (severidades no críticas, plazo, umbral,
+  `admin_empresa_puede_clasificar`, `puntos_json`), `folio_clasificaciones`, `admin_un_calificacion`. Además
+  `trigger_revision` gana `pendiente_clasificacion`, `folio_sla` gana `autorizado_en` y `excluir_sla_por_cliente` (P10), y
+  `aprobacion_decisiones` acepta **una sola** actualización NULL → id de `modulo_destino_id` (trigger `acma_decision_solo_modulo`).
+  18 alertas evaluadas (14 nuevas + 5 del catálogo base: `COTIZACION_SIN_PREPARAR`, `COTIZACION_SIN_RESPUESTA`,
+  `SEGUIMIENTO_SIN_UPDATE`, `REPROGRAMACION_FECHA_VENCIDA`, `FOLIO_SIN_CLASIFICAR`). RLS: tablas con tenant+prestador con las
+  políticas por comando de P05/P06; `notificaciones` las lee/actualiza su dueño o el tenant/prestador del evento (la bandeja
+  filtra por usuario en el servicio); `notificacion_preferencias` las lee quien notifica (tenant o prestador vinculados).
+- **Notificaciones** (`services/notificaciones_service.py`): `notificar(db, evento, destinatarios, datos, asunto=, cuerpo=, url=,
+  tenant_id=, prestador_id=, canales=, adjuntos=, plantilla=)` resuelve canales por preferencia del usuario (`canales_de`:
+  preferencia del evento → preferencia `*` → `CANALES_POR_EVENTO` → `app, push, email`), inserta una fila por canal y envía:
+  `app` inmediata (bandeja), `push` (web-push de P05) y `email` (`services/correo.py`) desde `procesar()`, en línea si
+  `NOTIFICACIONES_ENVIO_INLINE=true` (pruebas, sin Celery) o en la tarea `acma.enviar_notificaciones` (+ barrido
+  `acma.enviar_notificaciones_pendientes` cada 2 min). `whatsapp` y `sms` quedan `omitida` «canal Fase 2». La bitácora
+  `notificaciones.ENVIADAS` de P04–P06 se conserva; los stubs de aprobaciones (`aprobacion.pendiente`, `aprobacion.bloqueada`),
+  captura (`folio.espera`, `folio.revision`) y preventivos (`calendario.publicado`, `autorizacion.solicitada`) ya pasan por
+  `notificar()`. `destinatarios_por_rol(db, roles, tenant_id=, prestador_id=, un_id=)` (Admin UN solo los de la UN). Catálogo de
+  eventos `EVENTOS`; API `/api/notificaciones` (bandeja, `no-leidas`, `leidas`, `eventos`, `preferencias`, `procesar`).
+  Correo: SMTP genérico con `aiosmtplib` (`SMTP_HOST/PORT/USER/PASSWORD/FROM/TLS`); sin `SMTP_HOST` modo **stub** que guarda
+  el `.eml` en el almacenamiento (`correo/AAAA/MM/DD/<id>.eml`) y registra en `correo.ENVIADOS`. Plantillas en
+  `backend/plantillas/correo/` (`base.html` con logo/colores del prestador, `generico`, `minuta`, `cotizacion`), rellenadas con
+  `correo.plantilla()` (escapa todo salvo claves `*_html`). PDF: `services/pdf.py` usa WeasyPrint cuando carga; si faltan sus
+  librerías nativas (GTK/Pango en Windows) usa un generador PDF mínimo propio; `sha256()` = `hash_pdf`.
+- **Hallazgos y peticiones** (`services/hallazgos_service.py`): el esquema de formularios (P03) admite `genera_hallazgo` por campo
+  (`HallazgoMapeo`: `campo_descripcion`, `campo_urgencia` texto o slider 1–10, `urgencia_fija`, `campo_foto`, `condicion_campo` /
+  `condicion_valor`); al enviar una respuesta `folio_atencion` `desde_respuesta()` crea los hallazgos. Un mensaje de chat con
+  texto se marca con `POST /api/chats/{chat}/mensajes/{id}/marcar` {como: hallazgo|peticion} (técnico, operador, Admin UN,
+  Despachador; `datos_json.marcado_como` evita duplicar). Captura manual `POST /api/hallazgos`. `GET /api/hallazgos`,
+  `GET /api/peticiones`.
+- **Minuta** (`services/minuta_service.py`): `generar(db, prestador, tenant, fecha)` → una minuta por UN con actividad
+  (`unidades_con_actividad`: eventos de folio, hallazgos, peticiones o preventivos ejecutados ese día en la zona horaria del
+  tenant) y una global; idempotente por la UNIQUE. **`minutas_secciones`** (`seccion`, `orden`, `contenido_json`):
+  `contadores` {cotizaciones{total, pendientes_enviar, pendientes_autorizar, color, umbral}, por_presupuesto, seguimiento_interno,
+  reprogramacion} con los colores/umbrales literales de §7.3 (rojo/amarillo según `minuta_configuracion`), `preventivos`
+  {items: [{un, equipo, tecnico, hora, fecha_programada, fecha_real, desvio_dias, texto_desvio}]} con `texto_desvio()` de P06,
+  `hallazgos` {items: [{hallazgo_id, descripcion, equipo, urgencia, foto_url, estado_respuesta, opcion_respuesta,
+  pendiente_de_dias_anteriores}]}, `cotizaciones` {pendientes_enviar, pendientes_autorizar}, `trabajos_especiales` {nota P08},
+  `peticiones` {items}, `pendientes_autorizacion` {items} (§6.8.7 canal minuta) y, solo en la global de la primera minuta del mes o
+  del inicio del período presupuestal, `recordatorio_presupuesto` {items}. Modo `automatica` → `enviar()` al generar; modo
+  `con_validacion` → `pendiente_validacion` + aviso al despachador; `validar(actor, notas)` o `vencer_validaciones()` (tras
+  `ventana_validacion_min`, marca `enviada_sin_validacion`). `enviar()`: PDF + `hash_pdf`, `notificar("minuta.enviada", …,
+  canales=[app, push, email], plantilla="minuta", adjuntos=[PDF])` a los Admin UN de la UN (minuta UN) o al Admin empresa
+  (global), `minutas_destinatarios`, `vence_respuesta_at` solo si hay hallazgos pendientes. `responder(actor, minuta,
+  hallazgo, opcion, canal, fecha_tentativa, proveedor, trabajo_coordinado, variante)` ejecuta el efecto literal de §7.4 vía
+  `seguimiento.entradas.desde_hallazgo` y refleja la respuesta en las secciones de la minuta UN y global del día; al responder
+  todos → `respondida`. `vencer_respuestas()` → `vencida` + `MINUTA_SIN_RESPUESTA`. Tarea `acma.generar_minutas` (cada 10 min:
+  genera a la `hora_envio` local de cada tenant, vence ventanas y plazos) y `POST /api/minutas/generar|procesar-pendientes`.
+  Endpoints `/api/minutas` (config GET/PUT, lista, detalle con secciones/hallazgos/respuestas/destinatarios, `pdf`, `validar`,
+  `hallazgos/{id}/responder`).
+- **Módulos de seguimiento** (`services/seguimiento/`): `base.py` (alcance por rol, `historial()` append-only, `exigir_rol`,
+  `exigir_justificacion`, `dias_en_estado`, `alertas_activas`, `transicionar` con `estado_desde`), y un módulo por tabla con
+  `TRANSICIONES` literal de §7.7 y **`cambiar_estado(db, actor, registro, nuevo, notas, request, **campos)`**: valida destino y
+  rol, exige campos (`con_proveedor`/`fecha_asignada`/`tercero_confirmado`: proveedor + fecha, referencia opcional) y
+  justificación escrita (`resuelto`, `cancelado`, `descartado`), escribe `modulo_historial`, audita y notifica (bandeja).
+  Cotizaciones: `crear` (COT-n, aviso simultáneo a Mesa, Despachador y Admin prestador), `preparar`, `enviar_cliente` (PDF +
+  correo con adjunto a Admin UN/empresa), `responder` (autorizar/rechazar; rechazo con `pasar_a_presupuesto_si_rechaza` →
+  diferido), `enviar_externo` (PDF por correo a terceros, registrado, sin cambiar estado), `convertir_en_trabajo_especial` →
+  **501 `DISPONIBLE_EN_P08`**. Presupuesto: `revisar`, `reactivar(como=folio|cotizacion)`, `descartar(razón)`, `monto_potencial`,
+  `periodo_actual()` / `inicio_de_periodo()` (mensual, trimestral, semestral, anual o fechas). Interno: `actualizar` (novedad).
+  Reprogramación: `registrar_fecha_vencida()` (contador acumulado entre `fecha_asignada` y `tercero_confirmado`; al llegar a 3
+  `escalada_empresa` + `REPROGRAMACION_ESCALADA_EMPRESA` + aviso al Admin empresa), `confirmar_tercero()` (variante A → crea el
+  folio correctivo del técnico con `entradas.folio_directo`). `entradas.py`: `desde_hallazgo` (§7.4), `desde_clasificacion`
+  (§6.10.5), `desde_derivacion` (§6.8.7: el rechazo del flujo crea el registro y llena `aprobacion_decisiones.modulo_destino_id`;
+  `procesar_derivaciones_pendientes()` migró los folios demo) y `folio_directo` (correctivo del sistema directo a Autorizado, sin
+  flujo multinivel). API `/api/seguimiento/{cotizaciones|presupuesto|interno|reprogramacion}` (listado con filtros tenant/UN/
+  período/estado/urgencia, alta directa, detalle con historial, `estado` para el Kanban), acciones propias
+  (`preparar`, `enviar`, `responder`, `convertir`, `pdf`, `enviar-externo`, `reactivar`, `descartar`, `revisar`,
+  `monto-potencial`, `actualizar`, `confirmar-tercero`), `por-un/{un_id}`, `periodos-presupuestales`, `reporte/ejecutivo`
+  (JSON, `.xlsx`, `.pdf`: tiempo promedio por módulo, tasa de conversión, hallazgos recurrentes por tipo de equipo, monto
+  potencial).
+- **Clasificación** (`services/clasificacion_service.py`): en la captura (P04), si el tenant tiene `clasificacion_configuracion`
+  activa y la severidad es no crítica, el folio queda `en_revision` con el trigger `pendiente_clasificacion` (sin flujo) y se
+  avisa al Admin UN; `pendientes()` (sus UNs; Admin empresa si está habilitado) con plazo restante; `clasificar(opcion,
+  fecha_tentativa, notas)`: `autorizado` → `transicionar(autorizado)` + `folio_sla.autorizado_en`; las otras cuatro crean el
+  registro del módulo y cancelan el folio con razón (queda enlazado por `derivaciones`). Tardía → `dentro_de_plazo=False`,
+  `horas_retraso`, `excluir_sla_por_cliente`. `calificar(tenant, periodo)` por Admin UN: base − retraso proporcional (tope) −
+  pendientes vencidos − minutas sin respuesta/tardías → `admin_un_calificacion` con `eventos_json`; bajo el umbral dispara
+  `ADMIN_UN_BAJO_DESEMPENO` y avisa al Admin empresa. Tarea `acma.calificar_admin_un` (06:30: calificación del período y
+  recordatorios de inicio de período presupuestal). API `/api/clasificacion` (config, pendientes, `{folio_id}`,
+  calificaciones, `calificaciones/calcular`).
+- **Frontend**: `types/minutas.ts`, `services/minutas.ts`; módulos con ruta `minuta` (`/minutas`, `pages/minutas/Minutas.tsx`
+  con bandeja de validación y configuración por cliente; `/minutas/:id` `ResponderMinuta.tsx`: dos bloques, PDF, validación y
+  respuesta por hallazgo con las seis opciones y captura de fecha/tercero/variante), `seguimiento` (`/seguimiento`,
+  `pages/seguimiento/Seguimiento.tsx`: cuatro pestañas, listado con días en estado y próxima alerta, columna «Estado del trabajo
+  especial» vacía hasta P08, Kanban con arrastre/«Mover a…» para Admin prestador y Despachador, vista por UN, reporte
+  ejecutivo con exportación, detalle con acciones por rol), `clasificacion` (`/clasificacion`, pantalla §6.10.5 + calificación +
+  configuración), `notificaciones` (`/notificaciones`, bandeja y preferencias; campana `CampanaNotificaciones` en la cabecera).
+  `FolioDetalle` muestra hallazgos, derivaciones y clasificación; `ChatFolio` permite marcar un mensaje como hallazgo o petición.
+- **Seed** (`scripts/seed_minuta.py`): configuración de minuta, período trimestral, severidades no críticas, 6 hallazgos en 6
+  folios, 2 peticiones, minutas de los últimos 3 días (UN respondida y vencida, hoy pendiente de validación), 3 cotizaciones
+  (enviada con PDF, autorizada con envío externo, solicitada), 2 diferidos (uno migrado del rechazo de P04), 2 seguimientos
+  internos (uno con proveedor), 2 reprogramaciones (una coordinada A con 2 fechas vencidas), 4 folios no críticos pendientes
+  de clasificar y la calificación del período.
+- **Para P08**: `cotizaciones.convertir_en_trabajo_especial()` (501) y la columna `trabajo_especial_id`; la sección
+  `trabajos_especiales` de la minuta recibe nuevos/en proceso/terminados; la columna «Estado del trabajo especial» del listado.
+  **Para P09**: `periodos_presupuestales` rige el recordatorio y debe ligarse al presupuesto; `hallazgos_presupuesto.monto_estimado`
+  y `monto_potencial`. **Para P10**: `folio_sla.autorizado_en` (inicio del SLA) y `excluir_sla_por_cliente`; `modulo_historial`
+  y `admin_un_calificacion` alimentan KPIs. **Fase 2**: canales `whatsapp`/`sms` (hoy `omitida`).
+
 ### Frontend
 - `src/config/modulos.ts` define los 25 módulos de Fase 1, su prompt y los roles que los ven. Al construir un módulo:
   agregar `ruta`, la página en `App.tsx` (`PAGINAS`) y ajustar roles.
@@ -547,6 +675,32 @@
     calendario sin publicar desde el día 25 (una vez por mes y vínculo tenant-prestador).
 60. **Publicar un mes vacío responde 409** (`MES_VACIO`); volver a publicar actualiza la misma publicación y vuelve a
     notificar.
+61. **Origen de los hallazgos**: bandera `genera_hallazgo` por campo del formulario de atención (con condición opcional) y
+    marcado de mensajes de chat por técnico/operador/Admin UN/Despachador; también captura manual. El documento no define el
+    mecanismo.
+62. **Minuta de UN sin actividad no se genera**; la global sí cuando hubo actividad en el tenant; `forzar` la genera vacía.
+63. **Ventana de validación vencida → envío automático** marcado `enviada_sin_validacion` (el documento define la ventana, no
+    el vencimiento).
+64. **«PDF firmado» = SHA-256** guardado en `hash_pdf` y mostrado en el correo, hasta definir firma electrónica.
+65. **Minuta sin hallazgos pendientes no vence** (`vence_respuesta_at` NULL); con hallazgos, vence tras `plazo_respuesta_horas`
+    y aún admite respuestas tardías (cuentan en la calificación).
+66. **Autorizar reparar sin cotización** crea un folio correctivo capturado por el sistema directo a Autorizado, sin flujo
+    multinivel: el cliente ya decidió. Lo mismo para «reactivar como folio» y el trabajo coordinado variante A.
+67. **Clasificación de no críticos**: el folio queda en `en_revision` con trigger `pendiente_clasificacion` (sin flujo) hasta
+    que el Admin UN clasifique; las opciones distintas de «autorizado» cancelan el folio con razón y lo enlazan al módulo
+    (como el rechazo de §6.8.7). Solo aplica a folios capturados después de configurar el tenant.
+68. **Clasificación tardía**: descuento proporcional a las horas de retraso (`puntos_json.clasificacion_tarde_por_hora`, tope
+    `clasificacion_tarde_max`) y bandera `excluir_sla_por_cliente` para P10.
+69. **Alertas reutilizadas** del catálogo base (`COTIZACION_SIN_PREPARAR`, `COTIZACION_SIN_RESPUESTA`, `SEGUIMIENTO_SIN_UPDATE`,
+    `REPROGRAMACION_FECHA_VENCIDA`, `FOLIO_SIN_CLASIFICAR`) en lugar de duplicarlas con los nombres del prompt.
+70. **`aprobacion_decisiones` sigue siendo append-only** salvo por `modulo_destino_id`, que se puede llenar una sola vez.
+71. **Reprogramación con fecha tentativa** (clasificación o respuesta de la minuta) nace en `fecha_asignada`; una fecha vencida
+    deja `fecha_acordada` NULL y conserva el estado hasta que se registre la nueva.
+72. **Fase 2 de notificaciones** (`whatsapp`, `sms`) se registra como `omitida` con motivo, para que la bitácora sea completa.
+73. **Notificaciones en línea**: en pruebas y sin Celery se envían en la misma petición (`NOTIFICACIONES_ENVIO_INLINE`); en
+    producción las envía Celery.
+74. **WeasyPrint** se usa cuando sus librerías nativas están presentes (Linux/contenedor); en esta máquina Windows sin GTK se
+    usa el generador PDF mínimo propio (texto y estructura, sin estilos).
 
 ## Notas de entorno (esta máquina)
 
@@ -559,3 +713,6 @@
 - Zona horaria del horario de servicio: `zoneinfo` + paquete `tzdata` (ya en el venv) porque Windows no trae la base IANA.
 - `pywebpush` instalado en el venv (P05); `fake-indexeddb` como devDependency del frontend para probar Dexie en vitest.
 - Las pruebas de vitest y pytest se corren por separado: en paralelo con el build, vitest falla por tiempos de espera.
+- P07: `aiosmtplib`, `aiosmtpd` y `weasyprint` en el venv. WeasyPrint no carga en esta máquina (faltan GTK/Pango: «cannot load
+  library libgobject-2.0-0»); `services/pdf.py` cae al generador mínimo. Para PDF con estilos instalar el runtime GTK3 o
+  ejecutar en Linux. vitest corre los archivos en serie (`fileParallelism: false`, 30 s por prueba).

@@ -221,10 +221,15 @@ async def publicar_mes(db: AsyncSession, actor: Actor, mes: str, tenant_id: UUID
     destinatarios = list((await db.execute(select(Usuario.id).where(Usuario.tenant_id == t, Usuario.rol.in_([Rol.admin_empresa, Rol.admin_un]),
                                                                     Usuario.estado == EstadoRegistro.activo))).scalars())
     titulo = f"Calendario de preventivos de {inicio.strftime('%m/%Y')} publicado"
+    from services import notificaciones_service
+
+    await notificaciones_service.notificar(db, "calendario.publicado", destinatarios, {"mes": inicio.isoformat(), "tenant_id": str(t), "total": total}, asunto=titulo,
+                                           cuerpo=f"{total} preventivo(s) programados para {inicio.strftime('%m/%Y')}.", url="/preventivos/calendario", tenant_id=t, prestador_id=p,
+                                           canales=["app", "push", "email"])
+    # Compatibilidad con la bitácora de P06 (roles explícitos).
     notificaciones.enviar(roles=["admin_empresa", "admin_un"], usuarios=destinatarios, tenant_id=t, prestador_id=p, titulo=titulo,
                           cuerpo=f"{total} preventivo(s) programados", datos={"evento": "calendario.publicado", "mes": inicio.isoformat(), "tenant_id": str(t)},
                           canales=["push", "email"])
-    await push_service.enviar_a_usuarios(db, destinatarios, titulo, f"{total} preventivo(s) programados", {"evento": "calendario.publicado", "mes": inicio.isoformat(), "url": "/preventivos/calendario"})
     await auditoria.registrar_actor(db, actor, "preventivos.calendario_publicado", request, recurso_tipo="calendario_publicacion", recurso_id=pub.id,
                                     tenant_id=t, prestador_id=p, despues={"mes": inicio.isoformat(), "total": total, "destinatarios": len(destinatarios)})
     return pub
@@ -399,9 +404,11 @@ async def solicitar(db: AsyncSession, actor: Actor, folio: Folio, tipo: TipoAuto
     if CanalChat.operativo in chats:
         await chat_service.evento_sistema(db, chats[CanalChat.operativo], f"preventivo.solicitud_{tipo.value}", texto, {"autorizacion_id": str(a.id)})
     destinatarios = await _autorizadores(db, folio)
-    notificaciones.enviar(roles=["admin_un", "admin_empresa"], usuarios=destinatarios, tenant_id=folio.tenant_id, prestador_id=folio.prestador_id,
-                          titulo=f"Folio {folio.numero_folio}: {texto[:60]}", datos={"evento": "autorizacion.solicitada", "autorizacion_id": str(a.id)}, canales=["push", "email"])
-    await push_service.enviar_a_usuarios(db, destinatarios, f"Preventivo {folio.numero_folio}: autorización pendiente", texto, {"url": "/preventivos/autorizaciones"})
+    from services import notificaciones_service
+
+    await notificaciones_service.notificar(db, "autorizacion.solicitada", destinatarios, {"autorizacion_id": str(a.id), "folio_id": str(folio.id)},
+                                           asunto=f"Preventivo {folio.numero_folio}: autorización pendiente", cuerpo=texto, url="/preventivos/autorizaciones",
+                                           tenant_id=folio.tenant_id, prestador_id=folio.prestador_id)
     await auditoria.registrar_actor(db, actor, f"preventivos.solicitud_{tipo.value}", request, recurso_tipo="folio", recurso_id=folio.id, tenant_id=folio.tenant_id,
                                     prestador_id=folio.prestador_id, despues={"autorizacion_id": a.id, "razon": razon, "fecha_nueva": fecha_nueva})
     return a

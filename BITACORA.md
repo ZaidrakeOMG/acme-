@@ -2,6 +2,45 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-10-29 · P07 — Minuta del día, notificaciones por correo y módulos de seguimiento
+
+**Base de datos (migración 0007)**
+- 19 tablas: hallazgos, peticiones_cliente, minuta_configuracion, minutas, minutas_secciones, minutas_respuestas,
+  minutas_destinatarios, notificaciones, notificacion_preferencias, periodos_presupuestales, cotizaciones,
+  cotizacion_envios_externos, hallazgos_presupuesto, seguimientos_internos, reprogramaciones, modulo_historial (append-only),
+  clasificacion_configuracion, folio_clasificaciones y admin_un_calificacion; 18 ENUM; `trigger_revision` +
+  `pendiente_clasificacion`; `folio_sla.autorizado_en` / `excluir_sla_por_cliente`; `aprobacion_decisiones.modulo_destino_id`
+  actualizable una vez. 14 alertas nuevas (minuta, cotizaciones, presupuesto, interno, reprogramación, clasificación).
+
+**Backend**
+- `notificaciones_service.notificar()` (canal por preferencia y evento; app, push y correo; WhatsApp/SMS omitidos como Fase 2),
+  correo SMTP genérico con modo stub (`.eml` en MinIO) y plantillas con el diseño del prestador, PDF con WeasyPrint o
+  generador mínimo; los stubs de P04–P06 ahora pasan por `notificar()`.
+- `hallazgos_service` (bandera `genera_hallazgo` en formularios, marcado de mensajes de chat, captura manual),
+  `minuta_service` (generación por UN y global con las secciones de §7.3, validación con ventana, entrega por correo+PDF/push/
+  bandeja, seis respuestas de §7.4, vencimiento, recordatorio por período), paquete `services/seguimiento` (cotizaciones,
+  presupuesto, interno, reprogramación con `cambiar_estado()`, historial inmutable, entradas desde minuta/clasificación/rechazo
+  §6.8.7, folio directo), `clasificacion_service` (pendientes, cinco opciones, plazo y calificación del Admin UN).
+- Tareas Celery `acma.generar_minutas` (10 min), `acma.enviar_notificaciones` / `_pendientes` (2 min) y
+  `acma.calificar_admin_un` (06:30); 25 evaluadores de alertas. 43 rutas nuevas (`/api/minutas`, `/api/hallazgos`,
+  `/api/peticiones`, `/api/notificaciones`, `/api/seguimiento`, `/api/clasificacion`, marcado en chat).
+- Seed `seed_minuta.py`: configuración, hallazgos, peticiones, minutas de 3 días, cotizaciones, diferidos, seguimientos,
+  reprogramaciones, folios pendientes de clasificar y calificación.
+
+**Frontend**
+- Páginas Minutas (lista, bandeja de validación, configuración) y ResponderMinuta (dos bloques, PDF, seis opciones),
+  Seguimiento (listado, Kanban, vista por UN, reporte ejecutivo exportable, detalle con acciones), Clasificación (pendientes,
+  calificación, configuración), Notificaciones (bandeja y preferencias) y campana en la cabecera; detalle del folio con
+  hallazgos/derivaciones/clasificación; marcar mensajes del chat.
+
+**Pruebas:** 259 pytest y 62 vitest en verde; `tsc --noEmit` limpio; `npm run build` verde.
+
+**Incidencias resueltas:** WeasyPrint no carga sin GTK en Windows (generador mínimo de respaldo); `aprobacion_decisiones` era
+append-only y P07 debe llenar `modulo_destino_id` (trigger que permite esa única actualización); las notificaciones creadas
+en la transacción del actor no podían enviarse por la RLS de solo-dueño (política ampliada al tenant/prestador del evento);
+la suite completa de pytest supera los 15 minutos del token de acceso (re-login en `conftest.auth`); vitest en paralelo agota
+los tiempos (archivos en serie).
+
 ## 2026-10-28 · P06 — Calendario de preventivos, planes con triggers y reasignación forzada
 
 **Base de datos (migración 0006)**

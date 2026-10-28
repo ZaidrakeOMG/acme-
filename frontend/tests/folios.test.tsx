@@ -49,7 +49,7 @@ function detalle(f: FolioResumen, extra: Partial<FolioDetalle> = {}): FolioDetal
     formulario_captura: null, asignacion: { tecnico_id: null, tecnico_nombre: null, asignado_at: null, vehiculo: null, orden_en_ruta: null, ventana_inicio: null, ventana_fin: null },
     historial: [{ id: 'h1', evento: 'transicion', estado_anterior: null, estado_nuevo: 'capturado', actor_id: 'op', actor_rol: 'operador', actor_nombre: 'Olga Operadora', timestamp: f.capturado_at, notas: 'Folio capturado', datos_contexto_json: {} },
       { id: 'h2', evento: 'transicion', estado_anterior: 'capturado', estado_nuevo: 'autorizado', actor_id: null, actor_rol: 'sistema', actor_nombre: null, timestamp: f.capturado_at, notas: 'Sin reglas', datos_contexto_json: {} }],
-    reasignaciones: [], evidencias: [], formulario_atencion: null, refacciones: [], sla: { nivel_severidad_id: 's5', tiempo_respuesta_prometido_horas: 2, tiempo_resolucion_prometido_horas: 8, tiempo_respuesta_real_min: null, tiempo_resolucion_real_min: null, cumplimiento_respuesta: null, cumplimiento_resolucion: null },
+    reasignaciones: [], hallazgos: [], derivaciones: [], clasificacion: null, evidencias: [], formulario_atencion: null, refacciones: [], sla: { nivel_severidad_id: 's5', tiempo_respuesta_prometido_horas: 2, tiempo_resolucion_prometido_horas: 8, tiempo_respuesta_real_min: null, tiempo_resolucion_real_min: null, cumplimiento_respuesta: null, cumplimiento_resolucion: null },
     encuesta: null, triggers_revision: [], aprobacion: null, decisiones: [], chat: [], financiero: {}, acciones: ['asignado', 'cancelado'], puede_aprobar: false, ...extra,
   }
 }

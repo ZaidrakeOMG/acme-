@@ -169,6 +169,20 @@ Autorizado. Reprogramar o cancelar un preventivo pasa por **Autorizaciones** (Ad
 **Reasignaciones** (`/reasignaciones/reporte`): causas por período y catálogo de razones; la reasignación forzada se hace
 desde el detalle del folio con el botón **Reasignar** (habilidad = restricción dura, advertencias con confirmación).
 
+## Minuta del día, notificaciones y seguimiento (P07)
+
+Tarjeta **Minuta del día** (`/minutas`): al cierre de jornada ACMA genera una minuta por UN y una global (estatus de los cuatro
+módulos, preventivos con desvío, hallazgos, cotizaciones, peticiones) y la entrega por correo con PDF, push y la bandeja. El
+despachador puede validarla (ventana de 30 minutos) y el Admin UN responde cada hallazgo con una de seis opciones. Tarjeta
+**Seguimiento** (`/seguimiento`): Cotizaciones, Por presupuesto, Seguimiento interno y Reprogramación con listado, Kanban, vista
+por UN y reporte ejecutivo (Excel/PDF). Tarjeta **Folios no críticos** (`/clasificacion`): el Admin UN clasifica en plazo y el
+Admin empresa ve su calificación. **Notificaciones** (campana): bandeja y preferencias de canal por evento.
+
+Correo saliente: deja `SMTP_HOST` vacío para el modo *stub* (los `.eml` quedan en MinIO bajo `correo/`) o configura
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` y `SMTP_TLS` (correo corporativo o SendGrid por SMTP).
+`APP_URL_PUBLICA` es la base de los enlaces. Para PDF con diseño instala el runtime GTK3 (WeasyPrint); sin él se genera un PDF
+mínimo de texto.
+
 ## Problemas conocidos en Windows
 
 - **Docker Desktop no arranca** y el log menciona `remove …\dockerInference` o `…\engine.sock`: quedaron sockets huérfanos.

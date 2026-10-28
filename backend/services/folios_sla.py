@@ -52,4 +52,10 @@ async def registrar_prometido(db: AsyncSession, folio: Folio) -> FolioSLA | None
 @folio_estados.suscribir
 async def _al_autorizar(db: AsyncSession, folio: Folio, _anterior, nuevo: EstadoFolio, _actor, _contexto) -> None:
     if nuevo == EstadoFolio.autorizado:
-        await registrar_prometido(db, folio)
+        fila = await registrar_prometido(db, folio)
+        if fila is None:
+            fila = (await db.execute(select(FolioSLA).where(FolioSLA.folio_id == folio.id))).scalar_one_or_none()
+        if fila is not None and fila.autorizado_en is None:
+            from datetime import UTC, datetime
+
+            fila.autorizado_en = datetime.now(UTC)  # P07/P10: el SLA corre desde la autorización

@@ -35,7 +35,24 @@ from models.preventivos import (
 from models.unidades import GrupoUN, GrupoUNMiembro, UnidadNegocio, UsuarioGrupo, UsuarioUN
 from models.usuarios import HistorialContrasena, Sesion, Usuario
 
+from models.minutas import (
+    CanalNotificacion, EstadoMinuta, EstadoNotificacion, EstadoRespuestaHallazgo, Hallazgo, Minuta, MinutaConfiguracion, MinutaDestinatario,
+    MinutaRespuesta, MinutaSeccion, ModoMinuta, NivelUrgencia, Notificacion, NotificacionPreferencia, OpcionRespuesta, OrigenHallazgo,
+    OrigenPeticion, PeticionCliente, TipoHallazgo, TipoMinuta,
+)
+from models.seguimiento import (
+    AdminUNCalificacion, ClasificacionConfiguracion, Cotizacion, CotizacionEnvioExterno, EstadoCotizacion, EstadoPresupuesto,
+    EstadoReprogramacion, EstadoSeguimientoInterno, FolioClasificacion, HallazgoPresupuesto, ModuloHistorial, OpcionClasificacion,
+    PeriodoPresupuestal, Reprogramacion, SeguimientoInterno, TipoPeriodoPresupuestal, VarianteCoordinado,
+)
+
 __all__ = [
+    "CanalNotificacion", "EstadoMinuta", "EstadoNotificacion", "EstadoRespuestaHallazgo", "Hallazgo", "Minuta", "MinutaConfiguracion",
+    "MinutaDestinatario", "MinutaRespuesta", "MinutaSeccion", "ModoMinuta", "NivelUrgencia", "Notificacion", "NotificacionPreferencia",
+    "OpcionRespuesta", "OrigenHallazgo", "OrigenPeticion", "PeticionCliente", "TipoHallazgo", "TipoMinuta",
+    "AdminUNCalificacion", "ClasificacionConfiguracion", "Cotizacion", "CotizacionEnvioExterno", "EstadoCotizacion", "EstadoPresupuesto",
+    "EstadoReprogramacion", "EstadoSeguimientoInterno", "FolioClasificacion", "HallazgoPresupuesto", "ModuloHistorial", "OpcionClasificacion",
+    "PeriodoPresupuestal", "Reprogramacion", "SeguimientoInterno", "TipoPeriodoPresupuestal", "VarianteCoordinado",
     "AutorizacionPreventivo", "CalendarioPublicacion", "EquipoPlan", "EstadoAutorizacion", "EstadoEjecucionPlan", "EstadoPlan", "EstadoPreventivo",
     "OrigenPreventivo", "PlanEjecucion", "PlanMantenimiento", "PlanMaterial", "PlanTarea", "PlanTrigger", "PreventivoCalendario", "RazonReasignacion",
     "Reasignacion", "ReasignacionValidacion", "TipoAutorizacionPreventivo", "TipoReasignacion", "TipoTrigger",

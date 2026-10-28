@@ -58,6 +58,18 @@ class Configuracion(BaseSettings):
     vapid_clave_privada: str = ""
     vapid_contacto: str = "mailto:soporte@acma.dev"
 
+    # P07: correo por SMTP genérico (corporativo o SendGrid por SMTP). Sin SMTP_HOST → modo stub (.eml en el almacenamiento).
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "ACMA <no-responder@acma.dev>"
+    smtp_tls: str = "starttls"  # starttls | ssl | none
+    # P07: URL pública de la app para los enlaces de correo y push.
+    app_url_publica: str = "http://localhost:5173"
+    # P07: enviar las notificaciones en la misma petición (pruebas / sin Celery) en lugar de encolarlas.
+    notificaciones_envio_inline: bool = False
+
     @field_validator("acma_entorno")
     @classmethod
     def _entorno_valido(cls, v: str) -> str:

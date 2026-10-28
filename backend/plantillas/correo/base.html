@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>{titulo}</title>
+<style>
+  body {{ margin: 0; background: #f3f4f6; font-family: Arial, Helvetica, sans-serif; color: #1f2937; }}
+  .marco {{ max-width: 680px; margin: 24px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; }}
+  .cabecera {{ background: {color_primario}; color: #ffffff; padding: 18px 24px; }}
+  .cabecera h1 {{ margin: 0; font-size: 18px; }}
+  .cabecera .prestador {{ font-size: 12px; opacity: .85; margin-top: 4px; }}
+  .contenido {{ padding: 20px 24px; font-size: 14px; line-height: 1.5; }}
+  .contenido h2 {{ font-size: 15px; margin: 18px 0 8px; color: {color_primario}; border-bottom: 2px solid {color_acento}; padding-bottom: 4px; }}
+  .contenido h3 {{ font-size: 13px; margin: 14px 0 6px; }}
+  table {{ border-collapse: collapse; width: 100%; font-size: 13px; }}
+  th, td {{ text-align: left; padding: 6px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }}
+  th {{ background: #f9fafb; font-weight: 600; }}
+  .contador {{ display: inline-block; min-width: 120px; margin: 4px 8px 4px 0; padding: 8px 12px; border-radius: 8px; background: #f3f4f6; }}
+  .rojo {{ background: #fee2e2; color: #991b1b; }} .amarillo {{ background: #fef3c7; color: #92400e; }} .verde {{ background: #dcfce7; color: #166534; }}
+  .boton {{ display: inline-block; background: {color_primario}; color: #ffffff !important; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; }}
+  .pie {{ padding: 14px 24px; font-size: 11px; color: #6b7280; background: #f9fafb; }}
+  .urgente {{ color: #991b1b; font-weight: 700; }}
+</style>
+</head>
+<body>
+<div class="marco">
+  <div class="cabecera">{logo_html}<h1>{titulo}</h1><div class="prestador">{prestador}</div></div>
+  <div class="contenido">{contenido_html}</div>
+  <div class="pie">Mensaje generado por ACMA para {prestador} · {anio}. No respondas a este correo; usa los enlaces para actuar en la plataforma.</div>
+</div>
+</body>
+</html>

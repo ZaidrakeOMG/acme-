@@ -5,14 +5,17 @@ import { agregarParticipante, chatsDelFolio, conectarTiempoReal, confirmarPendie
 import { syncEngine } from '../../services/syncEngine'
 import type { Tecnico } from '../../types/api'
 import { Aviso, Boton, Insignia } from '../ui'
+import { marcarMensaje } from '../../services/minutas'
+import { ROLES_MARCAN_CHAT } from '../../types/minutas'
 
 function hora(iso: string | null | undefined) {
   return iso ? new Date(iso).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : ''
 }
 
 /** Burbuja con doble timestamp (§6.8.1): hora de escritura en el dispositivo y hora de entrega al servidor. */
-function Burbuja({ m, propio }: { m: MensajeChat; propio: boolean }) {
+function Burbuja({ m, propio, alMarcar }: { m: MensajeChat; propio: boolean; alMarcar?: (m: MensajeChat, como: 'hallazgo' | 'peticion') => void }) {
   const retrasado = m.timestamp_dispositivo && Math.abs(new Date(m.timestamp_servidor).getTime() - new Date(m.timestamp_dispositivo).getTime()) > 60000
+  const marcado = typeof m.datos_json.marcado_como === 'string' ? m.datos_json.marcado_como : null
   if (m.tipo === 'sistema') {
     return <li data-testid="mensaje-sistema" className="my-1 text-center text-xs text-slate-500"><span className="rounded-full bg-slate-100 px-2 py-0.5">{m.contenido_texto} · {hora(m.timestamp_servidor)}</span></li>
   }
@@ -23,6 +26,10 @@ function Burbuja({ m, propio }: { m: MensajeChat; propio: boolean }) {
         {m.contenido_texto && <p className="whitespace-pre-wrap">{m.contenido_texto}</p>}
         {m.archivos.map((a) => <AdjuntoChat key={a.id} chatId={m.chat_id} archivo={a} />)}
         {m.datos_json.evidencia_posterior === true && <p className="mt-1 text-[10px] uppercase tracking-wide opacity-80">Evidencia posterior al cierre</p>}
+        {marcado && <p className="mt-1 text-[10px] uppercase tracking-wide opacity-80">Marcado como {marcado === 'peticion' ? 'petición especial' : 'hallazgo'}</p>}
+        {!marcado && alMarcar && m.contenido_texto && !m.pendiente && (
+          <p className="mt-1 flex gap-2 text-[10px]"><button className="underline opacity-80" onClick={() => alMarcar(m, 'hallazgo')}>Marcar como hallazgo</button><button className="underline opacity-80" onClick={() => alMarcar(m, 'peticion')}>Petición especial</button></p>
+        )}
         <p className="mt-1 text-[10px] opacity-75">
           {m.pendiente ? `Escrito ${hora(m.timestamp_dispositivo)} · pendiente de envío` : retrasado ? `Escrito ${hora(m.timestamp_dispositivo)} · entregado ${hora(m.timestamp_servidor)}` : hora(m.timestamp_servidor)}
         </p>
@@ -176,7 +183,8 @@ export function ChatFolio({ folioId, canales, compacto = false }: { folioId: str
       ) : (
         <>
           <ul className="flex-1 space-y-1 overflow-y-auto p-3">
-            {mensajes.map((m) => <Burbuja key={m.id} m={m} propio={m.usuario_id === usuario.id || (m.pendiente === true)} />)}
+            {mensajes.map((m) => <Burbuja key={m.id} m={m} propio={m.usuario_id === usuario.id || (m.pendiente === true)}
+                                          alMarcar={ROLES_MARCAN_CHAT.includes(usuario.rol) && activo ? (msg, como) => { void marcarMensaje(activo.id, msg.id, como).then(() => setMensajes((l) => l.map((x) => (x.id === msg.id ? { ...x, datos_json: { ...x.datos_json, marcado_como: como } } : x)))).catch((e) => setError(mensajeDeError(e))) } : undefined} />)}
             <li ref={fin} />
           </ul>
           <form className="flex items-center gap-2 border-t border-slate-200 p-2" onSubmit={(e) => { e.preventDefault(); void enviar() }}>

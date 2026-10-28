@@ -53,7 +53,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./tests/setup.ts'],
-    testTimeout: 20000, // pruebas de interacción en jsdom con IndexedDB simulada
+    testTimeout: 30000, // pruebas de interacción en jsdom con IndexedDB simulada
+    fileParallelism: false, // P07: los archivos corren en serie; en paralelo las pruebas largas de formularios agotan el tiempo
     include: ['tests/**/*.test.{ts,tsx}'],
   },
 })

@@ -26,7 +26,7 @@ function detalle(f: FolioResumen, extra: Partial<FolioDetalle> = {}): FolioDetal
     captura: { capturado_por: 'op', capturado_por_nombre: 'Olga', capturado_at: f.capturado_at, un: { codigo: 'SUC-001', nombre: 'Sucursal Centro', direccion: '' }, equipo: { codigo: 'EQ-0001', nombre: 'Refrigerador vertical' }, tipo_falla: 'No enfría', descripcion: f.descripcion,
       geolat_captura: null, geolng_captura: null, confirmacion_un: true, confirmacion_un_timestamp: null, confirmacion_un_geolat: null, confirmacion_un_geolng: null, folio_duplicado_justificacion: null, folio_duplicado_ref_id: null, folio_duplicado_ref_numero: null },
     formulario_captura: null, asignacion: { tecnico_id: f.tecnico_id, tecnico_nombre: f.tecnico_nombre, asignado_at: '2026-10-27T11:00:00Z', vehiculo: 'ACM-001', orden_en_ruta: null, ventana_inicio: null, ventana_fin: null },
-    historial: [], reasignaciones: [], evidencias: [], formulario_atencion: null, refacciones: [], sla: null, encuesta: null, triggers_revision: [], aprobacion: null, decisiones: [], chat: [], financiero: {},
+    historial: [], reasignaciones: [], hallazgos: [], derivaciones: [], clasificacion: null, evidencias: [], formulario_atencion: null, refacciones: [], sla: null, encuesta: null, triggers_revision: [], aprobacion: null, decisiones: [], chat: [], financiero: {},
     acciones: ['reasignado', 'cancelado'], puede_aprobar: false, ...extra,
   }
 }

@@ -74,7 +74,7 @@ export async function folioCampo(folioId: string): Promise<FolioDetalle | null> 
     const datos = cache.datos as unknown as FolioLocal & { detalle?: FolioDetalle }
     if (datos.detalle) return { ...datos.detalle, folio: { ...datos.detalle.folio, estado: datos.estado as EstadoFolio } }
     return { folio: datos, captura: { capturado_por: '', capturado_por_nombre: null, capturado_at: datos.capturado_at, un: { id: datos.un_id }, equipo: { id: datos.equipo_id }, tipo_falla: null, descripcion: datos.descripcion, geolat_captura: null, geolng_captura: null, confirmacion_un: datos.confirmacion_un, confirmacion_un_timestamp: null, confirmacion_un_geolat: null, confirmacion_un_geolng: null, folio_duplicado_justificacion: null, folio_duplicado_ref_id: null, folio_duplicado_ref_numero: null },
-             formulario_captura: null, asignacion: { tecnico_id: null, tecnico_nombre: null, asignado_at: null, vehiculo: null, orden_en_ruta: null, ventana_inicio: null, ventana_fin: null }, historial: [], reasignaciones: [], evidencias: [], formulario_atencion: null, refacciones: [], sla: null, encuesta: null, triggers_revision: [], aprobacion: null, decisiones: [], chat: [], financiero: {}, acciones: [], puede_aprobar: false }
+             formulario_captura: null, asignacion: { tecnico_id: null, tecnico_nombre: null, asignado_at: null, vehiculo: null, orden_en_ruta: null, ventana_inicio: null, ventana_fin: null }, historial: [], reasignaciones: [], hallazgos: [], derivaciones: [], clasificacion: null, evidencias: [], formulario_atencion: null, refacciones: [], sla: null, encuesta: null, triggers_revision: [], aprobacion: null, decisiones: [], chat: [], financiero: {}, acciones: [], puede_aprobar: false }
   }
 }
 

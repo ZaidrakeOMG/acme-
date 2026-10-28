@@ -251,6 +251,15 @@ export function FolioDetalle() {
               ))}
             </ul>
           )}
+          <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Hallazgos ({d.hallazgos.length})</h3>
+          {d.hallazgos.length === 0 ? <p className="text-sm text-slate-500">Sin hallazgos.</p> : (
+            <ul className="text-sm" data-testid="hallazgos-folio">{d.hallazgos.map((h) => <li key={h.id}>{h.descripcion} <Insignia tono={h.nivel_urgencia === 'alta' || h.nivel_urgencia === 'critica' ? 'alerta' : 'neutro'}>{h.nivel_urgencia}</Insignia> <span className="text-xs text-slate-500">· {h.origen} · {h.estado_respuesta === 'respondido' ? `respondido: ${h.opcion_respuesta}` : 'pendiente en la minuta'}</span></li>)}</ul>
+          )}
+          <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Módulos de seguimiento ({d.derivaciones.length})</h3>
+          {d.derivaciones.length === 0 ? <p className="text-sm text-slate-500">Sin derivaciones.</p> : (
+            <ul className="text-sm" data-testid="derivaciones-folio">{d.derivaciones.map((x) => <li key={x.registro_id}><Link className="text-primario underline" to={`/seguimiento?modulo=${x.ruta}&registro=${x.registro_id}`}>{x.numero ?? x.modulo}</Link> · {x.estado} <span className="text-xs text-slate-500">· {x.origen}</span></li>)}</ul>
+          )}
+          {d.clasificacion && <p className="mt-2 text-sm" data-testid="clasificacion-folio">Clasificado como <strong>{d.clasificacion.opcion}</strong> {d.clasificacion.dentro_de_plazo ? 'dentro del plazo' : `con ${d.clasificacion.horas_retraso} h de retraso`} · {fecha(d.clasificacion.timestamp)}</p>}
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Financiero</h3>
           <p className="text-sm text-slate-500">Sección vacía hasta P09.</p>
         </Tarjeta>

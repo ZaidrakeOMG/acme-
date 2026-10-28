@@ -161,11 +161,16 @@ async def _cerrar_timeouts(db: AsyncSession, flujo: AprobacionFlujo, accion: str
         t.procesado, t.accion_ejecutada, t.procesado_at = True, accion, ahora
 
 
-def _notificar_nivel(folio: Folio, flujo: AprobacionFlujo, config: AprobacionNivelConfig | None) -> None:
+async def _notificar_nivel(db: AsyncSession, folio: Folio, flujo: AprobacionFlujo, config: AprobacionNivelConfig | None) -> None:
+    """P07: `notificar()` resuelve canal por preferencia del usuario; los Admin UN solo los de la UN del folio."""
+    from services import notificaciones_service
+
     rol = config.rol_aprobador.value if config else None
-    notificaciones.enviar(roles=[rol] if rol else [], tenant_id=folio.tenant_id, titulo=f"Folio {folio.numero_folio} pendiente de tu autorización",
-                          cuerpo=f"Nivel {flujo.nivel_actual}: aprobar o rechazar", canales=list(config.notificar_por_json) if config else None,
-                          datos={"folio_id": str(folio.id), "flujo_id": str(flujo.id), "nivel": flujo.nivel_actual})
+    destinatarios = await notificaciones_service.destinatarios_por_rol(db, [rol], tenant_id=folio.tenant_id, un_id=folio.un_id) if rol else []
+    await notificaciones_service.notificar(db, "aprobacion.pendiente", destinatarios, {"folio_id": str(folio.id), "flujo_id": str(flujo.id), "nivel": flujo.nivel_actual},
+                                           asunto=f"Folio {folio.numero_folio} pendiente de tu autorización", cuerpo=f"Nivel {flujo.nivel_actual}: aprobar o rechazar. {folio.descripcion[:160]}",
+                                           url=f"/folios/{folio.id}", tenant_id=folio.tenant_id, prestador_id=folio.prestador_id,
+                                           canales=[c for c in (config.notificar_por_json if config else ["app", "push", "email"]) if c in ("app", "push", "email", "whatsapp", "sms")] or None)
 
 
 async def iniciar_flujo(db: AsyncSession, folio: Folio, nivel_requerido: int, politicas: FolioPoliticasTenant,
@@ -180,7 +185,7 @@ async def iniciar_flujo(db: AsyncSession, folio: Folio, nivel_requerido: int, po
     await _programar_timeout(db, flujo, niveles.get(inicial), ahora)
     await folio_estados.comentar(db, folio, ACTOR_SISTEMA, f"Inicia flujo de aprobación en Nivel {inicial} (máximo requerido: Nivel {nivel_requerido})",
                                  {"flujo_id": str(flujo.id), "nivel": inicial, "nivel_maximo": nivel_requerido}, evento="aprobacion.inicio")
-    _notificar_nivel(folio, flujo, niveles.get(inicial))
+    await _notificar_nivel(db, folio, flujo, niveles.get(inicial))
     return flujo
 
 
@@ -284,7 +289,7 @@ async def aprobar(db: AsyncSession, actor: Actor, folio: Folio, canal: CanalApro
         await _programar_timeout(db, flujo, niveles.get(flujo.nivel_actual), ahora)
         await folio_estados.comentar(db, folio, actor, f"Aprobado en Nivel {nivel}; sube a Nivel {flujo.nivel_actual}",
                                      {"flujo_id": str(flujo.id), "nivel": flujo.nivel_actual, "canal": canal.value}, evento="aprobacion.aprobado")
-        _notificar_nivel(folio, flujo, niveles.get(flujo.nivel_actual))
+        await _notificar_nivel(db, folio, flujo, niveles.get(flujo.nivel_actual))
     await db.flush()
     return flujo
 
@@ -305,10 +310,10 @@ async def rechazar(db: AsyncSession, actor: Actor, folio: Folio, canal: CanalApr
     await folio_estados.transicionar(db, folio, EstadoFolio.cancelado, ACTOR_SISTEMA, razon_texto,
                                      {"razon_cancelacion": razon_texto, "flujo_id": str(flujo.id), "razon_rechazo": razon.value,
                                       "modulo_destino": destino.value, "decision_id": str(decision.id)}, request)
-    # Evento para P07: crear el registro en el módulo de seguimiento y completar modulo_destino_id de la decisión.
-    await folio_estados.comentar(db, folio, ACTOR_SISTEMA, f"Derivado al módulo {destino.value}",
-                                 {"modulo_destino": destino.value, "razon_rechazo": razon.value, "decision_id": str(decision.id),
-                                  "modulo_destino_id": None, "procesado_por_p07": False}, evento="folio.derivado_a_modulo")
+    # P07: el rechazo crea el registro en el módulo de seguimiento y completa modulo_destino_id de la decisión.
+    from services.seguimiento import entradas
+
+    await entradas.desde_derivacion(db, folio, decision)
     await db.flush()
     return flujo
 
@@ -325,9 +330,13 @@ async def _bloquear(db: AsyncSession, folio: Folio, flujo: AprobacionFlujo, ahor
                                    entidad_tipo="folio", entidad_id=folio.id,
                                    datos={"numero_folio": folio.numero_folio, "nivel": flujo.nivel_actual,
                                           "rol_aprobador": config.rol_aprobador.value if config else None})
-    notificaciones.enviar(roles=[config.rol_aprobador.value if config else "admin_empresa", "admin_empresa", "despachador"],
-                          tenant_id=folio.tenant_id, prestador_id=folio.prestador_id,
-                          titulo=f"Folio {folio.numero_folio} bloqueado en aprobación", cuerpo=f"Nivel {flujo.nivel_actual} sin respuesta")
+    from services import notificaciones_service
+
+    roles = [config.rol_aprobador.value if config else "admin_empresa", "admin_empresa", "despachador"]
+    destinatarios = await notificaciones_service.destinatarios_por_rol(db, roles, tenant_id=folio.tenant_id, prestador_id=folio.prestador_id, un_id=folio.un_id)
+    await notificaciones_service.notificar(db, "aprobacion.bloqueada", destinatarios, {"folio_id": str(folio.id), "nivel": flujo.nivel_actual},
+                                           asunto=f"Folio {folio.numero_folio} bloqueado en aprobación", cuerpo=f"Nivel {flujo.nivel_actual} sin respuesta",
+                                           url=f"/folios/{folio.id}", tenant_id=folio.tenant_id, prestador_id=folio.prestador_id)
     return "bloquear_alertar"
 
 
@@ -349,7 +358,7 @@ async def _escalar(db: AsyncSession, folio: Folio, flujo: AprobacionFlujo, ahora
     await _programar_timeout(db, flujo, niveles.get(flujo.nivel_actual), ahora)
     await folio_estados.comentar(db, folio, ACTOR_SISTEMA, f"Escalado por timeout al Nivel {flujo.nivel_actual}",
                                  {"flujo_id": str(flujo.id), "nivel": flujo.nivel_actual}, evento="aprobacion.escalado")
-    _notificar_nivel(folio, flujo, niveles.get(flujo.nivel_actual))
+    await _notificar_nivel(db, folio, flujo, niveles.get(flujo.nivel_actual))
     return "escalar"
 
 

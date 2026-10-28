@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { modulosDe, NOMBRE_ROL, type GrupoModulo } from '../config/modulos'
 import { useAuth } from '../contexts/AuthContext'
+import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { IndicadorConectividad } from './IndicadorConectividad'
 
 const ORDEN_GRUPOS: GrupoModulo[] = ['Administración', 'Operación', 'Seguimiento', 'Finanzas y activos', 'Análisis']
@@ -58,6 +59,7 @@ export function AppShell() {
           </button>
           <div className="flex min-w-0 flex-1 items-center gap-3 truncate text-sm text-slate-500"><span className="truncate">{usuario.tema.prestador ?? 'Plataforma ACMA'}</span><IndicadorConectividad /></div>
           <div className="flex items-center gap-3">
+            <CampanaNotificaciones />
             <div className="text-right leading-tight">
               <p className="text-sm font-medium text-slate-900">{usuario.nombre}</p>
               <p className="text-xs text-slate-500">{NOMBRE_ROL[usuario.rol]}</p>
