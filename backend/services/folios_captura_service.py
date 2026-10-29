@@ -222,6 +222,9 @@ async def _validar_y_resolver(db: AsyncSession, folio: Folio, equipo: Equipo, ti
     palabras = await keywords_detectadas(db, folio.prestador_id, folio.tenant_id, folio.descripcion)
     if palabras:
         triggers.append((TriggerRevision.keyword_alerta, "Palabras de alerta en la descripción: " + ", ".join(palabras)))
+    # P08 §6.10.7: el folio de instalación de activo espera la OC del cliente; el flujo multinivel no se evalúa mientras tanto.
+    if folio.es_instalacion_activo:
+        triggers.append((TriggerRevision.pendiente_oc_cliente, "Instalación de activo: espera la OC autorizada en el ERP del cliente (§6.10.7)"))
 
     for tipo, detalle in triggers:
         await _trigger(db, folio, tipo, detalle)
@@ -294,7 +297,7 @@ async def crear(db: AsyncSession, actor: Actor, datos: FolioEntrada, request: Re
     else:
         datos.folio_duplicado_ref_id, datos.folio_duplicado_justificacion = None, None
 
-    respuesta = None
+    respuesta, version = None, None
     if datos.respuesta_id:
         respuesta = await db.get(FormularioRespuesta, datos.respuesta_id)
         if respuesta is None or respuesta.estado != EstadoRespuesta.enviado or respuesta.origen != OrigenRespuesta.folio_captura:
@@ -329,6 +332,12 @@ async def crear(db: AsyncSession, actor: Actor, datos: FolioEntrada, request: Re
                                     prestador_id=prestador_id, despues={"numero_folio": numero, "equipo_id": str(equipo.id),
                                                                         "tipo_falla": tipo_falla.descripcion, "duplicado_de": str(existente.id) if existente else None})
     await folio_estados.notificar_creacion(db, folio, actor)  # evento folio.creado (P05: chats del folio)
+    if respuesta is not None and version is not None:
+        # P08 §6.10.7: el operador clasifica el folio como instalación de activo en el formulario de captura.
+        from schemas.formularios import EsquemaFormulario
+        from services import oc_activos_service
+
+        await oc_activos_service.desde_respuesta(db, actor, respuesta, EsquemaFormulario.model_validate(version.esquema_json), origen="captura", folio=folio, request=request)
     await _validar_y_resolver(db, folio, equipo, tipo_falla, ahora, request)
     return folio
 
@@ -597,7 +606,8 @@ async def resumen(db: AsyncSession, folios: list[Folio], ahora: datetime | None 
             **{k: getattr(f, k) for k in ("id", "created_at", "updated_at", "version_hash", "numero_folio", "tenant_id", "prestador_id", "un_id",
                                           "equipo_id", "tipo_falla_id", "tipo_folio", "estado", "prioridad", "descripcion", "tecnico_id",
                                           "severidad_origen", "confirmacion_un", "monto_estimado", "capturado_por", "capturado_at", "fecha_falla",
-                                          "fecha_inicio_atencion", "fecha_cierre", "razon_cancelacion", "plan_id", "calendario_id")},
+                                          "fecha_inicio_atencion", "fecha_cierre", "razon_cancelacion", "plan_id", "calendario_id",
+                                          "es_instalacion_activo", "equipo_instalado_id", "trabajo_especial_id")},
             "plan_nombre": planes.get(f.plan_id),
             "un_nombre": un.nombre if un else None, "un_codigo": un.codigo if un else None,
             "equipo_codigo": eq.codigo if eq else None, "equipo_nombre": eq.nombre if eq else None, "criticidad": eq.criticidad if eq else None,
@@ -650,6 +660,17 @@ async def _seguimiento_p07(db: AsyncSession, folio: Folio) -> dict[str, Any]:
                               "modulo_registro_id": clasificacion.modulo_registro_id, "admin_un_id": clasificacion.admin_un_id, "notas": clasificacion.notas} if clasificacion else None}
 
 
+async def _p08(db: AsyncSession, folio: Folio) -> dict[str, Any]:
+    """Trabajo especial vinculado (§6.10.6) y trámite de OC del activo (§6.10.7)."""
+    from models.trabajos_especiales import TrabajoEspecial
+    from services import oc_activos_service
+
+    te = await db.get(TrabajoEspecial, folio.trabajo_especial_id) if folio.trabajo_especial_id else None
+    return {"oc_activo": await oc_activos_service.detalle_folio(db, folio) if folio.es_instalacion_activo else None,
+            "trabajo_especial": {"id": te.id, "numero": te.numero, "estado": te.estado.value, "urgencia": te.urgencia, "descripcion": te.descripcion, "monto": str(te.monto) if te.monto is not None else None,
+                                 "fecha_programada": te.fecha_programada, "tecnico_responsable_id": te.tecnico_responsable_id, "tecnicos": te.tecnico_ids_json} if te else None}
+
+
 async def _reasignaciones(db: AsyncSession, folio: Folio) -> list[dict[str, Any]]:
     from services import reasignacion_service  # import local: reasignacion_service depende de este módulo
 
@@ -695,7 +716,8 @@ async def detalle(db: AsyncSession, actor: Actor, folio: Folio) -> dict[str, Any
     puede_aprobar = bool(flujo) and folio.estado == EstadoFolio.en_revision and await aprobacion_service.es_aprobador(db, actor, folio, flujo)
     return {
         "folio": base, "captura": captura, "formulario_captura": await _vinculo(db, cap), "asignacion": asignacion, "historial": hist,
-        "reasignaciones": await _reasignaciones(db, folio), "evidencias": evidencias, **await _seguimiento_p07(db, folio), "formulario_atencion": await _vinculo(db, ate), "refacciones": refacciones,
+        "reasignaciones": await _reasignaciones(db, folio), "evidencias": evidencias, **await _seguimiento_p07(db, folio), **await _p08(db, folio),
+        "formulario_atencion": await _vinculo(db, ate), "refacciones": refacciones,
         "sla": sla, "encuesta": encuesta, "triggers_revision": triggers, "aprobacion": base["flujo"],
         "decisiones": [{"id": d.id, "flujo_id": d.flujo_id, "nivel": d.nivel, "actor_id": d.actor_id, "actor_nombre": nombres.get(d.actor_id),
                         "decision": d.decision, "razon_rechazo": d.razon_rechazo, "modulo_destino": d.modulo_destino,

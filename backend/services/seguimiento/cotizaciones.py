@@ -148,10 +148,11 @@ async def responder(db: AsyncSession, actor: Actor, c: Cotizacion, autorizar: bo
     return c
 
 
-async def convertir_en_trabajo_especial(db: AsyncSession, actor: Actor, c: Cotizacion) -> None:
-    """Gancho para P08: la conversión crea el Trabajo Especial con todo el contexto de la cotización."""
-    exigir(actor, c, EstadoCotizacion.convertida)
-    raise ErrorAPI(501, "DISPONIBLE_EN_P08", "La conversión en Trabajo Especial se construye en P08")
+async def convertir_en_trabajo_especial(db: AsyncSession, actor: Actor, c: Cotizacion, request: Request | None = None):
+    """§7.7 M1 Autorizada → Convertida (P08): crea el Trabajo Especial con todo el contexto de la cotización y devuelve el TE."""
+    from services import trabajos_especiales_service
+
+    return await trabajos_especiales_service.desde_cotizacion(db, actor, c, request)
 
 
 async def cambiar_estado(db: AsyncSession, actor: Actor, c: Cotizacion, nuevo: EstadoCotizacion, notas: str, request: Request | None, **campos: Any) -> Cotizacion:
@@ -165,7 +166,8 @@ async def cambiar_estado(db: AsyncSession, actor: Actor, c: Cotizacion, nuevo: E
     if nuevo in (EstadoCotizacion.autorizada, EstadoCotizacion.rechazada):
         return await responder(db, actor, c, nuevo == EstadoCotizacion.autorizada, notas, campos.get("pasar_a_presupuesto"), request)
     if nuevo == EstadoCotizacion.convertida:
-        await convertir_en_trabajo_especial(db, actor, c)
+        await convertir_en_trabajo_especial(db, actor, c, request)
+        return c
     raise ErrorAPI(409, "TRANSICION_NO_PERMITIDA", f"Destino {nuevo.value} no válido")
 
 

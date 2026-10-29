@@ -33,6 +33,9 @@ CANALES_POR_EVENTO: dict[str, list[str]] = {
     "minuta.enviada": ["app", "push", "email"],
     "minuta.pendiente_validacion": ["app", "push"],
     "calendario.publicado": ["app", "push", "email"],
+    "trabajo_especial.enviado": ["app", "push", "email"],
+    "trabajo_especial.programado": ["app", "push", "email"],
+    "oc_activo.pendiente": ["app", "push", "email"],
 }
 EVENTOS: dict[str, str] = {
     "minuta.enviada": "Minuta del día enviada",
@@ -57,6 +60,17 @@ EVENTOS: dict[str, str] = {
     "calendario.publicado": "Calendario de preventivos publicado",
     "autorizacion.solicitada": "Autorización de preventivo solicitada",
     "autorizacion.resuelta": "Autorización de preventivo resuelta",
+    "trabajo_especial.urgencia": "Trabajo especial de urgencia creado por el cliente",
+    "trabajo_especial.enviado": "Trabajo especial enviado para tu validación",
+    "trabajo_especial.aceptado": "Trabajo especial aceptado por el cliente",
+    "trabajo_especial.rechazado": "Trabajo especial rechazado por el cliente",
+    "trabajo_especial.programado": "Trabajo especial programado (fecha confirmada)",
+    "trabajo_especial.cerrado": "Trabajo especial terminado",
+    "trabajo_especial.cancelado": "Trabajo especial cancelado",
+    "oc_activo.pendiente": "Folio de instalación de activo pendiente de OC",
+    "oc_activo.autorizada": "OC de activo autorizada: folio listo para asignar",
+    "oc_activo.rechazada": "OC de activo rechazada",
+    "oc_activo.equipo_incompleto": "Equipo instalado con ficha incompleta",
     "alerta": "Alerta del sistema",
 }
 

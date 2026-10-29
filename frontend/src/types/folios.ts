@@ -7,7 +7,7 @@ export const ESTADOS_FOLIO = ['capturado', 'en_revision', 'pendiente_informacion
 export type EstadoFolio = (typeof ESTADOS_FOLIO)[number]
 export type TipoFolio = 'correctivo' | 'preventivo' | 'especial'
 export type Criticidad = 'A' | 'B' | 'C' | 'D'
-export type TriggerRevision = 'sin_contrato' | 'garantia' | 'tipo_falla_flag' | 'fuera_horario' | 'keyword_alerta' | 'severidad_no_configurada' | 'confirmacion_un_faltante' | 'pendiente_clasificacion'
+export type TriggerRevision = 'sin_contrato' | 'garantia' | 'tipo_falla_flag' | 'fuera_horario' | 'keyword_alerta' | 'severidad_no_configurada' | 'confirmacion_un_faltante' | 'pendiente_clasificacion' | 'pendiente_oc_cliente'
 export type EstadoFlujo = 'activo' | 'aprobado' | 'rechazado' | 'bloqueado'
 export type RazonRechazo = 'por_presupuesto' | 'requiere_cotizacion' | 'seguimiento_interno' | 'reprogramar'
 export type CanalAprobacion = 'push' | 'app' | 'minuta' | 'sistema'
@@ -23,6 +23,7 @@ export const NOMBRE_TRIGGER: Record<TriggerRevision, string> = {
   sin_contrato: 'Equipo sin contrato activo', garantia: 'Equipo en garantía', tipo_falla_flag: 'Tipo de falla con revisión manual',
   fuera_horario: 'Fuera del horario del contrato', keyword_alerta: 'Palabra de alerta en la descripción',
   severidad_no_configurada: 'Severidad no configurada en la matriz',   confirmacion_un_faltante: 'Falta la confirmación de UN', pendiente_clasificacion: 'Pendiente de clasificación del Admin UN (§6.10.5)',
+  pendiente_oc_cliente: 'Esperando la OC del cliente (§6.10.7)',
 }
 
 /** §6.8.7: las cuatro razones de rechazo y su módulo destino. */
@@ -90,6 +91,9 @@ export interface FolioResumen {
   plan_id?: string | null          // P06
   calendario_id?: string | null    // P06
   plan_nombre?: string | null
+  es_instalacion_activo?: boolean      // P08 §6.10.7
+  equipo_instalado_id?: string | null  // P08
+  trabajo_especial_id?: string | null  // P08 §6.10.6
 }
 
 export interface HistorialFolio {
@@ -144,6 +148,8 @@ export interface FolioDetalle {
   hallazgos: Hallazgo[]                                         // P07
   derivaciones: { modulo: string; ruta: string; registro_id: string; estado: string; origen: string; descripcion: string; numero: string | null; created_at: string }[]  // P07
   clasificacion: { opcion: string; timestamp: string; dentro_de_plazo: boolean; horas_retraso: string; fecha_tentativa: string | null; modulo_destino: string | null; modulo_registro_id: string | null; admin_un_id: string; notas: string } | null  // P07
+  oc_activo?: { estatus_multinivel: string; estatus_nombre: string; numero_oc_provisional: string | null; numero_oc_definitivo: string | null; fecha_autorizacion_erp: string | null; dias_en_estatus: number; historial: { id: string; estatus_nuevo: string; timestamp: string }[]; equipo_instalado: { id: string; codigo: string; nombre: string; estado: string } | null } | null  // P08
+  trabajo_especial?: { id: string; numero: string; estado: string; urgencia: boolean; descripcion: string; monto: string | null; fecha_programada: string | null } | null  // P08
   evidencias: EvidenciaFolio[]
   formulario_atencion: VinculoFormulario | null
   refacciones: RefaccionFolio[]

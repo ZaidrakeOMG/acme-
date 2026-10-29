@@ -260,6 +260,12 @@ export function FolioDetalle() {
             <ul className="text-sm" data-testid="derivaciones-folio">{d.derivaciones.map((x) => <li key={x.registro_id}><Link className="text-primario underline" to={`/seguimiento?modulo=${x.ruta}&registro=${x.registro_id}`}>{x.numero ?? x.modulo}</Link> · {x.estado} <span className="text-xs text-slate-500">· {x.origen}</span></li>)}</ul>
           )}
           {d.clasificacion && <p className="mt-2 text-sm" data-testid="clasificacion-folio">Clasificado como <strong>{d.clasificacion.opcion}</strong> {d.clasificacion.dentro_de_plazo ? 'dentro del plazo' : `con ${d.clasificacion.horas_retraso} h de retraso`} · {fecha(d.clasificacion.timestamp)}</p>}
+          {d.folio.es_instalacion_activo && d.oc_activo && (
+            <p className="mt-2 text-sm" data-testid="oc-activo-folio"><Insignia tono={d.oc_activo.estatus_multinivel === 'listo_para_asignar' ? 'ok' : 'alerta'}>{d.oc_activo.estatus_multinivel === 'listo_para_asignar' ? 'OC autorizada' : 'Esperando OC del cliente'}</Insignia> {d.oc_activo.estatus_nombre}{d.oc_activo.numero_oc_definitivo && ` · OC ${d.oc_activo.numero_oc_definitivo}`} · <Link className="text-primario underline" to={`/oc-activos?folio=${d.folio.id}`}>seguimiento de la OC</Link>{d.oc_activo.equipo_instalado && <> · equipo dado de alta <strong>{d.oc_activo.equipo_instalado.codigo}</strong> ({d.oc_activo.equipo_instalado.estado})</>}</p>
+          )}
+          {d.trabajo_especial && (
+            <p className="mt-2 text-sm" data-testid="te-folio"><Insignia tono="acento">Trabajo especial</Insignia> <Link className="font-mono text-primario underline" to={`/trabajos-especiales?registro=${d.trabajo_especial.id}`}>{d.trabajo_especial.numero}</Link> · {d.trabajo_especial.estado}{d.trabajo_especial.urgencia && <> <Insignia tono="alerta">Urgencia</Insignia></>}</p>
+          )}
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Financiero</h3>
           <p className="text-sm text-slate-500">Sección vacía hasta P09.</p>
         </Tarjeta>

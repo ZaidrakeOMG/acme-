@@ -332,6 +332,7 @@ class CotizacionSalida(RegistroBase):
     notas_respuesta: str
     trabajo_especial_id: UUID | None
     estado_trabajo_especial: str | None = None
+    trabajo_especial_numero: str | None = None  # P08
     pdf_disponible: bool = False
     hash_pdf: str | None
     pasar_a_presupuesto_si_rechaza: bool

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { Aviso, Boton } from '../../../components/ui'
+import { Aviso, Boton, Insignia } from '../../../components/ui'
 import { useConexion } from '../../../hooks/useConexion'
 import { api, mensajeDeError } from '../../../services/api'
 import { foliosCampo, type FolioLocal } from '../../../services/campo'
@@ -34,7 +34,7 @@ export function MisFolios() {
             <Link to={`/campo/folio/${f.id}`} data-testid={`folio-campo-${f.numero_folio}`} className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-sm font-semibold">{f.numero_folio}</span>
-                <EstadoInsignia estado={f.estado} />
+                <span className="flex gap-1">{f.tipo_folio === 'especial' && <Insignia tono="acento">Trabajo especial</Insignia>}<EstadoInsignia estado={f.estado} /></span>
               </div>
               <p className="mt-1 text-base text-slate-800">{f.descripcion}</p>
               <p className="mt-1 text-xs text-slate-500">{f.un_codigo} · {f.un_nombre} · {f.equipo_codigo} {f.equipo_nombre}</p>

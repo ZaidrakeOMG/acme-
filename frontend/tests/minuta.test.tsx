@@ -27,7 +27,7 @@ function detalle(hallazgos: MinutaDetalle['secciones']['hallazgos'], extra: Part
         seguimiento_interno: { total: 2, color: 'amarillo', umbral: 'más de 15 días sin actualización' }, reprogramacion: { total: 0, color: 'verde', umbral: 'fechas vencidas' } },
       preventivos: [{ calendario_id: 'c1', folio_id: 'f1', numero_folio: 'CD-000017', un: 'SUC-001 · Sucursal Centro', equipo: 'EQ-0001 · Refrigerador', tecnico: 'Tomás Técnico', hora: '2026-10-28T17:30:00Z', fecha_programada: '2026-10-26', fecha_real: '2026-10-28', desvio_dias: 2, texto_desvio: 'realizado con 2 días de retraso' }],
       hallazgos, cotizaciones: { pendientes_enviar: [], pendientes_autorizar: [{ cotizacion_id: 'q1', numero: 'COT-00001', un: 'SUC-001', equipo: 'EQ-0001', descripcion: 'Empaque', monto: '1850.00', estado: 'enviada', dias: 3 }] },
-      trabajos_especiales: { nota: 'Los trabajos especiales se incorporan a la minuta en P08' }, peticiones: [{ peticion_id: 'pe1', texto: 'Visita antes de las 9:00', un: 'SUC-001', origen: 'chat', capturado_por: 'Olga', numero_folio: null, timestamp: '2026-10-28T10:00:00Z' }],
+      trabajos_especiales: { nuevos: [{ trabajo_especial_id: 't1', numero: 'TE-000001', descripcion: 'Cortina de aire', un: 'SUC-001', estado: 'creado', urgencia: true, monto: null, fecha_programada: null }], en_proceso: [], terminados: [] }, peticiones: [{ peticion_id: 'pe1', texto: 'Visita antes de las 9:00', un: 'SUC-001', origen: 'chat', capturado_por: 'Olga', numero_folio: null, timestamp: '2026-10-28T10:00:00Z' }],
       pendientes_autorizacion: [],
     },
     hallazgos_detalle: [], respuestas: [], destinatarios: [{ usuario_id: 'u1', nombre: 'Úrsula Unidad', canal: 'email', estado_entrega: 'enviada', timestamp: '2026-10-28T19:00:30Z' }],
@@ -68,7 +68,7 @@ describe('Minuta del día', () => {
     expect(within(screen.getByTestId('contador-cotizaciones')).getByText('3')).toBeInTheDocument()
     expect(screen.getByTestId('contador-cotizaciones').className).toContain('red')
     expect(screen.getByText('realizado con 2 días de retraso')).toBeInTheDocument()
-    expect(screen.getByText(/Trabajos especiales se incorporan/i)).toBeInTheDocument()
+    expect(screen.getByText('TE-000001')).toBeInTheDocument()
     expect(screen.getByText(/Visita antes de las 9:00/)).toBeInTheDocument()
     expect(screen.getByText('Urgente')).toBeInTheDocument()
     const user = userEvent.setup()

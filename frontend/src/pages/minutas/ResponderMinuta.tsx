@@ -130,7 +130,14 @@ export function ResponderMinuta() {
           ))}
         </Tarjeta>
         <Tarjeta titulo="Trabajos especiales">
-          <p className="text-sm text-slate-500">{s.trabajos_especiales.nota}</p>
+          {(['nuevos', 'en_proceso', 'terminados'] as const).map((k) => (
+            <div key={k} className="mb-2" data-testid={`te-${k}`}>
+              <h3 className="text-xs font-semibold uppercase text-slate-500">{{ nuevos: 'Nuevos solicitados en el día', en_proceso: 'En proceso', terminados: 'Terminados en el día' }[k]} ({s.trabajos_especiales[k].length})</h3>
+              {s.trabajos_especiales[k].length === 0 ? <p className="text-sm text-slate-500">Ninguno.</p> : (
+                <ul className="text-sm">{s.trabajos_especiales[k].map((t) => <li key={t.trabajo_especial_id}><Link className="font-mono text-xs text-primario underline" to={`/trabajos-especiales?registro=${t.trabajo_especial_id}`}>{t.numero}</Link> · {t.descripcion} · {t.un}{t.urgencia && <> <Insignia tono="alerta">Urgencia</Insignia></>}{t.monto && ` · $${Number(t.monto).toLocaleString('es-MX')}`}{t.evidencias_cierre && t.evidencias_cierre.length > 0 && ` · ${t.evidencias_cierre.length} foto(s) de cierre`}</li>)}</ul>
+              )}
+            </div>
+          ))}
         </Tarjeta>
         <Tarjeta titulo={`Peticiones especiales del cliente (${s.peticiones.length})`}>
           {s.peticiones.length === 0 ? <p className="text-sm text-slate-500">Sin peticiones.</p> : <ul className="list-disc pl-5 text-sm">{s.peticiones.map((p) => <li key={p.peticion_id}>{p.texto} <span className="text-xs text-slate-500">({p.un} · {p.capturado_por} · {p.origen})</span></li>)}</ul>}

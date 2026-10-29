@@ -132,6 +132,9 @@ async def sembrar(db) -> bool:
     await db.flush()
     from scripts.seed_minuta import sembrar_minuta  # P07
     await sembrar_minuta(db)
+    await db.flush()
+    from scripts.seed_trabajos_especiales import sembrar_trabajos_especiales  # P08
+    await sembrar_trabajos_especiales(db)
     await db.commit()
     return True
 
@@ -266,8 +269,11 @@ async def main() -> None:
             await db.flush()
             from scripts.seed_minuta import sembrar_minuta
             minuta = await sembrar_minuta(db)
+            await db.flush()
+            from scripts.seed_trabajos_especiales import sembrar_trabajos_especiales
+            te = await sembrar_trabajos_especiales(db)
             await db.commit()
-        agregado = [n for n, ok in (("folios demo (P04)", folios), ("datos de campo (P05)", campo), ("preventivos (P06)", preventivos), ("minuta y seguimiento (P07)", minuta)) if ok]
+        agregado = [n for n, ok in (("folios demo (P04)", folios), ("datos de campo (P05)", campo), ("preventivos (P06)", preventivos), ("minuta y seguimiento (P07)", minuta), ("trabajos especiales y OC (P08)", te)) if ok]
         print("Los datos demo ya existían;", f"se agregaron: {', '.join(agregado)}." if agregado else "no se modificó nada.")
 
 

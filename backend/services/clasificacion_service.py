@@ -239,7 +239,14 @@ async def calificar(db: AsyncSession, tenant_id: UUID, periodo: str, cerrar: boo
         if cal is None:
             cal = AdminUNCalificacion(tenant_id=tenant_id, usuario_id=u.id, un_id=next(iter(unidades), None), periodo=periodo)
             db.add(cal)
-        bajo_antes = (cal.calificacion_final if cal.calificacion_final is not None else Decimal(base)) < c.umbral_calificacion
+        # La alerta se dispara una vez por calificación del período mientras siga disparada (dedupe por historial, no por el valor
+        # anterior: el umbral puede cambiar entre cálculos).
+        from models.alertas import AlertaHistorial
+        from models.base import EstadoAlerta
+
+        await db.flush()
+        bajo_antes = cal.id is not None and (await db.execute(select(AlertaHistorial.id).where(
+            AlertaHistorial.clave_alerta == "ADMIN_UN_BAJO_DESEMPENO", AlertaHistorial.entidad_id == cal.id, AlertaHistorial.estado == EstadoAlerta.disparada))).first() is not None
         cal.puntos_total, cal.folios_clasificados_tiempo, cal.folios_tardios, cal.folios_sin_clasificar = base, a_tiempo, len(tardios), sin_clasificar
         cal.minutas_respondidas, cal.minutas_tardias, cal.calificacion_final, cal.eventos_json, cal.calculada_at, cal.cerrada = respondidas, minutas_tardias, final, eventos, ahora, cerrar
         await db.flush()

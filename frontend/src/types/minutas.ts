@@ -110,6 +110,7 @@ export interface MinutaResumen {
 
 export interface SeccionHallazgo { hallazgo_id: string; descripcion: string; equipo: string; un: string; urgencia: NivelUrgencia; foto_url: string | null; tipo: string; numero_folio: string | null; estado_respuesta: 'pendiente' | 'respondido'; opcion_respuesta: OpcionRespuesta | null; pendiente_de_dias_anteriores: boolean; timestamp: string }
 export interface SeccionPreventivo { calendario_id: string; folio_id: string | null; numero_folio: string | null; un: string; equipo: string; tecnico: string; hora: string | null; fecha_programada: string; fecha_real: string | null; desvio_dias: number | null; texto_desvio: string }
+export interface SeccionTE { trabajo_especial_id: string; numero: string; descripcion: string; un: string; estado: string; urgencia: boolean; monto: string | null; fecha_programada: string | null; evidencias_cierre?: string[]; fecha_cierre?: string }
 export interface SeccionCotizacion { cotizacion_id: string; numero: string; un: string; equipo: string; descripcion: string; monto: string | null; estado: string; dias: number }
 
 export interface MinutaDetalle extends MinutaResumen {
@@ -118,7 +119,7 @@ export interface MinutaDetalle extends MinutaResumen {
     preventivos: SeccionPreventivo[]
     hallazgos: SeccionHallazgo[]
     cotizaciones: { pendientes_enviar: SeccionCotizacion[]; pendientes_autorizar: SeccionCotizacion[] }
-    trabajos_especiales: { nota: string }
+    trabajos_especiales: { nuevos: SeccionTE[]; en_proceso: SeccionTE[]; terminados: SeccionTE[] }
     peticiones: { peticion_id: string; texto: string; un: string; origen: string; capturado_por: string; numero_folio: string | null; timestamp: string }[]
     pendientes_autorizacion: { folio_id: string; numero_folio: string; descripcion: string; nivel: number; rol_aprobador: string | null; monto_estimado: string | null }[]
     recordatorio_presupuesto?: { hallazgo_presupuesto_id: string; descripcion: string; un: string; periodo: string; dias_diferido: number; monto_estimado: string | null; motivo: string }[]
@@ -177,6 +178,8 @@ export interface RegistroSeguimiento {
   pdf_disponible?: boolean
   hash_pdf?: string | null
   estado_trabajo_especial?: string | null
+  trabajo_especial_id?: string | null
+  trabajo_especial_numero?: string | null
   pasar_a_presupuesto_si_rechaza?: boolean
   envios_externos?: { id: string; destinatarios: string[]; comentario: string; timestamp: string; estado_entrega: string }[]
   // Presupuesto

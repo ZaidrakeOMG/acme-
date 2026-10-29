@@ -65,6 +65,7 @@ class TriggerRevision(str, enum.Enum):
     severidad_no_configurada = "severidad_no_configurada"
     confirmacion_un_faltante = "confirmacion_un_faltante"
     pendiente_clasificacion = "pendiente_clasificacion"  # P07 §6.10.5
+    pendiente_oc_cliente = "pendiente_oc_cliente"  # P08 §6.10.7
 
 
 class CriterioAprobacion(str, enum.Enum):
@@ -223,6 +224,10 @@ class Folio(ConVersion, Base):
     # P06: folio preventivo generado por un plan o por el calendario manual.
     plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     calendario_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # P08: instalación de activo (§6.10.7) y folio operativo de un trabajo especial (§6.10.6).
+    es_instalacion_activo: Mapped[bool] = mapped_column(Boolean, default=False)
+    equipo_instalado_id: Mapped[uuid.UUID | None] = _fk("equipos", True)
+    trabajo_especial_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("trabajos_especiales.id"), nullable=True)
 
 
 class FolioEstadoHistorial(Base):

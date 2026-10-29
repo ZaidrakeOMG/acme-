@@ -552,6 +552,9 @@ async def enviar(db: AsyncSession, actor: Actor, r: FormularioRespuesta, request
         from services import hallazgos_service  # P07: campos con genera_hallazgo → hallazgos de la minuta
 
         await hallazgos_service.desde_respuesta(db, actor, r, esquema)
+        from services import oc_activos_service  # P08 §6.10.7: el técnico clasifica el folio como instalación de activo
+
+        await oc_activos_service.desde_respuesta(db, actor, r, esquema, origen="atencion", request=request)
     await auditoria.registrar_actor(db, actor, "formularios.respuesta_enviada", request, tenant_id=r.tenant_id, prestador_id=r.prestador_id,
                                     recurso_tipo="formulario_respuesta", recurso_id=r.id,
                                     despues={"formulario_id": str(r.formulario_id), "version": version.numero_version, "origen": r.origen.value,

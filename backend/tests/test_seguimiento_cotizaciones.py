@@ -1,5 +1,5 @@
 """Módulo 1 — Cotizaciones (§7.7 M1): ciclo por rol, PDF con hash, envío externo sin cambio de estado, rechazo → Por presupuesto,
-conversión 501 (P08), alertas por días, historial inmutable, listados y reporte ejecutivo."""
+conversión en trabajo especial (P08), alertas por días, historial inmutable, listados y reporte ejecutivo."""
 from datetime import UTC, datetime, timedelta
 
 from tests.folios_utiles import AE, AP, AUN, DES, MC, OP, OTRO_AE, OTRO_AP
@@ -17,12 +17,11 @@ async def test_ciclo_completo_por_rol(cliente, auth, datos):
                                                                                                              "detalle": {"partidas": [{"descripcion": "Compresor", "cantidad": 1, "importe": "6500"}]}})
     assert r.status_code == 200 and r.json()["estado"] == "en_preparacion" and r.json()["monto"] == "7800.00" and r.json()["proxima_alerta"] == "COTIZACION_SIN_ENVIAR"
     # Enviar: PDF generado, correo al Admin UN y Admin empresa con adjunto, notificación.
-    antes = len(correo.ENVIADOS)
     assert (await cliente.post(f"/api/seguimiento/cotizaciones/{c['id']}/responder", headers=await auth(AUN), json={"autorizar": True})).status_code == 409  # aún no enviada
     r = await cliente.post(f"/api/seguimiento/cotizaciones/{c['id']}/enviar", headers=await auth(MC))
     assert r.status_code == 200 and r.json()["estado"] == "enviada" and r.json()["pdf_disponible"] and len(r.json()["hash_pdf"]) == 64 and r.json()["fecha_envio"]
     assert any(c["id"] in (n["datos"].get("cotizacion_id") or "") and n["evento"] == "cotizacion.enviada" for n in await bandeja(cliente, auth, AUN))
-    assert any("COT-" in x["asunto"] and x["adjuntos"] for x in correo.ENVIADOS[antes:])
+    assert any(c["numero"] in x["asunto"] and x["adjuntos"] for x in correo.ENVIADOS)  # por contenido: el deque tiene maxlen
     pdf = await cliente.get(f"/api/seguimiento/cotizaciones/{c['id']}/pdf", headers=await auth(AUN))
     assert pdf.status_code == 200 and pdf.content[:5] == b"%PDF-" and pdf.headers["x-hash-sha256"] == r.json()["hash_pdf"]
     assert (await cliente.get(f"/api/seguimiento/cotizaciones/{c['id']}/pdf", headers=await auth(OTRO_AE))).status_code == 404
@@ -32,10 +31,10 @@ async def test_ciclo_completo_por_rol(cliente, auth, datos):
     assert r.status_code == 200 and r.json()["estado"] == "autorizada" and r.json()["notas_respuesta"] == "Adelante" and r.json()["proxima_alerta"] == "COTIZACION_AUTORIZADA_SIN_CONVERTIR"
     assert any(n["evento"] == "cotizacion.respondida" for n in await bandeja(cliente, auth, DES))
     r = await cliente.post(f"/api/seguimiento/cotizaciones/{c['id']}/convertir", headers=await auth(DES))
-    assert r.status_code == 501 and r.json()["codigo"] == "DISPONIBLE_EN_P08"
+    assert r.status_code == 200 and r.json()["estado"] == "convertida" and r.json()["trabajo_especial"]["numero"].startswith("TE-")  # P08
     d = await detalle_registro(cliente, auth, "cotizaciones", c["id"], DES)
-    assert [h["estado_nuevo"] for h in d["historial"]] == ["solicitada", "en_preparacion", "enviada", "autorizada"] and d["historial"][1]["usuario_nombre"]
-    assert d["estado_trabajo_especial"] is None and d["destinos"] == ["convertida"]
+    assert [h["estado_nuevo"] for h in d["historial"]] == ["solicitada", "en_preparacion", "enviada", "autorizada", "convertida"] and d["historial"][1]["usuario_nombre"]
+    assert d["estado_trabajo_especial"] == "creado" and d["trabajo_especial_numero"].startswith("TE-") and d["destinos"] == []  # P08: convertida es final
 
 
 async def test_rechazo_pasa_a_presupuesto_y_envio_externo(cliente, auth, datos):
@@ -44,11 +43,10 @@ async def test_rechazo_pasa_a_presupuesto_y_envio_externo(cliente, auth, datos):
     assert (await cliente.post(f"/api/seguimiento/cotizaciones/{c['id']}/enviar-externo", headers=await auth(AE), json={"destinatarios": ["compras@x.mx"]})).status_code == 409
     await cliente.post(f"/api/seguimiento/cotizaciones/{c['id']}/enviar", headers=await auth(AP))
     # Envío externo (licitación): correo con PDF, registro en el historial, el estado no cambia.
-    antes = len(correo.ENVIADOS)
     r = await cliente.post(f"/api/seguimiento/cotizaciones/{c['id']}/enviar-externo", headers=await auth(AE), json={"destinatarios": ["compras@clientedemo.mx", "finanzas@clientedemo.mx"], "comentario": "Para licitación interna"})
     assert r.status_code == 200 and r.json()["estado_cotizacion"] == "enviada" and r.json()["estado_entrega"] == "enviada"
     ultimo = correo.ENVIADOS[-1]
-    assert len(correo.ENVIADOS) == antes + 1 and ultimo["destinatarios"] == ["compras@clientedemo.mx", "finanzas@clientedemo.mx"] and ultimo["adjuntos"] == [f"{c['numero']}.pdf"]
+    assert ultimo["destinatarios"] == ["compras@clientedemo.mx", "finanzas@clientedemo.mx"] and ultimo["adjuntos"] == [f"{c['numero']}.pdf"]
     assert "Para licitación interna" in ultimo["html"] and c["numero"] in ultimo["asunto"] and "12,000.00" in ultimo["asunto"]
     r = await cliente.post(f"/api/seguimiento/cotizaciones/{c['id']}/enviar-externo", headers=await auth(AE), json={"destinatarios": ["sin-arroba"]})
     assert r.status_code == 422

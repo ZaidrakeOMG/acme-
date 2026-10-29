@@ -233,6 +233,13 @@ async def _recordatorio_presupuesto(db: AsyncSession, tenant_id: UUID, un_id: UU
     return salida
 
 
+async def _trabajos_especiales_del_dia(db: AsyncSession, tenant_id: UUID, prestador_id: UUID, un_id: UUID | None, inicio: datetime, fin: datetime) -> dict[str, Any]:
+    """§7.3 (P08): nuevos solicitados en el día, en proceso y terminados en el día con evidencia fotográfica de cierre y etiqueta de urgencia."""
+    from services import trabajos_especiales_service
+
+    return await trabajos_especiales_service.seccion_minuta(db, tenant_id, prestador_id, un_id, inicio, fin)
+
+
 async def construir_secciones(db: AsyncSession, tenant_id: UUID, prestador_id: UUID, un_id: UUID | None, fecha: date, zona: str, cfg: MinutaConfiguracion,
                               tipo: TipoMinuta) -> dict[str, Any]:
     inicio, fin = _rango(fecha, zona)
@@ -241,7 +248,7 @@ async def construir_secciones(db: AsyncSession, tenant_id: UUID, prestador_id: U
         "preventivos": await _preventivos_del_dia(db, tenant_id, prestador_id, un_id, fecha),
         "hallazgos": await _hallazgos_del_dia(db, tenant_id, prestador_id, un_id, inicio, fin),
         "cotizaciones": await _cotizaciones_pendientes(db, tenant_id, prestador_id, un_id),
-        "trabajos_especiales": {"nota": "Los trabajos especiales se incorporan a la minuta en P08", "nuevos": [], "en_proceso": [], "terminados": []},
+        "trabajos_especiales": await _trabajos_especiales_del_dia(db, tenant_id, prestador_id, un_id, inicio, fin),
         "peticiones": await _peticiones_del_dia(db, tenant_id, un_id, inicio, fin),
         "pendientes_autorizacion": await _pendientes_autorizacion(db, tenant_id, un_id),
     }
@@ -343,7 +350,13 @@ async def html_minuta(db: AsyncSession, m: Minuta) -> str:
         lista = cot.get(clave, [])
         partes.append(f"<h3>{titulo} ({len(lista)})</h3>" + ("<table><tr><th>Número</th><th>UN</th><th>Equipo</th><th>Descripción</th><th>Monto</th></tr>" + "".join(
             f"<tr><td>{e(x['numero'])}</td><td>{e(x['un'])}</td><td>{e(x['equipo'])}</td><td>{e(x['descripcion'])}</td><td>{e(x['monto'] or '—')}</td></tr>" for x in lista) + "</table>" if lista else "<p>Ninguna.</p>"))
-    partes.append(f"<h2>{TITULOS['trabajos_especiales']}</h2><p>{e(s.get('trabajos_especiales', {}).get('nota', ''))}</p>")
+    te = s.get("trabajos_especiales", {})
+    partes.append(f"<h2>{TITULOS['trabajos_especiales']}</h2>")
+    for clave, titulo in (("nuevos", "Nuevos solicitados en el día"), ("en_proceso", "En proceso"), ("terminados", "Terminados en el día")):
+        lista = te.get(clave, []) if isinstance(te, dict) else []
+        partes.append(f"<h3>{titulo} ({len(lista)})</h3>" + ("<table><tr><th>Número</th><th>UN</th><th>Descripción</th><th>Estado</th><th>Monto</th><th>Evidencia</th></tr>" + "".join(
+            f"<tr><td>{e(x['numero'])}{' <strong class=urgente>URGENCIA</strong>' if x.get('urgencia') else ''}</td><td>{e(x['un'])}</td><td>{e(x['descripcion'])}</td><td>{e(x['estado'])}</td>"
+            f"<td>{e(x['monto'] or '—')}</td><td>{len(x.get('evidencias_cierre', [])) or '—'}</td></tr>" for x in lista) + "</table>" if lista else "<p>Ninguno.</p>"))
     pet = s.get("peticiones", [])
     partes.append(f"<h2>{TITULOS['peticiones']}</h2>" + ("<ul>" + "".join(f"<li>{e(p['texto'])} <small>({e(p['un'])} · {e(p['capturado_por'])})</small></li>" for p in pet) + "</ul>" if pet else "<p>Sin peticiones.</p>"))
     pend = s.get("pendientes_autorizacion", [])

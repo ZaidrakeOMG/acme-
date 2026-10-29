@@ -184,6 +184,9 @@ class FolioResumen(ConVersionSalida):
     plan_id: UUID | None = None          # P06: plan que originó el preventivo
     calendario_id: UUID | None = None    # P06: fila del calendario
     plan_nombre: str | None = None
+    es_instalacion_activo: bool = False      # P08 §6.10.7
+    equipo_instalado_id: UUID | None = None  # P08: equipo dado de alta al cerrar
+    trabajo_especial_id: UUID | None = None  # P08 §6.10.6: folio operativo de un trabajo especial
 
 
 class HistorialSalida(BaseModel):
@@ -309,6 +312,8 @@ class FolioDetalle(BaseModel):
     hallazgos: list[dict[str, Any]] = Field(default_factory=list)        # P07
     derivaciones: list[dict[str, Any]] = Field(default_factory=list)     # P07: registros en los módulos de seguimiento
     clasificacion: dict[str, Any] | None = None                           # P07 §6.10.5
+    oc_activo: dict[str, Any] | None = None                               # P08 §6.10.7
+    trabajo_especial: dict[str, Any] | None = None                        # P08 §6.10.6
     evidencias: list[EvidenciaFolioSalida]
     formulario_atencion: VinculoFormularioSalida | None
     refacciones: list[RefaccionSalida]

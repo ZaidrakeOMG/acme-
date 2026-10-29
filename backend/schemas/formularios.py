@@ -346,9 +346,22 @@ class HallazgoMapeo(BaseModel):
     condicion_valor: Any = None
 
 
+class ActivoMapeo(BaseModel):
+    """P08 §6.10.7: un campo `si_no` o `radio` del formulario de captura o de atención clasifica el folio como instalación de activo
+    cuando responde `valor_afirmativo` (por defecto «si»). Los campos opcionales alimentan el alta automática del equipo al cerrar."""
+    valor_afirmativo: Any = "si"
+    campo_tipo_equipo: str | None = Field(default=None, pattern=_CLAVE.pattern)
+    campo_marca: str | None = Field(default=None, pattern=_CLAVE.pattern)
+    campo_modelo: str | None = Field(default=None, pattern=_CLAVE.pattern)
+    campo_serie: str | None = Field(default=None, pattern=_CLAVE.pattern)
+    campo_valor_reposicion: str | None = Field(default=None, pattern=_CLAVE.pattern)
+    campo_nombre: str | None = Field(default=None, pattern=_CLAVE.pattern)
+
+
 class Campo(BaseModel):
     clave: str = Field(pattern=_CLAVE.pattern, description="Única en el formulario, sin acentos")
     genera_hallazgo: HallazgoMapeo | None = Field(default=None, description="P07: crea un hallazgo para la minuta al enviar")
+    clasifica_instalacion_activo: ActivoMapeo | None = Field(default=None, description="P08: clasifica el folio como instalación de activo (§6.10.7)")
     tipo: TipoCampo
     etiqueta: str = Field(min_length=1, max_length=200)
     ayuda: str | None = Field(default=None, max_length=500)
@@ -417,6 +430,13 @@ class EsquemaFormulario(BaseModel):
                 for ref in (m.campo_descripcion, m.campo_urgencia, m.campo_foto, m.condicion_campo):
                     if ref and ref not in existentes:
                         raise ValueError(f"genera_hallazgo de {c.clave} apunta a un campo inexistente: {ref}")
+            a = c.clasifica_instalacion_activo
+            if a:
+                if c.tipo not in ("si_no", "radio", "boton_grupo", "lista_desplegable"):
+                    raise ValueError(f"clasifica_instalacion_activo solo aplica a campos si_no o radio ({c.clave} es {c.tipo})")
+                for ref in (a.campo_tipo_equipo, a.campo_marca, a.campo_modelo, a.campo_serie, a.campo_valor_reposicion, a.campo_nombre):
+                    if ref and ref not in existentes:
+                        raise ValueError(f"clasifica_instalacion_activo de {c.clave} apunta a un campo inexistente: {ref}")
         for c in self.campos:
             for cond in c.condiciones:
                 if cond.campo_origen not in existentes:

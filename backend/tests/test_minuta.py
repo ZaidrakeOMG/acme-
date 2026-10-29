@@ -46,7 +46,7 @@ async def test_generacion_un_y_global_con_secciones_y_entrega(cliente, auth, dat
     assert all(k in s["contadores"][m] for m in ("cotizaciones", "por_presupuesto", "seguimiento_interno", "reprogramacion") for k in ("total", "color", "umbral"))
     mio = next(x for x in s["hallazgos"] if x["hallazgo_id"] == h["id"])
     assert mio["urgencia"] == "critica" and mio["estado_respuesta"] == "pendiente" and mio["equipo"].startswith("EQT-")
-    assert "P08" in s["trabajos_especiales"]["nota"] and isinstance(s["cotizaciones"]["pendientes_enviar"], list)
+    assert set(s["trabajos_especiales"]) == {"nuevos", "en_proceso", "terminados"} and isinstance(s["cotizaciones"]["pendientes_enviar"], list)
     assert d["puede_responder"] is True and len(d["opciones"]) == 6 and d["pdf_disponible"]
     # Entrega §7.5: Admin UN por app, push y correo (PDF adjunto); la global al Admin empresa.
     canales = {(x["nombre"], x["canal"]) for x in d["destinatarios"]}

@@ -2,6 +2,26 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-10-29 · P08 — Trabajos especiales, conversión de cotizaciones y OC de activos
+
+- Migración `0008`: `trabajos_especiales`, `te_respuesta_cliente` y `te_historial` (append-only), `te_evidencias`,
+  `folio_activo_autorizacion`, `folio_activo_historial` (append-only); FK de `cotizaciones.trabajo_especial_id`; `folios.es_instalacion_activo`,
+  `equipo_instalado_id` y `trabajo_especial_id`; `trigger_revision.pendiente_oc_cliente`; 7 alertas nuevas. RLS forzada en todas.
+- `services/trabajos_especiales_service.py`: ciclo de 8 estados con `cambiar_estado_te()`, validación del cliente por botón con
+  comentario obligatorio y reenvío por versión, programación con técnicos habilitados (`ejecutar_trabajos_especiales`), folio operativo
+  `especial` sincronizado en ambos sentidos, cierre con formulario + evidencia + firma, cancelación con razón, TE de urgencia (sin monto,
+  salto a programado, cotización retroactiva opcional), sección de la minuta (§7.3), reporte con exportación. La conversión de
+  cotizaciones (§7.7 M1) reemplaza el 501 de P07.
+- `services/oc_activos_service.py`: bandera `clasifica_instalacion_activo` en el esquema de formularios (captura y atención), folio
+  retenido con `pendiente_oc_cliente`, cinco estatus con `listo_para_asignar` automático, rechazo con cancelación o reprogramación a
+  período (Por presupuesto), alta automática del equipo al cerrar (`ACT-<folio>`, inactivo + alerta si falta el tipo).
+- Routers `/api/trabajos-especiales` (15 rutas) y `/api/oc-activos` (3); detalle y resumen del folio con los bloques de P08; sync del
+  técnico resuelve el formulario `trabajo_especial`.
+- Frontend: módulos `trabajos_especiales` y `oc_activos` con sus páginas, botón «Convertir en Trabajo Especial» en cotizaciones, columna
+  del TE en el listado, indicadores en folios y en la app del técnico, sección real de la minuta.
+- Seed: formulario del TE, formulario de captura de activo, 8 TE y 4 folios de activo. Pruebas: pytest 277, vitest 68.
+- Decisiones pendientes 75–87 en `CONTEXTO.md`.
+
 ## 2026-10-29 · P07 — Minuta del día, notificaciones por correo y módulos de seguimiento
 
 **Base de datos (migración 0007)**

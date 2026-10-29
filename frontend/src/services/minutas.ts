@@ -36,6 +36,7 @@ export const reporteEjecutivo = (params: Params = {}) => api<ReporteEjecutivo>('
 export const descargarReporte = (formato: 'xlsx' | 'pdf', params: Record<string, string | undefined> = {}) => descargar(`/seguimiento/reporte/ejecutivo.${formato}`, params)
 export const prepararCotizacion = (id: string, datos: { descripcion?: string; monto?: string; detalle?: Record<string, unknown> }) => api<RegistroSeguimiento>(`/seguimiento/cotizaciones/${id}/preparar`, { metodo: 'POST', cuerpo: datos })
 export const enviarCotizacion = (id: string) => api<RegistroSeguimiento>(`/seguimiento/cotizaciones/${id}/enviar`, { metodo: 'POST' })
+export const convertirCotizacion = (id: string) => api<RegistroSeguimiento & { trabajo_especial: { id: string; numero: string } }>(`/seguimiento/cotizaciones/${id}/convertir`, { metodo: 'POST' })
 export const responderCotizacion = (id: string, autorizar: boolean, notas = '', pasarAPresupuesto?: boolean) =>
   api<RegistroSeguimiento>(`/seguimiento/cotizaciones/${id}/responder`, { metodo: 'POST', cuerpo: { autorizar, notas, pasar_a_presupuesto_si_rechaza: pasarAPresupuesto ?? null } })
 export const pdfCotizacion = (id: string) => descargar(`/seguimiento/cotizaciones/${id}/pdf`)

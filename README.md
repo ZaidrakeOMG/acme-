@@ -183,6 +183,18 @@ Correo saliente: deja `SMTP_HOST` vacío para el modo *stub* (los `.eml` quedan 
 `APP_URL_PUBLICA` es la base de los enlaces. Para PDF con diseño instala el runtime GTK3 (WeasyPrint); sin él se genera un PDF
 mínimo de texto.
 
+## Trabajos especiales y OC de activos (P08)
+
+- `/trabajos-especiales`: el prestador (Admin prestador, Mesa de control, Despachador) crea el TE —o lo convierte desde una cotización
+  autorizada en `/seguimiento`—, lo envía al cliente y, aceptado, lo programa con técnicos que tengan `ejecutar_trabajos_especiales`; el
+  cliente (Admin empresa / Admin UN) lo acepta o rechaza con comentario desde la bandeja «Por validar» y puede crear TE de urgencia
+  sin monto. Al programarse se crea el folio operativo `especial` que el técnico atiende en `/campo` con el formulario del TE; el cierre
+  exige formulario, evidencia fotográfica y firma.
+- `/oc-activos`: folios clasificados como instalación de activo en el formulario (`clasifica_instalacion_activo`) esperan la OC del
+  cliente; el Admin empresa registra el estatus y el número de OC; con la OC autorizada el folio entra al flujo de asignación y al
+  cerrarse el equipo se da de alta en el catálogo (`ACT-<folio>`).
+- Datos demo: TE-000001 … TE-000008 y folios CD-000038 … CD-000041 (`scripts/seed_trabajos_especiales.py`).
+
 ## Problemas conocidos en Windows
 
 - **Docker Desktop no arranca** y el log menciona `remove …\dockerInference` o `…\engine.sock`: quedaron sockets huérfanos.

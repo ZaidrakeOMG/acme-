@@ -4,7 +4,7 @@ import { Aviso, Boton, Campo, Encabezado, Insignia, Modal, Selector, Tabla, Tarj
 import { useAuth } from '../../contexts/AuthContext'
 import { useRecurso } from '../../hooks/useRecurso'
 import { mensajeDeError } from '../../services/api'
-import { abrirBlob, actualizarInterno, cambiarEstado, confirmarTercero, descargarReporte, descartarPresupuesto, enviarCotizacion, enviarCotizacionExterno, listarModulo, obtenerRegistro, pdfCotizacion, porUN, prepararCotizacion, reactivarPresupuesto, reporteEjecutivo, responderCotizacion, revisarPresupuesto } from '../../services/minutas'
+import { abrirBlob, actualizarInterno, cambiarEstado, confirmarTercero, convertirCotizacion, descargarReporte, descartarPresupuesto, enviarCotizacion, enviarCotizacionExterno, listarModulo, obtenerRegistro, pdfCotizacion, porUN, prepararCotizacion, reactivarPresupuesto, reporteEjecutivo, responderCotizacion, revisarPresupuesto } from '../../services/minutas'
 import type { Tenant, UnidadNegocio } from '../../types/api'
 import type { CambioEstado, Modulo, RegistroSeguimiento, ReporteEjecutivo } from '../../types/minutas'
 import { ESTADOS_MODULO, NOMBRE_ESTADO_MODULO, NOMBRE_MODULO, ROLES_KANBAN } from '../../types/minutas'
@@ -76,7 +76,7 @@ export function Seguimiento() {
               { titulo: 'Estado', celda: (r) => <div className="flex flex-wrap gap-1"><Insignia tono={r.alertas_activas.length ? 'alerta' : FINALES.has(r.estado) ? 'ok' : 'acento'}>{NOMBRE_ESTADO_MODULO[r.estado] ?? r.estado}</Insignia>{r.urgencia_hallazgo && <Insignia>{r.urgencia_hallazgo}</Insignia>}</div> },
               { titulo: 'Días en el estado', celda: (r) => <span className={r.alertas_activas.length ? 'font-semibold text-red-700' : ''}>{r.dias_en_estado}</span> },
               { titulo: 'Próxima alerta', celda: (r) => <span className="text-xs text-slate-600">{r.alertas_activas.length ? <span className="text-red-700">{r.alertas_activas.join(', ')}</span> : r.proxima_alerta ?? '—'}</span> },
-              ...(modulo === 'cotizaciones' ? [{ titulo: 'Monto', celda: (r: RegistroSeguimiento) => r.monto ? `$${Number(r.monto).toLocaleString('es-MX')}` : '—' }, { titulo: 'Estado del trabajo especial', celda: (r: RegistroSeguimiento) => <span className="text-xs text-slate-400">{r.estado_trabajo_especial ?? ''}</span> }] : []),
+              ...(modulo === 'cotizaciones' ? [{ titulo: 'Monto', celda: (r: RegistroSeguimiento) => r.monto ? `$${Number(r.monto).toLocaleString('es-MX')}` : '—' }, { titulo: 'Estado del trabajo especial', celda: (r: RegistroSeguimiento) => <span className="text-xs text-slate-400">{r.trabajo_especial_numero ? `${r.trabajo_especial_numero} · ${r.estado_trabajo_especial}` : ''}</span> }] : []),
             ]}
           />
         </div>
@@ -207,7 +207,7 @@ function DetalleRegistro({ modulo, registroId, alCerrar, alCambiar }: { modulo: 
             <dt className="text-slate-500">Monto</dt><dd>{r.monto ? `$${Number(r.monto).toLocaleString('es-MX')} ${r.moneda}` : 'por definir'}</dd>
             <dt className="text-slate-500">Enviada</dt><dd>{fmtFecha(r.fecha_envio)}</dd>
             <dt className="text-slate-500">Respuesta</dt><dd>{fmtFecha(r.fecha_respuesta)} {r.notas_respuesta}</dd>
-            <dt className="text-slate-500">Trabajo especial</dt><dd className="text-slate-400">{r.estado_trabajo_especial ?? 'sin convertir (P08)'}</dd>
+            <dt className="text-slate-500">Trabajo especial</dt><dd>{r.trabajo_especial_id ? <Link className="text-primario underline" to={`/trabajos-especiales?registro=${r.trabajo_especial_id}`}>{r.trabajo_especial_numero} · {r.estado_trabajo_especial}</Link> : <span className="text-slate-400">sin convertir</span>}</dd>
           </dl>
         )}
         {(modulo === 'interno' || modulo === 'reprogramacion') && (r.proveedor || r.proveedor_tercero) && <p>Tercero: <strong>{r.proveedor ?? r.proveedor_tercero}</strong> · fecha acordada {r.fecha_acordada ?? '—'}{r.referencia_tercero && ` · ref. ${r.referencia_tercero}`}{modulo === 'reprogramacion' && ` · fechas vencidas ${r.fechas_vencidas_count}`}</p>}
@@ -230,6 +230,9 @@ function DetalleRegistro({ modulo, registroId, alCerrar, alCambiar }: { modulo: 
             <Boton variante="peligro" onClick={() => void ejecutar(() => responderCotizacion(r.id, false, campos.notas ?? '', campos.pasar_a_presupuesto ?? false), 'Cotización rechazada')}>Rechazar</Boton>
             <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={!!campos.pasar_a_presupuesto} onChange={(e) => setCampos({ ...campos, pasar_a_presupuesto: e.target.checked })} /> Si rechazo, pasar a Por presupuesto</label>
           </div>
+        )}
+        {modulo === 'cotizaciones' && esPrestador && r.estado === 'autorizada' && !r.trabajo_especial_id && (
+          <Boton onClick={() => void ejecutar(() => convertirCotizacion(r.id), `${r.numero} convertida en trabajo especial`)}>Convertir en Trabajo Especial</Boton>
         )}
         {modulo === 'cotizaciones' && r.pdf_disponible && (
           <div className="rounded-lg border border-slate-200 p-2">

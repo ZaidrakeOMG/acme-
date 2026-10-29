@@ -33,6 +33,8 @@ import { Clasificacion } from './pages/clasificacion/Clasificacion'
 import { Minutas } from './pages/minutas/Minutas'
 import { ResponderMinuta } from './pages/minutas/ResponderMinuta'
 import { Notificaciones } from './pages/Notificaciones'
+import { OcActivos } from './pages/oc_activos/OcActivos'
+import { TrabajosEspeciales } from './pages/trabajos_especiales/TrabajosEspeciales'
 import { Seguimiento } from './pages/seguimiento/Seguimiento'
 import { RoleHub } from './pages/RoleHub'
 import { Seguridad } from './pages/Seguridad'
@@ -58,6 +60,8 @@ const PAGINAS: Record<string, ReactNode> = {
   seguimiento: <Seguimiento />,
   clasificacion: <Clasificacion />,
   notificaciones: <Notificaciones />,
+  trabajos_especiales: <TrabajosEspeciales />,
+  oc_activos: <OcActivos />,
 }
 
 function SinPermiso() {

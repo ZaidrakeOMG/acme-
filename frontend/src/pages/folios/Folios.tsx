@@ -72,7 +72,7 @@ export function Folios() {
             vacio="No hay folios con esos filtros"
             columnas={[
               { titulo: 'Folio', celda: (f) => <Link to={`/folios/${f.id}`} className="font-mono text-xs font-semibold text-primario underline">{f.numero_folio}</Link> },
-              { titulo: 'Estado', celda: (f) => <div className="flex flex-wrap items-center gap-1"><EstadoInsignia estado={f.estado} />{f.flujo && f.flujo.estado !== 'aprobado' && f.flujo.estado !== 'rechazado' && <Insignia tono="acento">Nivel {f.flujo.nivel_actual}</Insignia>}{f.triggers_pendientes > 0 && <Insignia tono="alerta">{f.triggers_pendientes} trigger(s)</Insignia>}</div> },
+              { titulo: 'Estado', celda: (f) => <div className="flex flex-wrap items-center gap-1"><EstadoInsignia estado={f.estado} />{f.es_instalacion_activo && f.estado === 'en_revision' && <Insignia tono="alerta">Esperando OC del cliente</Insignia>}{f.tipo_folio === 'especial' && <Insignia tono="acento">TE</Insignia>}{f.flujo && f.flujo.estado !== 'aprobado' && f.flujo.estado !== 'rechazado' && <Insignia tono="acento">Nivel {f.flujo.nivel_actual}</Insignia>}{f.triggers_pendientes > 0 && <Insignia tono="alerta">{f.triggers_pendientes} trigger(s)</Insignia>}</div> },
               { titulo: 'Severidad', celda: (f) => <SeveridadInsignia severidad={f.severidad} /> },
               { titulo: 'UN', celda: (f) => <span>{f.un_codigo} <span className="text-xs text-slate-500">{f.un_nombre}</span></span> },
               { titulo: 'Equipo', celda: (f) => <span>{f.equipo_codigo} <span className="text-xs text-slate-500">{f.equipo_nombre}</span></span> },

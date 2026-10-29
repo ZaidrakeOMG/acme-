@@ -45,8 +45,14 @@ from models.seguimiento import (
     EstadoReprogramacion, EstadoSeguimientoInterno, FolioClasificacion, HallazgoPresupuesto, ModuloHistorial, OpcionClasificacion,
     PeriodoPresupuestal, Reprogramacion, SeguimientoInterno, TipoPeriodoPresupuestal, VarianteCoordinado,
 )
+from models.trabajos_especiales import (
+    DecisionOCRechazo, DecisionTECliente, EstadoTrabajoEspecial, EstatusOCActivo, FolioActivoAutorizacion, FolioActivoHistorial, TEEvidencia,
+    TEHistorial, TERespuestaCliente, TipoEvidenciaTE, TrabajoEspecial,
+)
 
 __all__ = [
+    "DecisionOCRechazo", "DecisionTECliente", "EstadoTrabajoEspecial", "EstatusOCActivo", "FolioActivoAutorizacion", "FolioActivoHistorial",
+    "TEEvidencia", "TEHistorial", "TERespuestaCliente", "TipoEvidenciaTE", "TrabajoEspecial",
     "CanalNotificacion", "EstadoMinuta", "EstadoNotificacion", "EstadoRespuestaHallazgo", "Hallazgo", "Minuta", "MinutaConfiguracion",
     "MinutaDestinatario", "MinutaRespuesta", "MinutaSeccion", "ModoMinuta", "NivelUrgencia", "Notificacion", "NotificacionPreferencia",
     "OpcionRespuesta", "OrigenHallazgo", "OrigenPeticion", "PeticionCliente", "TipoHallazgo", "TipoMinuta",

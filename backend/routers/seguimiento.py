@@ -72,6 +72,11 @@ async def _serializar(db, actor: Actor, modulo: ModuloDestino, registros: list) 
     equipos = {e.id: e for e in (await db.execute(select(Equipo).where(Equipo.id.in_({r.equipo_id for r in registros if r.equipo_id})))).scalars()} if any(r.equipo_id for r in registros) else {}
     folios = {f.id: f for f in (await db.execute(select(Folio).where(Folio.id.in_({r.folio_id for r in registros if r.folio_id})))).scalars()} if any(r.folio_id for r in registros) else {}
     hallazgos = {h.id: h for h in (await db.execute(select(Hallazgo).where(Hallazgo.id.in_({r.hallazgo_id for r in registros if r.hallazgo_id})))).scalars()} if any(r.hallazgo_id for r in registros) else {}
+    tes = {}
+    if modulo == ModuloDestino.cotizaciones and any(getattr(r, "trabajo_especial_id", None) for r in registros):
+        from models.trabajos_especiales import TrabajoEspecial
+
+        tes = {t.id: t for t in (await db.execute(select(TrabajoEspecial).where(TrabajoEspecial.id.in_({r.trabajo_especial_id for r in registros if r.trabajo_especial_id})))).scalars()}
     salida = []
     for r in registros:
         un, eq, f, h = unidades.get(r.un_id), equipos.get(r.equipo_id), folios.get(r.folio_id), hallazgos.get(r.hallazgo_id)
@@ -86,7 +91,9 @@ async def _serializar(db, actor: Actor, modulo: ModuloDestino, registros: list) 
                 d[k] = getattr(r, k)
         if modulo == ModuloDestino.cotizaciones:
             d["pdf_disponible"] = r.pdf_key is not None
-            d["estado_trabajo_especial"] = None  # P08
+            te = tes.get(r.trabajo_especial_id)
+            d["estado_trabajo_especial"] = te.estado.value if te else None
+            d["trabajo_especial_numero"] = te.numero if te else None
             d["envios_externos"] = [{"id": e.id, "destinatarios": e.destinatarios_json, "comentario": e.comentario, "timestamp": e.timestamp, "enviado_por": e.enviado_por, "estado_entrega": e.estado_entrega}
                                     for e in await cotizaciones.envios_externos(db, r)]
         salida.append(d)
@@ -119,10 +126,15 @@ async def responder(registro_id: UUID, datos: ResponderCotizacionEntrada, reques
     return CotizacionSalida(**(await _serializar(db, actor, ModuloDestino.cotizaciones, [c]))[0])
 
 
-@router.post("/api/seguimiento/cotizaciones/{registro_id}/convertir", summary="Convertir en Trabajo Especial (gancho P08)")
-async def convertir(registro_id: UUID, db: DB, actor: Actor = Depends(TODOS)):
+@router.post("/api/seguimiento/cotizaciones/{registro_id}/convertir", summary="Convertir en Trabajo Especial (§7.7 M1, P08)")
+async def convertir(registro_id: UUID, request: Request, db: DB, actor: Actor = Depends(TODOS)) -> dict[str, Any]:
+    from services import trabajos_especiales_service
+
     c = await base.obtener(db, actor, Cotizacion, registro_id)
-    await cotizaciones.convertir_en_trabajo_especial(db, actor, c)
+    te = await cotizaciones.convertir_en_trabajo_especial(db, actor, c, request)
+    await db.commit()
+    return {**CotizacionSalida(**(await _serializar(db, actor, ModuloDestino.cotizaciones, [c]))[0]).model_dump(),
+            "trabajo_especial": (await trabajos_especiales_service.serializar(db, actor, [te]))[0]}
 
 
 @router.get("/api/seguimiento/cotizaciones/{registro_id}/pdf", summary="Descargar PDF de la cotización (§7.7)")

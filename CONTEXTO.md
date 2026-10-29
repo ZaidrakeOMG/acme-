@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-29 · P07 Minuta del día, notificaciones y módulos de seguimiento**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-29 · P08 Trabajos especiales, conversión de cotizaciones y OC de activos**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -20,10 +20,20 @@
 | P05 | Apps PWA del operador y del técnico, modo offline (cola idempotente) y chat archivado con tiempo real | ✅ 2026-10-28 |
 | P06 | Calendario de preventivos, planes con triggers de Fase 1, autorizaciones y reasignación forzada | ✅ 2026-10-28 |
 | P07 | Minuta del día por UN y global, notificaciones multicanal (correo SMTP), cuatro módulos de seguimiento y clasificación de no críticos | ✅ 2026-10-29 |
-| P08 | Trabajos especiales y OC | Pendiente |
+| P08 | Trabajos especiales con validación del cliente, conversión de cotizaciones y seguimiento de OC de activos | ✅ 2026-10-29 |
 | P09 | Inventario, caja chica manual, presupuestos y activos | Pendiente |
 | P10 | Contratos/SLA (contador), alertas por módulo y BI | Pendiente |
 | P11 | Endurecimiento y despliegue | Pendiente |
+
+## Verificación al cierre de P08
+
+- Migración `0008_trabajos_especiales_oc.py` aplicada (subida, bajada y subida) y seed `seed_trabajos_especiales.py` cargado.
+- `pytest`: **277 pruebas en verde** (incluye `test_trabajos_especiales.py`, `test_te_urgencia.py` y `test_oc_activos.py`; las de
+  P04/P07 que cambiaron: catálogo de 49 alertas, sección de trabajos especiales de la minuta con contenido real).
+- `vitest`: **68 pruebas en verde** (bandeja del cliente con aceptar/rechazar, Kanban y programación del TE, conversión desde la
+  cotización, registro de OC y decisión ante rechazo). `tsc --noEmit` y `npm run build` en verde.
+- Sin revisión visual en el navegador esta vez: la máquina (7 GB) se quedó sin memoria con Docker, pytest y los servidores de
+  desarrollo a la vez; las pantallas se cubren con las pruebas de vitest y los datos demo del seed.
 
 ## Verificación al cierre de P07
 
@@ -548,6 +558,69 @@
   y `monto_potencial`. **Para P10**: `folio_sla.autorizado_en` (inicio del SLA) y `excluir_sla_por_cliente`; `modulo_historial`
   y `admin_un_calificacion` alimentan KPIs. **Fase 2**: canales `whatsapp`/`sms` (hoy `omitida`).
 
+### Trabajos especiales y OC de activos (P08)
+- **Tablas (0008)**: `trabajos_especiales` (`numero` TE-000001 por prestador, tenant/prestador/UN, `equipo_id`, `cotizacion_id`,
+  `hallazgo_id`, `descripcion`, `detalle_json`, 8 estados, `estado_desde`, `urgencia`, `creado_por_id/rol`, `formulario_id`,
+  `respuesta_formulario_id`, `monto`, `cotizacion_retroactiva_id`, `fecha_programada/inicio/cierre`, `tecnico_ids_json`,
+  `tecnico_responsable_id`, `folio_id` (folio operativo), `razon_cancelacion`, `version_enviada`, `enviado_at/aceptado_at/programado_at`),
+  `te_respuesta_cliente` (**append-only**: decisión por versión enviada, comentario, canal), `te_evidencias` (avance/cierre/firma/documento,
+  `evidencia_id` del formulario o `archivo_key` propio), `te_historial` (**append-only**, tabla propia del TE), `folio_activo_autorizacion`
+  (uno por folio: 5 estatus §6.10.7, `numero_oc_provisional/definitivo`, `fecha_autorizacion_erp`, `decision_rechazo`,
+  `periodo_presupuestal_destino`, `origen` captura/atencion, `datos_equipo_json` mapeado del formulario, `hallazgo_presupuesto_id`) y
+  `folio_activo_historial` (**append-only**). Además `cotizaciones.trabajo_especial_id` ya es FK, `folios.es_instalacion_activo`,
+  `folios.equipo_instalado_id` (FK `equipos`) y `folios.trabajo_especial_id`, y `trigger_revision` gana `pendiente_oc_cliente`. 7 alertas
+  nuevas (`TE_SIN_RESPUESTA_CLIENTE`, `TE_ACEPTADO_SIN_PROGRAMAR`, `TE_PROGRAMADO_VENCIDO`, `TE_URGENCIA_SIN_COTIZACION_RETROACTIVA`,
+  `OC_ACTIVO_SIN_TRAMITE`, `OC_ACTIVO_EN_TRAMITE_PROLONGADO`, `ACTIVO_INSTALADO_INCOMPLETO`) con evaluadores en
+  `workers/evaluadores_te.py` (32 evaluadores en total). RLS por tenant+prestador con políticas por comando (solo SELECT/INSERT en las append-only).
+- **`services/trabajos_especiales_service.py`**: `TRANSICIONES` literal de §6.10.6 (creado → enviado_cliente [prestador] · creado →
+  programado solo urgencia · enviado_cliente → aceptado | rechazado [Admin empresa / Admin UN de la UN, comentario obligatorio al rechazar] ·
+  rechazado → enviado_cliente (`version_enviada + 1`, admite nuevo monto/descripción) | cancelado · aceptado → programado [despachador,
+  admin prestador: fecha + técnicos con `ejecutar_trabajos_especiales`, responsable = jefe de cuadrilla] · programado → en_ejecucion y
+  en_ejecucion → cerrado [técnico responsable o sistema] · no final → cancelado [admin prestador, mesa, despachador; el cliente solo sus
+  TE de urgencia antes de programar]). **`cambiar_estado_te(db, actor, te, nuevo, notas, request, **campos)`** es la única entrada: valida
+  rol y campos, escribe `te_historial`, audita, notifica con `notificar()` (eventos `trabajo_especial.*`) y sincroniza el folio operativo.
+  `crear()` (prestador u urgencia del cliente, resuelve el formulario `trabajo_especial` con P03), `desde_cotizacion()` (§7.7 M1
+  autorizada → convertida; sustituye el 501 de `cotizaciones.convertir_en_trabajo_especial`), `requisitos_cierre()` (formulario del TE,
+  evidencia fotográfica de cierre y firma del cliente → 409 `CIERRE_TE_INCOMPLETO`), `agregar_evidencia()`, `cotizacion_retroactiva()`,
+  `seccion_minuta()` (§7.3 nuevos / en proceso / terminados con evidencia y etiqueta de urgencia), `reporte()` y `serializar()/detalle()`.
+- **Relación TE ↔ folio operativo**: al pasar a `programado` se crea un folio `tipo_folio = especial` vinculado por
+  `folios.trabajo_especial_id` (capturado por el sistema, confirmado, directo a Autorizado y Asignado al responsable; los demás técnicos van
+  en el contexto del historial); la app del técnico (P05) lo atiende con el formulario del TE (`sync_service` y `AtencionTecnico` resuelven
+  `trabajo_especial` para `especial`). Sincronización en ambos sentidos: TE `en_ejecucion` ↔ folio `en_ejecucion` (en_camino + llegada),
+  `cerrado` ↔ `cerrado` y la cancelación de cualquiera cancela al otro (`_sincronizar_folio` y el suscriptor `_al_transicionar_folio`);
+  el validador `_validar_cierre_te` bloquea el cierre del folio si al TE le faltan requisitos.
+- **`services/oc_activos_service.py`** (§6.10.7): `detectar()` lee el campo con `clasifica_instalacion_activo` (`ActivoMapeo` en
+  `schemas/formularios.py`: `valor_afirmativo` y mapeo de tipo de equipo, marca, modelo, serie, valor de reposición y nombre);
+  `desde_respuesta()` se engancha en la captura (P04, formulario de captura) y en el envío del formulario de atención (P03). `marcar()` pone
+  `es_instalacion_activo`, crea la autorización, historial, evento `activo.clasificado` y avisa a Admin UN/empresa. En la captura el folio
+  queda `en_revision` con el trigger `pendiente_oc_cliente` (sin flujo multinivel ni clasificación). `cambiar_estatus()` (Admin empresa):
+  pendiente → oc_en_tramite (provisional opcional) → oc_autorizada (definitivo + fecha obligatorios) → `listo_para_asignar` automático
+  (resuelve el trigger y `transicionar(autorizado)` si no quedan otros triggers; si quedan, avisa al despachador) ·
+  pendiente/en_tramite → oc_rechazada con `cancelar` (folio cancelado) o `reprogramar_periodo` (registro en Por presupuesto con el período
+  destino + folio cancelado). `alta_equipo()` corre en el validador previo al cierre (`suscribir_validacion`, porque el folio cerrado es
+  inmutable): `ACT-<folio>`, tipo por id o nombre, marca/modelo/serie/valor, `fecha_instalacion` = cierre, contrato vigente, y si falta el
+  tipo → `inactivo` + `ACTIVO_INSTALADO_INCOMPLETO` + aviso al Admin empresa. `pendientes()` (Admin UN sus UNs, Admin empresa, prestador).
+- **Endpoints**: `/api/trabajos-especiales` (listado con filtros tenant/UN/estado/urgencia/período/`por_validar`, `POST` crear,
+  `/{id}`, `enviar`, `aceptar`, `rechazar`, `programar`, `iniciar`, `cerrar`, `cancelar`, `estado` (Kanban), `evidencias`,
+  `cotizacion-retroactiva`, `reporte` + `.xlsx` + `.pdf`) y `/api/oc-activos` (`pendientes`, `/{folio_id}`, `/{folio_id}/estatus`).
+  `POST /api/seguimiento/cotizaciones/{id}/convertir` devuelve la cotización convertida con el TE; el listado y detalle de cotizaciones
+  traen `estado_trabajo_especial` y `trabajo_especial_numero`. El detalle del folio incluye `oc_activo` y `trabajo_especial`; el resumen,
+  `es_instalacion_activo`, `equipo_instalado_id` y `trabajo_especial_id`.
+- **Frontend**: módulos `trabajos_especiales` (`/trabajos-especiales`, `pages/trabajos_especiales/TrabajosEspeciales.tsx`: listado,
+  Kanban del prestador, bandeja «Por validar» del cliente con aceptar/rechazar, creación ordinaria y de urgencia, detalle con línea de
+  tiempo, versiones, respuestas del cliente, cotización y folio vinculados, programación con técnicos, iniciar/cerrar, cotización
+  retroactiva y cancelación, reporte exportable) y `oc_activos` (`/oc-activos`, `pages/oc_activos/OcActivos.tsx`: pendientes, registro
+  de estatus/OC, decisión ante rechazo, historial, equipo dado de alta). `FolioDetalle` y `Folios` muestran «Esperando OC del cliente» y el
+  TE vinculado; la app del técnico etiqueta «Trabajo especial» / «Urgencia» y resuelve el formulario del TE; la minuta muestra la sección real.
+- **Seed** (`scripts/seed_trabajos_especiales.py`): formulario «Trabajo especial (global)» asignado a `especial`, formulario de captura
+  «instalación de activo», permiso TE para Tomás y Tania (overrides), 8 TE (TE-000001 creado … TE-000008 cancelado; TE-000002 con dos
+  versiones y un rechazo; TE-000005 desde COT-00002; TE-000006 de urgencia del Admin UN en ejecución; TE-000007 cerrado con evidencia y
+  firma) y 4 folios de activo (CD-000038 pendiente, CD-000039 en trámite, CD-000040 OC autorizada pero retenido por el trigger de
+  contrato vencido, CD-000041 cerrado con el equipo `ACT-CD-000041` inactivo por ficha incompleta).
+- **Para P09**: `trabajos_especiales.monto`, `cotizacion_retroactiva_id` y `folios.monto_estimado` del folio operativo son los ganchos de
+  costo; `equipos` creados por `alta_equipo()` alimentan activos y depreciación (`valor_reposicion`, `fecha_instalacion`, `contrato_id`).
+  **Para P10**: `te_historial` y `folio_activo_historial` dan tiempos por etapa; `TE_PROGRAMADO_VENCIDO` y `OC_ACTIVO_*` entran al tablero.
+
 ### Frontend
 - `src/config/modulos.ts` define los 25 módulos de Fase 1, su prompt y los roles que los ven. Al construir un módulo:
   agregar `ruta`, la página en `App.tsx` (`PAGINAS`) y ajustar roles.
@@ -701,6 +774,36 @@
     producción las envía Celery.
 74. **WeasyPrint** se usa cuando sus librerías nativas están presentes (Linux/contenedor); en esta máquina Windows sin GTK se
     usa el generador PDF mínimo propio (texto y estructura, sin estilos).
+75. **Historial del TE en tabla propia** (`te_historial`), no en `modulo_historial`: `modulo_destino` es un ENUM de los cuatro módulos
+    de P07 y el TE tiene su propio ciclo.
+76. **Folio operativo del TE**: al programar se crea un folio `especial` capturado por el sistema, directo a Autorizado y asignado al
+    responsable sin validar la habilidad de familia (el permiso `ejecutar_trabajos_especiales` la sustituye); TE y folio se sincronizan
+    en ambos sentidos y la cancelación de uno cancela al otro.
+77. **Actor del folio al sincronizar**: si quien mueve el TE no puede ejecutar la transición del folio según §6.8.6 (p. ej. Mesa de
+    control cancela un folio asignado), el folio se cancela con un actor del prestador que conserva el id real del usuario; la ejecución
+    y el cierre sincronizados usan el actor `sistema`.
+78. **Requisitos de cierre del TE**: formulario del TE enviado (vinculado como atención del folio operativo), evidencia fotográfica de
+    cierre (`te_evidencias` tipo `cierre` o fotos «después/durante» del folio) y firma del cliente (del folio o del TE).
+79. **Cotización retroactiva** disponible para cualquier TE sin cotización vinculada (no solo urgencias); nace `en_preparacion` con el
+    monto y queda enlazada en ambas direcciones.
+80. **El cliente cancela solo sus TE de urgencia** y solo antes de programarlos; después cancela el prestador con razón.
+81. **El TE ordinario no salta de creado a programado**; el de urgencia sí, por el despachador o el Admin prestador, y queda registrado
+    `sin_validacion_cliente` en el historial.
+82. **Clasificación como instalación de activo** con la bandera `clasifica_instalacion_activo` en campos `si_no`/`radio` del formulario
+    de captura o de atención. Desde la atención (el técnico lo identifica en la visita) el folio ya en ejecución continúa y la OC se sigue
+    en paralelo; solo el folio capturado se retiene en revisión.
+83. **El folio de activo espera la OC como trigger `pendiente_oc_cliente`**: no se evalúa el flujo multinivel ni la clasificación de no
+    críticos; con la OC autorizada pasa directo a Autorizado si no quedan otros triggers y, si quedan (p. ej. sin contrato), sigue en
+    revisión y se avisa al despachador.
+84. **OC rechazada**: `cancelar` cancela el folio con razón; `reprogramar_periodo` crea el registro en Por presupuesto con el período
+    destino y cancela el folio (queda enlazado por `derivaciones`).
+85. **Alta automática del equipo**: código `ACT-<folio>`, nombre tipo + marca + modelo, contrato vigente del equipo del folio, tipo de
+    equipo por id o por nombre; si falta el tipo se usa el del equipo del folio y el activo queda `inactivo` con alerta. Se ejecuta en el
+    validador previo al cierre porque el folio cerrado es inmutable.
+86. **Roles del TE**: crean Admin prestador, Mesa de control y Despachador; programan Despachador y Admin prestador; cancelan los tres del
+    prestador; consultan además supervisores, dirección y los técnicos asignados. En la OC registra solo el Admin empresa; consultan Admin
+    UN (sus UNs) y los roles de gestión del prestador.
+87. **`TE_URGENCIA_SIN_COTIZACION_RETROACTIVA` es informativa**: umbral en días por tenant y se silencia con la supresión de alertas de P01.
 
 ## Notas de entorno (esta máquina)
 
@@ -710,6 +813,8 @@
 - 2026-10-19: Docker Desktop no arrancaba por sockets huérfanos; se renombraron `%LOCALAPPDATA%\Docker\run` y
   `%LOCALAPPDATA%\docker-secrets-engine` (copias `*.viejo-20261019`, se pueden borrar).
 - 2026-10-27: mismo problema (`dockerInference`); copias `*.huerfano-20261027-*`, se pueden borrar.
+- 2026-10-29: con pytest corriendo, `tsc` (typescript-go) se queda sin memoria en esta máquina (7 GB): cerrar los servidores de
+  desarrollo viejos y correr `tsc`/vitest cuando pytest termina.
 - Zona horaria del horario de servicio: `zoneinfo` + paquete `tzdata` (ya en el venv) porque Windows no trae la base IANA.
 - `pywebpush` instalado en el venv (P05); `fake-indexeddb` como devDependency del frontend para probar Dexie en vitest.
 - Las pruebas de vitest y pytest se corren por separado: en paralelo con el build, vitest falla por tiempos de espera.
