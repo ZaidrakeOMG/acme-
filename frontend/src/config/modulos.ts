@@ -74,10 +74,12 @@ export const MODULOS: Modulo[] = [
     grupo: 'Finanzas y activos', ruta: '/activos', roles: ['superadmin', 'admin_empresa', 'admin_un', 'supervisor_operadores', ...PRESTADOR_GESTION, ...LECTURA_EJECUTIVA] },
   { id: 'erp', nombre: 'Integración ERP', descripcion: 'Eventos, exportación universal XML/Excel y adaptadores', prompt: 'P09',
     grupo: 'Finanzas y activos', ruta: '/erp', roles: ['superadmin', 'admin_prestador', 'direccion_prestador', 'mesa_control', 'despachador'] },
-  { id: 'sla', nombre: 'Contador de SLA', descripcion: 'Pausas, exclusiones y penalizaciones', prompt: 'P10', grupo: 'Análisis',
-    roles: ['admin_prestador', 'mesa_control', 'admin_empresa', ...LECTURA_EJECUTIVA] },
-  { id: 'bi', nombre: 'Inteligencia de negocio', descripcion: 'Dashboards y reportes comparativos', prompt: 'P10', grupo: 'Análisis',
-    roles: ['admin_prestador', 'mesa_control', 'admin_empresa', 'admin_un', 'supervisor_operadores', ...LECTURA_EJECUTIVA] },
+  { id: 'sla', nombre: 'Contador de SLA', descripcion: 'Cumplimiento del contrato, pausas, exclusiones y penalizaciones del período',
+    prompt: 'P10', grupo: 'Análisis', ruta: '/contratos?vista=cumplimiento',
+    roles: ['superadmin', 'admin_prestador', 'mesa_control', 'despachador', 'admin_empresa', 'admin_un', ...LECTURA_EJECUTIVA] },
+  { id: 'bi', nombre: 'Inteligencia de negocio', descripcion: 'Tablero por rol con la jerarquía cliente → grupo → UN y reportes comparativos',
+    prompt: 'P10', grupo: 'Análisis', ruta: '/bi',
+    roles: ['superadmin', 'admin_prestador', 'mesa_control', 'despachador', 'admin_empresa', 'admin_un', 'supervisor_operadores', ...LECTURA_EJECUTIVA] },
 ]
 
 export function modulosDe(rol: Rol): Modulo[] {

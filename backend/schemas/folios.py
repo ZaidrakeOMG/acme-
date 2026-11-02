@@ -319,6 +319,7 @@ class FolioDetalle(BaseModel):
     formulario_atencion: VinculoFormularioSalida | None
     refacciones: list[RefaccionSalida]
     sla: SLASalida | None
+    sla_contador: dict[str, Any] = Field(default_factory=dict)  # P10 §6.10.1
     encuesta: EncuestaSalida | None
     triggers_revision: list[TriggerSalida]
     aprobacion: FlujoResumen | None

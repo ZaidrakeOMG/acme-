@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { MODULOS, modulosDe } from '../src/config/modulos'
 import type { PerfilConTema, Rol } from '../src/types/api'
@@ -14,11 +14,19 @@ async function entrarComo(rol: Rol, extra: Partial<PerfilConTema> = {}, ruta = '
 }
 
 describe('RoleHub', () => {
-  it('superadmin ve todos los módulos y los pendientes indican su prompt', async () => {
+  it('superadmin ve los 27 módulos de Fase 1 y todos son enlaces construidos', async () => {
     await entrarComo('superadmin')
     await screen.findByRole('heading', { name: /Hola/ })
     for (const m of MODULOS) expect(screen.getByTestId(`modulo-${m.id}`)).toBeInTheDocument()
-    expect(within(screen.getByTestId('modulo-sla')).getByText('Disponible en el prompt P10')).toBeInTheDocument()
+    // P10 cierra el desarrollo funcional de Fase 1: ya no quedan módulos pendientes de construir.
+    for (const m of MODULOS) {
+      const tarjeta = screen.getByTestId(`modulo-${m.id}`)
+      expect(tarjeta.tagName).toBe('A')
+      expect(tarjeta).toHaveAttribute('href', m.ruta!)
+    }
+    expect(screen.queryByText(/Disponible en el prompt/)).not.toBeInTheDocument()
+    expect(screen.getByTestId('modulo-bi')).toHaveAttribute('href', '/bi')
+    expect(screen.getByTestId('modulo-sla')).toHaveAttribute('href', '/contratos?vista=cumplimiento')
     expect(screen.getByTestId('modulo-inventario')).toHaveAttribute('href', '/inventario')
     expect(screen.getByTestId('modulo-presupuestos')).toHaveAttribute('href', '/presupuestos')
     expect(screen.getByTestId('modulo-activos')).toHaveAttribute('href', '/activos')

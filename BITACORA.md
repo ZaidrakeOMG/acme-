@@ -2,6 +2,46 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-02 · P10 — Contratos y SLA, configuración central de alertas, tableros y reportes ejecutivos
+
+- Migración `0010`: `folio_sla_pausas`, `folio_sla_exclusiones`, `penalizaciones_periodo`, `iguala_consumo_periodo`,
+  `reportes_programados` y `reportes_generados`; iguala en `contratos` (tarifa y moneda), tiempo en la unidad firmada en
+  `contrato_sla` con CHECK de 1 a 4,320 horas, los 15 campos del contador en `folio_sla`, `fase` y `escalacion_de` en
+  `alertas_catalogo`, y vista/atención/escalada en `alertas_historial`. RLS forzada en todas las tablas nuevas.
+- `services/sla_service.py`: contador de §6.10.1 con inicio en la captura (o en la autorización para los no críticos que
+  clasificó el Admin UN), límites por severidad del contrato vigente, pausas por reasignación y por espera de información,
+  exclusiones que el prestador registra y el Admin empresa aprueba, tiempo efectivo = total − pausas − exclusiones
+  aprobadas, cumplimiento de respuesta y de resolución, y penalización por monto o por porcentaje del costo del folio
+  (P09). Al aprobar una exclusión después del cierre, el contador se recalcula sin tocar el folio inmutable.
+- Penalizaciones por período: consolidado mensual por contrato con el detalle de folios, revisión borrador → revisado →
+  cerrado y resumen exportable en PDF y Excel; el descuento en la factura CFDI queda para Fase 2. Consumo de iguala con
+  los correctivos adicionales identificados y la alerta `IGUALA_LIMITE_ALCANZADO`.
+- Configuración central de alertas (§6.9.6): conciliación de las dos claves que P09 había duplicado
+  (`PRESUPUESTO_UMBRAL_ALCANZADO` → `PRESUPUESTO_ALERTA_1`, `PRESUPUESTO_EXCEDIDO` → `PRESUPUESTO_ALERTA_3`) con alias en
+  el evaluador, 6 alertas nuevas (59 en total, 51 evaluadores), las 5 de Fase 2 etiquetadas e inactivables (422
+  `ALERTA_FASE_2`), escalación genérica medida desde el disparo de la alerta origen y panel de alertas por usuario con
+  vista, atención con nota y supresión temporal.
+- `services/bi_service.py` y `docs/bi/indicadores.md` (ACT-8.1): 19 indicadores sobre la jerarquía cliente → grupo → UN,
+  MTTR y MTBF del glosario, comparativos contra el período anterior y contra el año anterior, barra de jornada de §6.8.4
+  sin mapa, y los cinco tableros por rol (incluido el del Supervisor de operadores sin finanzas ni detalle de folios).
+  Caché en Redis con TTL de 120 s.
+- `services/reportes_service.py` (ACT-8.4): tres plantillas en PDF (WeasyPrint con respaldo) y Excel (openpyxl) con el
+  logo y los colores del prestador, historial con el tiempo de generación, y programación diaria, semanal o mensual que
+  envía por correo. Tareas Celery de penalizaciones mensuales, reportes programados y cierre de jornada.
+- Routers `/api/sla` (11 rutas) y `/api/bi` (8), más el panel y las escalaciones en `/api/alertas`; el detalle del folio
+  trae `sla_contador`.
+- Frontend: contratos con iguala, cumplimiento, penalizaciones y bandeja de exclusiones; alertas rehecho como
+  configuración central con escalaciones, supresiones e historial; panel de alertas en la cabecera; tablero por rol y
+  pantalla de reportes con Recharts 3.10.1; sección de SLA en el folio. Con P10 los 27 módulos de Fase 1 tienen ruta.
+- Seeds `seed_sla.py` (contrato de iguala, contador de todos los folios, 3 incumplidos, 1 pausa, 2 exclusiones, 3 meses de
+  penalizaciones, supresión y escalaciones, 2 reportes programados) y `seed_historico.py` (1,200 folios en 12 meses).
+- Pruebas: pytest 365, vitest 104; tiempos con 1,000+ folios: 906 ms en PDF y 1,250 ms en Excel.
+- Decisiones pendientes 104–124 en `CONTEXTO.md`.
+- Incidencias resueltas: el catálogo de alertas no lo puede escribir el prestador (la RLS lo impide), así que la cadena de
+  escalación por dueño se guardó en `alertas_configuracion.parametros`; el seed de P10 creaba un segundo contrato activo
+  para el mismo cliente y dejaba indefinido el horario de servicio (ahora convierte el contrato demo a iguala); la
+  supresión demo de `FOLIO_SIN_CLASIFICAR` silenciaba las pruebas de P07 (ahora apunta a un folio concreto).
+
 ## 2026-11-02 · P09 — Inventario, caja chica, costo del folio, presupuestos, ERP y activos
 
 - Migración `0009`: 21 tablas (`articulos`, `ubicaciones_inventario`, `existencias`, `movimientos_inventario` append-only,

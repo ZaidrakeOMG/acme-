@@ -209,16 +209,38 @@ class MiembrosEntrada(BaseModel):
 # ------------------------------------------------------------------ contratos
 
 
+EN_HORAS = {UnidadTiempo.horas: 1, UnidadTiempo.dias: 24, UnidadTiempo.semanas: 168, UnidadTiempo.meses: 720}
+
+
 class SLAEntrada(BaseModel):
+    """§6.10.1: el contrato se firma en horas, días, semanas o meses; ACMA guarda también el equivalente en horas (1 a 4,320).
+
+    P10: si se envía `tiempo_respuesta`/`tiempo_resolucion` manda la unidad; si no, se usan los valores en horas.
+    """
+
     nivel_severidad: NivelSeveridad
-    tiempo_respuesta_horas: int = Field(ge=1, le=4320)
-    tiempo_resolucion_horas: int = Field(ge=1, le=4320)
+    tiempo_respuesta: int | None = Field(default=None, ge=1, description="En la unidad de `unidad_expresion`")
+    tiempo_resolucion: int | None = Field(default=None, ge=1, description="En la unidad de `unidad_expresion`")
+    tiempo_respuesta_horas: int = Field(default=0, ge=0, le=4320)
+    tiempo_resolucion_horas: int = Field(default=0, ge=0, le=4320)
     unidad_expresion: UnidadTiempo = UnidadTiempo.horas
     penalizacion_tipo: TipoPenalizacion = TipoPenalizacion.porcentaje
     penalizacion_valor: Decimal = Field(default=Decimal("0"), ge=0, max_digits=12, decimal_places=2)
 
     @model_validator(mode="after")
     def _coherencia(self) -> "SLAEntrada":
+        factor = EN_HORAS[self.unidad_expresion]
+        if self.tiempo_respuesta is not None:
+            self.tiempo_respuesta_horas = self.tiempo_respuesta * factor
+        elif self.tiempo_respuesta_horas:
+            self.tiempo_respuesta = self.tiempo_respuesta_horas // factor or 1
+        if self.tiempo_resolucion is not None:
+            self.tiempo_resolucion_horas = self.tiempo_resolucion * factor
+        elif self.tiempo_resolucion_horas:
+            self.tiempo_resolucion = self.tiempo_resolucion_horas // factor or 1
+        for etiqueta, horas in (("respuesta", self.tiempo_respuesta_horas), ("resolución", self.tiempo_resolucion_horas)):
+            if not 1 <= horas <= 4320:
+                raise ValueError(f"El tiempo de {etiqueta} equivale a {horas} horas; el rango de §6.10.1 es de 1 a 4,320")
         if self.tiempo_resolucion_horas < self.tiempo_respuesta_horas:
             raise ValueError("El tiempo de resolución no puede ser menor al de respuesta")
         if self.penalizacion_tipo == TipoPenalizacion.porcentaje and self.penalizacion_valor > 100:
@@ -228,6 +250,8 @@ class SLAEntrada(BaseModel):
 
 class SLASalida(ConVersionSalida):
     nivel_severidad: NivelSeveridad
+    tiempo_respuesta: int
+    tiempo_resolucion: int
     tiempo_respuesta_horas: int
     tiempo_resolucion_horas: int
     unidad_expresion: UnidadTiempo
@@ -250,7 +274,10 @@ class ContratoEntrada(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     folios_correctivos_iguala: int | None = Field(default=None, ge=0)
-    preventivos_iguala_json: dict[str, Any] = Field(default_factory=dict)
+    preventivos_iguala_json: dict[str, Any] = Field(default_factory=dict,
+                                                    description='§6.10.1: {"cantidad": 8, "periodicidad": "mensual", "puntos_a_revisar": "..."}')
+    tarifa_iguala_mensual: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    moneda: str = Field(default="MXN", min_length=3, max_length=3)
     penalizacion_tope_porcentaje: Decimal | None = Field(default=None, ge=0, le=100)
     calificacion_json: dict[str, Any] = Field(default_factory=dict)
     horario_servicio_json: dict[str, Any] | None = Field(default=None, description='P04: {"lunes": [["08:00","18:00"]], ...}; vacío = 24/7')
@@ -273,6 +300,8 @@ class ContratoEntrada(BaseModel):
             raise ValueError("La fecha de fin debe ser posterior a la de inicio")
         if self.modalidad == ModalidadContrato.iguala and self.folios_correctivos_iguala is None:
             raise ValueError("La modalidad iguala requiere folios_correctivos_iguala")
+        if self.modalidad == ModalidadContrato.iguala and self.tarifa_iguala_mensual is None:
+            raise ValueError("La modalidad iguala requiere tarifa_iguala_mensual")
         return self
 
 
@@ -283,6 +312,8 @@ class ContratoCambios(BaseModel):
     fecha_fin: date | None = None
     folios_correctivos_iguala: int | None = Field(default=None, ge=0)
     preventivos_iguala_json: dict[str, Any] | None = None
+    tarifa_iguala_mensual: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    moneda: str | None = Field(default=None, min_length=3, max_length=3)
     penalizacion_tope_porcentaje: Decimal | None = Field(default=None, ge=0, le=100)
     calificacion_json: dict[str, Any] | None = None
     horario_servicio_json: dict[str, Any] | None = None
@@ -310,6 +341,8 @@ class ContratoSalida(ConVersionSalida):
     fecha_fin: date
     folios_correctivos_iguala: int | None
     preventivos_iguala_json: dict[str, Any]
+    tarifa_iguala_mensual: Decimal | None = None
+    moneda: str = "MXN"
     penalizacion_tope_porcentaje: Decimal | None
     calificacion_json: dict[str, Any]
     horario_servicio_json: dict[str, Any] | None = None

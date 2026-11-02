@@ -21,7 +21,9 @@ async def contrato_vigente(db: AsyncSession, equipo: Equipo, hoy: date | None = 
         consulta = consulta.where(Contrato.id == equipo.contrato_id)
     else:
         consulta = consulta.where(Contrato.cobertura == CoberturaContrato.todas_las_un)
-    return (await db.execute(consulta.order_by(Contrato.fecha_fin.desc()))).scalars().first()
+    # §6.10.1 pide un contrato por relación; si hubiera más de uno activo, gana el de vigencia más reciente.
+    return (await db.execute(consulta.order_by(Contrato.fecha_inicio.desc(), Contrato.fecha_fin.desc(),
+                                               Contrato.created_at.desc()))).scalars().first()
 
 
 async def registrar_prometido(db: AsyncSession, folio: Folio) -> FolioSLA | None:

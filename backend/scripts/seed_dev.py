@@ -115,8 +115,8 @@ async def sembrar(db) -> bool:
         NivelSeveridadCatalogo.prestador_id == prestador.id))).scalars()}
     for nivel, (resp, resol, pen) in SLAS.items():
         db.add(ContratoSLA(tenant_id=tenant.id, prestador_id=prestador.id, contrato_id=contrato.id, nivel_severidad=nivel,
-                           nivel_severidad_id=niveles[nivel.value].id, tiempo_respuesta_horas=resp,
-                           tiempo_resolucion_horas=resol, penalizacion_valor=pen))
+                           nivel_severidad_id=niveles[nivel.value].id, tiempo_respuesta=resp, tiempo_resolucion=resol,
+                           tiempo_respuesta_horas=resp, tiempo_resolucion_horas=resol, penalizacion_valor=pen))
     await db.flush()
     await sembrar_catalogos(db, prestador, tenant, unidades, usuarios, niveles)
     await sembrar_formularios(db, prestador, tenant, usuarios)
@@ -138,6 +138,9 @@ async def sembrar(db) -> bool:
     await db.flush()
     from scripts.seed_inventario import sembrar_inventario  # P09
     await sembrar_inventario(db)
+    await db.flush()
+    from scripts.seed_sla import sembrar_sla  # P10
+    await sembrar_sla(db)
     await db.commit()
     return True
 

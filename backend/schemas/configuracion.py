@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field, model_validator
 from models.base import AplicaPermiso, EstadoAlerta, TipoUmbral
 from schemas.comun import ConVersionSalida, Modelo
 
-CANALES = Literal["push", "email", "whatsapp", "sms"]
+# P10: «app» (la bandeja de notificaciones y el panel de alertas) es un canal real desde P07; se agrega al listado.
+CANALES = Literal["app", "push", "email", "whatsapp", "sms"]
 
 
 class AlertaCatalogoSalida(ConVersionSalida):
@@ -24,6 +25,8 @@ class AlertaCatalogoSalida(ConVersionSalida):
     destinatarios_default: list[str]
     canales_default: list[str]
     activa_por_defecto: bool
+    fase: int = 1                       # P10: 2 = la fuente de datos llega en Fase 2
+    escalacion_de: str | None = None    # P10: el umbral se mide desde el disparo de esa alerta
 
 
 class AlertaCatalogoCambios(BaseModel):
@@ -59,6 +62,8 @@ class AlertaEfectiva(BaseModel):
     personalizada: bool
     prompt_origen: str
     modulo_origen: str
+    fase: int = 1
+    escalacion_de: str | None = None
 
 
 class AlertaHistorialSalida(Modelo):
@@ -73,6 +78,12 @@ class AlertaHistorialSalida(Modelo):
     estado: EstadoAlerta
     timestamp_disparo: datetime
     timestamp_vista: datetime | None
+    vista_por: UUID | None = None
+    atendida_at: datetime | None = None
+    atendida_por: UUID | None = None
+    nota_atencion: str = ""
+    escalada: bool = False
+    descripcion: str | None = None
 
 
 class SupresionEntrada(BaseModel):

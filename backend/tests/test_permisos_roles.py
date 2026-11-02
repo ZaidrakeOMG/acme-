@@ -198,7 +198,8 @@ def _slas(resp=2, resol=8):
 
 async def test_contrato_requiere_cinco_severidades_y_rangos(cliente, auth, datos):
     h = await auth(AP)
-    base = {"tenant_id": str(datos["tenant"]), "nombre": "Contrato prueba", "fecha_inicio": "2026-01-01", "fecha_fin": "2026-12-31"}
+    # §6.10.1 admite un solo contrato activo por relación: la prueba usa un período que no se traslapa con el del seed.
+    base = {"tenant_id": str(datos["tenant"]), "nombre": "Contrato prueba", "fecha_inicio": "2028-01-01", "fecha_fin": "2028-12-31"}
     assert (await cliente.post("/api/contratos", headers=h, json={**base, "slas": _slas()[:4]})).status_code == 422
     assert (await cliente.post("/api/contratos", headers=h, json={**base, "slas": _slas(resp=0)})).status_code == 422
     assert (await cliente.post("/api/contratos", headers=h, json={**base, "slas": _slas(resol=4321)})).status_code == 422
@@ -211,6 +212,10 @@ async def test_contrato_requiere_cinco_severidades_y_rangos(cliente, auth, datos
     assert (await cliente.get(f"/api/contratos/{cid}", headers=await auth(AE))).status_code == 200
     assert (await cliente.patch(f"/api/contratos/{cid}", headers=await auth(AE), json={"nombre": "x"})).status_code == 403
     assert (await cliente.get(f"/api/contratos/{cid}", headers=await auth("admin.otroprestador@acma.dev"))).status_code == 404
+    # Un segundo contrato activo que se traslapa con el vigente se rechaza (§6.10.1: un contrato por relación).
+    traslape = await cliente.post("/api/contratos", headers=h, json={
+        **base, "nombre": "Contrato traslapado", "fecha_inicio": "2026-06-01", "fecha_fin": "2026-08-31", "slas": _slas()})
+    assert traslape.status_code == 409 and traslape.json()["codigo"] == "CONTRATO_TRASLAPADO"
 
 
 async def test_contrato_con_tenant_no_vinculado(cliente, auth, datos):
@@ -224,7 +229,10 @@ async def test_contrato_con_tenant_no_vinculado(cliente, auth, datos):
 
 async def test_catalogo_tiene_los_20_tipos_mas_los_de_cada_modulo(cliente, auth):
     catalogo = (await cliente.get("/api/alertas/catalogo", headers=await auth(OP))).json()
-    assert len(catalogo) == 55  # 20 del diseño + MATRIZ_SEVERIDAD_INCOMPLETA (P02) + GEOLOCALIZACION_FUERA_DE_UN (P03) + 3 de P04 + 3 de P06 + 14 de P07 + 7 de P08 + 6 de P09 + 6 de P09
+    # 20 del diseño + MATRIZ_SEVERIDAD_INCOMPLETA (P02) + GEOLOCALIZACION_FUERA_DE_UN (P03) + 3 de P04 + 3 de P06
+    # + 14 de P07 + 7 de P08 + 6 de P09 − 2 conciliadas en P10 (PRESUPUESTO_UMBRAL_ALCANZADO y PRESUPUESTO_EXCEDIDO
+    # pasaron a PRESUPUESTO_ALERTA_1/3) + 6 de P10.
+    assert len(catalogo) == 59
     assert {"SLA_RESPUESTA_EN_RIESGO", "COTIZACION_ESCALADA_DIRECCION", "TECNICO_SIN_SENAL"} <= {a["clave"] for a in catalogo}
 
 

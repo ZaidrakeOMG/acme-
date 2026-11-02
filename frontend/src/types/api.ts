@@ -146,6 +146,9 @@ export interface GrupoUN extends ConVersion {
 
 export interface SLA {
   nivel_severidad: NivelSeveridad
+  /** P10: el tiempo firmado en la unidad de `unidad_expresion`; *_horas es su equivalente normalizado. */
+  tiempo_respuesta: number
+  tiempo_resolucion: number
   tiempo_respuesta_horas: number
   tiempo_resolucion_horas: number
   unidad_expresion: 'horas' | 'dias' | 'semanas' | 'meses'
@@ -161,6 +164,9 @@ export interface Contrato extends ConVersion {
   fecha_inicio: string
   fecha_fin: string
   folios_correctivos_iguala: number | null
+  tarifa_iguala_mensual: string | null
+  moneda: string
+  preventivos_iguala_json: Record<string, unknown>
   penalizacion_tope_porcentaje: string | null
   estado: EstadoRegistro
   slas: SLA[]
@@ -181,6 +187,10 @@ export interface AlertaEfectiva {
   personalizada: boolean
   prompt_origen: string
   modulo_origen: string
+  /** P10: 2 = la fuente de datos llega en Fase 2 (se ve etiquetada y no se puede activar). */
+  fase: number
+  /** P10: clave de la alerta origen cuando esta es una escalación (§6.9.6). */
+  escalacion_de: string | null
 }
 
 export interface EventoAuditoria {

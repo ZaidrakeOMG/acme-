@@ -23,6 +23,8 @@ class Contrato(ConVersion, Base):
     fecha_inicio: Mapped[date] = mapped_column(Date)
     fecha_fin: Mapped[date] = mapped_column(Date)
     folios_correctivos_iguala: Mapped[int | None] = mapped_column(Integer)
+    tarifa_iguala_mensual: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))  # P10
+    moneda: Mapped[str] = mapped_column(String(3), default="MXN")                  # P10
     preventivos_iguala_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     penalizacion_tope_porcentaje: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     calificacion_json: Mapped[dict] = mapped_column(JSONB, default=dict)
@@ -42,6 +44,9 @@ class ContratoSLA(ConVersion, Base):
     contrato_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("contratos.id"))
     nivel_severidad: Mapped[NivelSeveridad] = mapped_column(pg_enum(NivelSeveridad, "nivel_severidad"))
     nivel_severidad_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("niveles_severidad.id"))
+    # El contrato se firma en la unidad que eligió el cliente; *_horas es su equivalente normalizado (1 a 4,320).
+    tiempo_respuesta: Mapped[int] = mapped_column(Integer)
+    tiempo_resolucion: Mapped[int] = mapped_column(Integer)
     tiempo_respuesta_horas: Mapped[int] = mapped_column(Integer)
     tiempo_resolucion_horas: Mapped[int] = mapped_column(Integer)
     unidad_expresion: Mapped[UnidadTiempo] = mapped_column(pg_enum(UnidadTiempo, "unidad_tiempo"), default=UnidadTiempo.horas)

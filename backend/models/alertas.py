@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text, func, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, SmallInteger, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,8 @@ class AlertaCatalogo(ConVersion, Base):
     destinatarios_default: Mapped[list] = mapped_column(JSONB, default=list)
     canales_default: Mapped[list] = mapped_column(JSONB, default=lambda: ["push", "email"])
     activa_por_defecto: Mapped[bool] = mapped_column(Boolean, default=True)
+    fase: Mapped[int] = mapped_column(SmallInteger, default=1)  # P10: 2 = la fuente de datos llega en Fase 2
+    escalacion_de: Mapped[str | None] = mapped_column(String(60), ForeignKey("alertas_catalogo.clave"))
 
 
 class AlertaConfiguracion(ConVersion, Base):
@@ -54,6 +56,11 @@ class AlertaHistorial(Base):
     estado: Mapped[EstadoAlerta] = mapped_column(pg_enum(EstadoAlerta, "estado_alerta"), default=EstadoAlerta.disparada)
     timestamp_disparo: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     timestamp_vista: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    vista_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
+    atendida_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    atendida_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
+    nota_atencion: Mapped[str] = mapped_column(Text, default="")
+    escalada: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

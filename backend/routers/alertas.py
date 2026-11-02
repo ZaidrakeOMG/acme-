@@ -14,6 +14,7 @@ from schemas.configuracion import (
     AlertaCatalogoCambios, AlertaCatalogoSalida, AlertaConfiguracionEntrada, AlertaEfectiva, AlertaHistorialSalida,
     SupresionEntrada, SupresionSalida,
 )
+from schemas.sla import AtenderEntrada, EscalacionEntrada
 from services import alertas_service as svc
 from services import auditoria
 
@@ -73,6 +74,10 @@ async def configuracion(db: DB, actor: Actor = Depends(ADMINS), tenant_id: UUID 
 async def configurar(clave: str, datos: AlertaConfiguracionEntrada, request: Request, db: DB, actor: Actor = Depends(ADMINS),
                      tenant_id: UUID | None = None, prestador_id: UUID | None = None):
     t, p = duenio(actor, tenant_id, prestador_id)
+    cat = await svc.obtener_catalogo(db, clave)
+    if cat.fase == 2 and datos.activa:
+        raise ErrorAPI(422, "ALERTA_FASE_2", f"{cat.clave} depende de datos que llegan en Fase 2 y no puede activarse",
+                       [{"campo": "activa", "fase": 2}])
     antes, despues = await svc.configurar(db, clave, t, p, umbral_valor=datos.umbral_valor, parametros=datos.parametros,
                                           canales=datos.canales, destinatarios_roles=datos.destinatarios_roles, activa=datos.activa)
     await auditoria.registrar_actor(db, actor, "alertas.umbral_configurado", request, tenant_id=t, prestador_id=p,
@@ -161,3 +166,52 @@ async def desactivar_supresion(supresion_id: UUID, request: Request, db: DB, act
     await db.commit()
     await db.refresh(s)
     return s
+
+
+# ------------------------------------------------------------------- P10
+@router.get("/panel", response_model=list[AlertaHistorialSalida], summary="Panel de alertas del usuario",
+            description="Feed de las alertas activas cuyos roles destinatarios incluyen al usuario (§6.9.6). "
+                        "Con `pendientes=false` trae también las ya atendidas.")
+async def panel(db: DB, actor: ActorActual, clave: str | None = None, pendientes: bool = True,
+                limite: int = Query(default=100, ge=1, le=500)):
+    filas = await svc.panel(db, actor, clave=clave, pendientes=pendientes, limite=limite)
+    descripciones = {c.clave: c.descripcion for c in (await db.execute(select(AlertaCatalogo))).scalars()}
+    salida = []
+    for h in filas:
+        fila = AlertaHistorialSalida.model_validate(h, from_attributes=True)
+        fila.descripcion = descripciones.get(h.clave_alerta)
+        salida.append(fila)
+    return salida
+
+
+@router.post("/historial/{alerta_id}/atender", response_model=AlertaHistorialSalida, summary="Atender una alerta",
+             description="La marca como resuelta con una nota; deja de contar como alerta abierta en los tableros.")
+async def atender(alerta_id: UUID, datos: AtenderEntrada, request: Request, db: DB, actor: ActorActual):
+    h = await db.get(AlertaHistorial, alerta_id)
+    if h is None or (actor.tenant_id and h.tenant_id != actor.tenant_id) or (actor.prestador_id and h.prestador_id != actor.prestador_id):
+        raise no_encontrado("Alerta")
+    h = await svc.atender(db, actor, h, datos.nota)
+    await auditoria.registrar_actor(db, actor, "alertas.atendida", request, tenant_id=h.tenant_id, prestador_id=h.prestador_id,
+                                    recurso_tipo="alerta_historial", recurso_id=h.id, despues={"nota": h.nota_atencion})
+    await db.commit()
+    await db.refresh(h)
+    return h
+
+
+@router.get("/escalaciones", response_model=list[AlertaEfectiva], summary="Escalaciones configuradas",
+            description="Alertas que escalan desde otra: el umbral se mide desde el disparo de la alerta origen (§6.9.6). "
+                        "Resueltas para el tenant o el prestador del usuario.")
+async def escalaciones(db: DB, actor: ActorActual):
+    return await svc.escalaciones(db, tenant_id=actor.tenant_id, prestador_id=actor.prestador_id)
+
+
+@router.put("/escalaciones", response_model=AlertaEfectiva, summary="Encadenar una alerta a su escalación",
+            description="El Admin prestador encadena alertas críticas a una escalación a Dirección dentro de su prestador; "
+                        "el Superadmin cambia el default del catálogo. `escalacion_de` vacío desconecta la cadena.")
+async def configurar_escalacion(datos: EscalacionEntrada, request: Request, db: DB,
+                                actor: Actor = Depends(requiere_rol(Rol.superadmin, Rol.admin_prestador))):
+    salida = await svc.configurar_escalacion(db, actor, datos.clave, datos.escalacion_de)
+    await auditoria.registrar_actor(db, actor, "alertas.escalacion_configurada", request, recurso_tipo="alerta_catalogo",
+                                    recurso_id=datos.clave, despues={"escalacion_de": salida["escalacion_de"]})
+    await db.commit()
+    return salida

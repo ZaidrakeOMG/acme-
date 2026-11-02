@@ -99,7 +99,8 @@ async def fondo_bajo(db: AsyncSession, alerta: AlertaCatalogo) -> int:
     return n
 
 
-async def _presupuestos(db: AsyncSession, alerta: AlertaCatalogo, excedidos: bool) -> int:
+async def _presupuestos(db: AsyncSession, alerta: AlertaCatalogo, excedido: bool) -> int:
+    """§6.9.6: cada clave tiene su propio umbral efectivo (70 %, 90 % y rebasado) configurable por tenant."""
     from services import presupuestos_service
 
     hoy = date.today()
@@ -107,28 +108,29 @@ async def _presupuestos(db: AsyncSession, alerta: AlertaCatalogo, excedidos: boo
     for p in (await db.execute(select(Presupuesto).where(Presupuesto.activo.is_(True), Presupuesto.periodo_inicio <= hoy,
                                                           Presupuesto.periodo_fin >= hoy, Presupuesto.monto > 0))).scalars():
         total = await presupuestos_service.consumido(db, p.id)
-        pct = total / p.monto * 100
-        umbrales = sorted(Decimal(str(u)) for u in (p.umbrales_alerta_json or [])) or [Decimal(str(await _umbral(db, alerta, p.tenant_id)))]
-        alcanzados = [u for u in umbrales if pct >= u]
-        if excedidos:
-            if pct < 100:
-                continue
-        elif not alcanzados or max(alcanzados) >= 100:
+        pct = (total / p.monto * 100).quantize(Decimal("0.01"))
+        umbral = Decimal(str(await _umbral(db, alerta, p.tenant_id)))
+        if pct < umbral or (not excedido and pct >= 100):
             continue
         n += await _disparar_una_vez(db, alerta, tenant_id=p.tenant_id, prestador_id=None, entidad_tipo="presupuesto", entidad_id=p.id,
-                                     datos={"nombre": p.nombre, "monto": str(p.monto), "consumido": str(total), "porcentaje": str(pct.quantize(Decimal('0.01'))),
-                                            "umbral": str(max(alcanzados) if alcanzados else 100)})
+                                     datos={"nombre": p.nombre, "monto": str(p.monto), "consumido": str(total), "porcentaje": str(pct),
+                                            "umbral": str(umbral)})
     return n
 
 
-@registrar_evaluador("PRESUPUESTO_UMBRAL_ALCANZADO")
-async def presupuesto_umbral(db: AsyncSession, alerta: AlertaCatalogo) -> int:
-    return await _presupuestos(db, alerta, excedidos=False)
+@registrar_evaluador("PRESUPUESTO_ALERTA_1")
+async def presupuesto_alerta_1(db: AsyncSession, alerta: AlertaCatalogo) -> int:
+    return await _presupuestos(db, alerta, excedido=False)
 
 
-@registrar_evaluador("PRESUPUESTO_EXCEDIDO")
-async def presupuesto_excedido(db: AsyncSession, alerta: AlertaCatalogo) -> int:
-    return await _presupuestos(db, alerta, excedidos=True)
+@registrar_evaluador("PRESUPUESTO_ALERTA_2")
+async def presupuesto_alerta_2(db: AsyncSession, alerta: AlertaCatalogo) -> int:
+    return await _presupuestos(db, alerta, excedido=False)
+
+
+@registrar_evaluador("PRESUPUESTO_ALERTA_3")
+async def presupuesto_alerta_3(db: AsyncSession, alerta: AlertaCatalogo) -> int:
+    return await _presupuestos(db, alerta, excedido=True)
 
 
 @registrar_evaluador("ACTIVO_REEMPLAZO")

@@ -38,6 +38,21 @@ async def _obtener(db, actor: Actor, contrato_id: UUID) -> Contrato:
     return c
 
 
+async def _sin_traslape(db, tenant_id, prestador_id, inicio, fin, excluir=None) -> None:
+    """§6.10.1: la relación cliente–prestador se formaliza en UN contrato. Dos contratos activos que se traslapan dejan
+    indefinido qué SLA y qué horario de servicio aplican, así que se rechazan. P10."""
+    consulta = select(Contrato.id, Contrato.nombre).where(
+        Contrato.tenant_id == tenant_id, Contrato.prestador_id == prestador_id, Contrato.estado == EstadoRegistro.activo,
+        Contrato.fecha_inicio <= fin, Contrato.fecha_fin >= inicio)
+    if excluir is not None:
+        consulta = consulta.where(Contrato.id != excluir)
+    otro = (await db.execute(consulta)).first()
+    if otro is not None:
+        raise ErrorAPI(409, "CONTRATO_TRASLAPADO",
+                       f"«{otro.nombre}» ya cubre ese período para este cliente; §6.10.1 pide un solo contrato por relación",
+                       [{"campo": "fecha_inicio", "contrato_id": str(otro.id)}])
+
+
 def _guardar_slas(db, c: Contrato, slas: list[SLAEntrada], existentes: list[ContratoSLA] | None = None) -> None:
     por_nivel = {s.nivel_severidad: s for s in (existentes or [])}
     for s in slas:
@@ -74,6 +89,7 @@ async def crear(datos: ContratoEntrada, request: Request, db: DB, actor: Actor =
         TenantPrestador.estado == EstadoRegistro.activo))).first()
     if vinculo is None:
         raise ErrorAPI(422, "TENANT_NO_VINCULADO", "El tenant no está vinculado a este prestador")
+    await _sin_traslape(db, datos.tenant_id, prestador_id, datos.fecha_inicio, datos.fecha_fin)
     c = Contrato(prestador_id=prestador_id, **datos.model_dump(exclude={"slas", "prestador_id"}))
     db.add(c)
     await db.flush()
@@ -102,6 +118,8 @@ async def modificar(contrato_id: UUID, datos: ContratoCambios, request: Request,
             setattr(c, k, v)
     if c.fecha_fin < c.fecha_inicio:
         raise ErrorAPI(422, "VIGENCIA_INVALIDA", "La fecha de fin debe ser posterior a la de inicio")
+    if c.estado == EstadoRegistro.activo:
+        await _sin_traslape(db, c.tenant_id, c.prestador_id, c.fecha_inicio, c.fecha_fin, excluir=c.id)
     if datos.slas is not None:
         existentes = (await db.execute(select(ContratoSLA).where(ContratoSLA.contrato_id == c.id))).scalars().all()
         _guardar_slas(db, c, datos.slas, list(existentes))

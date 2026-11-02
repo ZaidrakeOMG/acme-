@@ -311,6 +311,22 @@ class FolioSLA(ConVersion, Base):
     cumplimiento_resolucion: Mapped[bool | None] = mapped_column(Boolean)
     autorizado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # P07: el SLA corre desde aquí (P10)
     excluir_sla_por_cliente: Mapped[bool] = mapped_column(Boolean, default=False)     # P07: clasificación tardía del Admin UN
+    # P10 (§6.10.1): contador con pausas y exclusiones aprobadas.
+    contrato_sla_id: Mapped[uuid.UUID | None] = _fk("contrato_sla", True)
+    tiempo_inicio: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tiempo_respuesta_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tiempo_fin: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tiempo_pausado_min: Mapped[int] = mapped_column(Integer, default=0)
+    tiempo_exclusion_min: Mapped[int] = mapped_column(Integer, default=0)
+    tiempo_efectivo_min: Mapped[int | None] = mapped_column(Integer)
+    tiempo_respuesta_efectivo_min: Mapped[int | None] = mapped_column(Integer)
+    limite_respuesta_min: Mapped[int | None] = mapped_column(Integer)
+    limite_sla_min: Mapped[int | None] = mapped_column(Integer)
+    cumplimiento: Mapped[bool | None] = mapped_column(Boolean)
+    penalizacion_calculada: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    penalizacion_detalle_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    riesgo_respuesta_avisado: Mapped[bool] = mapped_column(Boolean, default=False)
+    riesgo_resolucion_avisado: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class FolioEncuesta(ConVersion, Base):

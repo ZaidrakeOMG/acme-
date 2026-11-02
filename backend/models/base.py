@@ -101,6 +101,36 @@ class EstadoAlerta(str, enum.Enum):
     resuelta = "resuelta"
 
 
+class MotivoPausaSLA(str, enum.Enum):
+    reasignacion = "reasignacion"
+    pendiente_informacion = "pendiente_informacion"
+    otro = "otro"
+
+
+class CausaExclusionSLA(str, enum.Enum):
+    cliente_sin_acceso = "cliente_sin_acceso"
+    fuerza_mayor = "fuerza_mayor"
+    refaccion_no_disponible_mercado = "refaccion_no_disponible_mercado"
+    otra = "otra"
+
+
+class EstadoPenalizacion(str, enum.Enum):
+    borrador = "borrador"
+    revisado = "revisado"
+    cerrado = "cerrado"
+
+
+class FormatoReporte(str, enum.Enum):
+    pdf = "pdf"
+    excel = "excel"
+
+
+class PeriodicidadReporte(str, enum.Enum):
+    diaria = "diaria"
+    semanal = "semanal"
+    mensual = "mensual"
+
+
 def pg_enum(tipo: type[enum.Enum], nombre: str) -> ENUM:
     return ENUM(tipo, name=nombre, create_type=False, values_callable=lambda e: [m.value for m in e])
 

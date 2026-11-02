@@ -8,7 +8,8 @@ from celery.schedules import crontab
 
 from core.config import config
 
-celery_app = Celery("acma", broker=config.celery_broker_url, backend=config.celery_result_backend, include=["workers.tareas", "workers.tareas.preventivos", "workers.tareas.notificaciones", "workers.tareas.minuta"])
+celery_app = Celery("acma", broker=config.celery_broker_url, backend=config.celery_result_backend, include=["workers.tareas", "workers.tareas.preventivos", "workers.tareas.notificaciones", "workers.tareas.minuta",
+                            "workers.tareas.costos", "workers.tareas.sla"])
 celery_app.conf.update(
     timezone="America/Mexico_City",
     enable_utc=True,
@@ -34,6 +35,10 @@ celery_app.conf.update(
         "polizas-caja-chica": {"task": "acma.generar_polizas_caja_chica", "schedule": crontab(hour=23, minute=0)},
         "depreciacion-tco": {"task": "acma.calcular_depreciacion_tco", "schedule": crontab(hour=3, minute=30, day_of_month=1)},
         "exportar-erp-periodo": {"task": "acma.exportar_erp_periodo", "schedule": crontab(hour=4, minute=0, day_of_month=1)},
+        # P10: penalizaciones e iguala del mes cerrado, reportes programados y cierre de jornada (§6.10.1, ACT-8.4).
+        "consolidar-penalizaciones": {"task": "acma.consolidar_penalizaciones", "schedule": crontab(hour=5, minute=0, day_of_month=1)},
+        "reportes-programados": {"task": "acma.enviar_reportes_programados", "schedule": crontab(hour=8, minute=0)},
+        "cierre-jornada": {"task": "acma.reporte_cierre_jornada", "schedule": crontab(hour=22, minute=30)},
     },
 )
 

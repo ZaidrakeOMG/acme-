@@ -144,14 +144,24 @@ export async function api<T>(ruta: string, opciones: Opciones = {}, reintento = 
 }
 
 /** Descarga binaria autenticada (plantillas, reportes). Devuelve el Blob o lanza ErrorAPI. */
-export async function descargar(ruta: string, params?: Record<string, string | undefined>): Promise<Blob> {
+/** Descarga un archivo. P10: admite POST con cuerpo (la generación de reportes devuelve el archivo en la respuesta). */
+export async function descargar(ruta: string, params?: Record<string, string | undefined>,
+                                opciones?: { metodo?: 'GET' | 'POST'; cuerpo?: unknown }): Promise<Blob> {
   const consulta = params
     ? '?' + new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => !!e[1])).toString()
     : ''
-  const headers: Record<string, string> = tokenAcceso ? { Authorization: `Bearer ${tokenAcceso}` } : {}
-  let respuesta = await fetch(`${BASE}${ruta}${consulta}`, { headers })
+  const metodo = opciones?.metodo ?? 'GET'
+  const armar = (): RequestInit => ({
+    method: metodo,
+    headers: {
+      ...(tokenAcceso ? { Authorization: `Bearer ${tokenAcceso}` } : {}),
+      ...(opciones?.cuerpo !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(opciones?.cuerpo !== undefined ? { body: JSON.stringify(opciones.cuerpo) } : {}),
+  })
+  let respuesta = await fetch(`${BASE}${ruta}${consulta}`, armar())
   if (respuesta.status === 401 && sesion.tieneRefresh() && (await refrescar())) {
-    respuesta = await fetch(`${BASE}${ruta}${consulta}`, { headers: { Authorization: `Bearer ${tokenAcceso}` } })
+    respuesta = await fetch(`${BASE}${ruta}${consulta}`, armar())
   }
   if (!respuesta.ok) throw await aErrorAPI(respuesta)
   return respuesta.blob()

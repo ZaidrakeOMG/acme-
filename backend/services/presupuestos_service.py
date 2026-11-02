@@ -99,14 +99,15 @@ async def _revisar_umbrales(db: AsyncSession, p: Presupuesto | None, folio: Foli
     # Dedupe por el historial de alertas (no por una columna del presupuesto): quien valida el costo es el prestador y no
     # escribe el presupuesto del cliente.
     previas = (await db.execute(select(AlertaHistorial.datos_contexto_json).where(
-        AlertaHistorial.entidad_id == p.id, AlertaHistorial.clave_alerta.in_(("PRESUPUESTO_UMBRAL_ALCANZADO", "PRESUPUESTO_EXCEDIDO")),
+        AlertaHistorial.entidad_id == p.id, AlertaHistorial.clave_alerta.in_(("PRESUPUESTO_ALERTA_1", "PRESUPUESTO_ALERTA_2", "PRESUPUESTO_ALERTA_3")),
         AlertaHistorial.estado == EstadoAlerta.disparada))).scalars().all()
     disparados = [Decimal(str(d.get("umbral"))) for d in previas if isinstance(d, dict) and d.get("umbral") not in (None, "")]
     for umbral in sorted(Decimal(str(u)) for u in (p.umbrales_alerta_json or [])):
         if pct < umbral or umbral in disparados:
             continue
         excedido = umbral >= 100
-        clave = "PRESUPUESTO_EXCEDIDO" if excedido else "PRESUPUESTO_UMBRAL_ALCANZADO"
+        # §6.9.6 nombra los tres umbrales: 70 %, 90 % y rebasado. P10 concilio las claves que P09 habia creado.
+        clave = "PRESUPUESTO_ALERTA_3" if excedido else ("PRESUPUESTO_ALERTA_2" if umbral >= 90 else "PRESUPUESTO_ALERTA_1")
         datos = {"presupuesto_id": str(p.id), "nombre": p.nombre, "umbral": str(umbral), "consumido": str(total), "monto": str(p.monto),
                  "porcentaje": str(pct), "un_id": str(p.un_id) if p.un_id else None, "grupo_id": str(p.grupo_id) if p.grupo_id else None}
         # El prestador que atiende al cliente es quien valida el costo: la alerta lleva ambos dueños para pasar la RLS de `alertas_historial`.

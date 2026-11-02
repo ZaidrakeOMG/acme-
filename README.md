@@ -183,6 +183,34 @@ Correo saliente: deja `SMTP_HOST` vacío para el modo *stub* (los `.eml` quedan 
 `APP_URL_PUBLICA` es la base de los enlaces. Para PDF con diseño instala el runtime GTK3 (WeasyPrint); sin él se genera un PDF
 mínimo de texto.
 
+## Contratos y SLA, alertas y BI (P10)
+
+Cada contrato mide su cumplimiento: el contador de SLA corre desde la captura del folio, se pausa en la reasignación y
+mientras se esperan datos del operador, descuenta las exclusiones que el prestador registra y el Admin empresa aprueba, y
+al cerrar calcula si se atendió dentro del tiempo pactado y cuánto se penaliza. Las penalizaciones se consolidan por mes
+y el Admin prestador las revisa y las cierra antes de facturar (el descuento en el CFDI llega en Fase 2). La modalidad
+iguala lleva su propio control: correctivos y preventivos incluidos contra los atendidos, con los adicionales
+identificados.
+
+Todas las alertas del sistema se configuran en una sola pantalla: el Superadmin fija el valor por defecto y el rango, y
+cada cliente y cada prestador ajustan su umbral, sus canales y sus roles destinatarios dentro de ese rango. Las que
+dependen de datos de Fase 2 (GPS, medidores, certificaciones) se ven etiquetadas y no se pueden activar. Las escalaciones
+a la Dirección del prestador se miden desde el momento en que se disparó la alerta operativa, no desde el hecho original.
+
+Cada rol tiene su tablero: gasto contra presupuesto, cumplimiento de SLA, MTTR y MTBF y comparativos entre unidades,
+grupos y períodos para el cliente; folios por cliente, penalizaciones, iguala, cotizaciones y carga por técnico para el
+prestador; conteos y SLA en riesgo —sin montos ni detalle de folios— para el Supervisor de operadores; la barra de
+jornada para el despachador; y los indicadores con el histórico de escalaciones para la Dirección. Los reportes
+ejecutivos se descargan en PDF o Excel y se pueden programar por correo.
+
+| Módulo | Ruta | Quién entra |
+|---|---|---|
+| Contratos y SLAs | `/contratos` | Admin prestador (configura), Admin empresa (aprueba exclusiones), mesa de control |
+| Contador de SLA | `/contratos?vista=cumplimiento` | Prestador y cliente |
+| Configuración de alertas | `/alertas` | Superadmin (defaults y rangos), Admin empresa, Admin prestador |
+| Inteligencia de negocio | `/bi` | Todos los roles con tablero |
+| Reportes ejecutivos | `/bi/reportes` | Admin empresa, Admin prestador, supervisores |
+
 ## Inventario, costos y activos (P09)
 
 Los tres orígenes de refacción de §6.4: existencias del almacén y del vehículo de cada técnico con costo promedio ponderado,

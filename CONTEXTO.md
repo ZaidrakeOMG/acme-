@@ -22,8 +22,23 @@
 | P07 | Minuta del día por UN y global, notificaciones multicanal (correo SMTP), cuatro módulos de seguimiento y clasificación de no críticos | ✅ 2026-10-29 |
 | P08 | Trabajos especiales con validación del cliente, conversión de cotizaciones y seguimiento de OC de activos | ✅ 2026-10-29 |
 | P09 | Inventario con los tres orígenes de refacción, caja chica manual, costo del folio, presupuestos, capa ERP y activos con TCO | ✅ 2026-11-02 |
-| P10 | Contratos/SLA (contador), alertas por módulo y BI | Pendiente |
+| P10 | Contratos con iguala y contador de SLA, penalizaciones, configuración central de alertas, tableros por rol y reportes ejecutivos | ✅ 2026-11-02 |
 | P11 | Endurecimiento y despliegue | Pendiente |
+
+## Verificación al cierre de P10
+
+- Migración `0010_sla_alertas_bi.py` aplicada (subida, bajada y subida) y seeds `seed_sla.py` (en la cadena de `seed_dev`) y
+  `seed_historico.py` (aparte, 1,200 folios en 12 meses) cargados.
+- `pytest`: **365 pruebas en verde** (incluye `test_sla.py`, `test_penalizaciones.py`, `test_alertas_config.py`,
+  `test_escalacion.py`, `test_bi.py` y `test_reportes.py`; cambiaron las de P01/P04/P07/P09 por la conciliación de claves
+  de alerta, el catálogo de 59 y los 51 evaluadores).
+- `vitest`: **104 pruebas en verde** (SLA por severidad con unidad y penalización, iguala del contrato, aprobación de la
+  exclusión, umbral con validación de rango, alertas de Fase 2 no activables, escalaciones, panel de la campana, tablero
+  del Admin empresa y del Supervisor de operadores, barra de jornada, tablero de Dirección y generación y programación de
+  reportes). `tsc --noEmit` y `npm run build` en verde.
+- Tiempos medidos con 1,000+ folios cerrados (ACT-8.4): reporte ejecutivo del cliente sobre 12 meses en **906 ms (PDF)** y
+  **1,250 ms (Excel)**; el seed del histórico tarda ~1 min.
+- Suite completa de `pytest` corrida con los servidores de desarrollo apagados (regla 7).
 
 ## Verificación al cierre de P09
 
@@ -695,9 +710,86 @@
   `erp_eventos_pendientes` y `erp_exportaciones` son la fuente del resumen exportable de penalizaciones; las 6 alertas nuevas
   entran a la configuración central y `PRESUPUESTO_UMBRAL_ALCANZADO` debe conciliarse con `PRESUPUESTO_ALERTA_1/2/3`.
 
+### SLA, alertas y BI (P10)
+- **Tablas (0010)**: `folio_sla_pausas` (motivo reasignacion/pendiente_informacion/otro, inicio, fin, minutos; índice único
+  de una sola pausa abierta por folio), `folio_sla_exclusiones` (causa literal de §6.10.1, descripción, período, minutos,
+  `aprobada` NULL = pendiente, `aprobado_por`, `decidida_at`, `razon_decision`), `penalizaciones_periodo` (contrato +
+  período únicos, total de folios, incumplidos, monto, moneda, estado borrador → revisado → cerrado, `detalle_json` con el
+  folio a folio, `incluido_en_factura_id` que llenará el CFDI de Fase 2), `iguala_consumo_periodo` (correctivos incluidos /
+  atendidos / adicionales, preventivos incluidos / ejecutados, tarifa y los folios adicionales identificados),
+  `reportes_programados` (tenant **o** prestador, tipo, filtros, formato pdf/excel, periodicidad diaria/semanal/mensual,
+  `dia_hora`, destinatarios, `ultimo_envio_at`) y `reportes_generados` (archivo, filas y `ms_generacion`). 5 ENUM nuevos.
+  **Columnas**: `contratos` gana `tarifa_iguala_mensual` y `moneda` (con CHECK de que la iguala traiga tarifa y folios);
+  `contrato_sla` gana `tiempo_respuesta` / `tiempo_resolucion` en la unidad firmada y un CHECK de 1 a 4,320 horas
+  equivalentes; `folio_sla` gana `tiempo_inicio`, `tiempo_respuesta_at`, `tiempo_fin`, `tiempo_pausado_min`,
+  `tiempo_exclusion_min`, `tiempo_efectivo_min`, `tiempo_respuesta_efectivo_min`, `limite_respuesta_min`, `limite_sla_min`,
+  `cumplimiento`, `penalizacion_calculada`, `penalizacion_detalle_json`, `contrato_sla_id` y las dos banderas de aviso de
+  riesgo; `alertas_catalogo` gana `fase` (1/2) y `escalacion_de`; `alertas_historial` gana `vista_por`, `atendida_at`,
+  `atendida_por`, `nota_atencion` y `escalada`. RLS forzada en las 6 tablas nuevas (política de folio: leen el tenant y el
+  prestador, escriben ambos, porque el prestador registra y el cliente aprueba).
+- **`services/sla_service.py`** (el contador, §6.10.1): `fijar_limites()` al autorizar (crea la fila si falta, fija
+  `tiempo_inicio` y los límites en minutos desde `contrato_sla` del contrato vigente por severidad); `abrir_pausa()` /
+  `cerrar_pausa()`; `minutos_pausados()` y `minutos_excluidos()` (solo lo aprobado); `recalcular()`
+  (`tiempo_efectivo = total − pausas − exclusiones`, cumplimiento de respuesta y de resolución, penalización);
+  `en_riesgo()` (80 % por defecto, una sola vez por folio); `registrar_exclusion()` / `decidir_exclusion()` (y el
+  recálculo cuando se aprueba después del cierre); `consolidar_penalizaciones()` y `revisar_penalizacion()`;
+  `consumo_iguala()` con la alerta `IGUALA_LIMITE_ALCANZADO`; `contratos_por_vencer()`; y el gancho
+  `@folio_estados.suscribir` que hace todo lo anterior en las transiciones.
+- **`services/alertas_service.py`** (ampliado, §6.9.6): `canonica()` con el diccionario `ALIAS` de las claves que P01–P09
+  nombraron de otra forma; `efectiva()` resuelve también `fase` y `escalacion_de`; `umbral()` y `destinatarios()` (roles
+  efectivos → usuarios del tenant y del prestador); `panel()` (feed del usuario filtrado por los roles destinatarios),
+  `marcar_vista()`, `atender()`, `suprimir()`; `escalaciones()`, `configurar_escalacion()`, `cadena_de()` y `por_escalar()`
+  (el umbral corre **desde el disparo de la alerta origen**).
+- **`services/bi_service.py`**: `Filtro` (período + tenant/prestador/grupo/UN, con `anterior()` y `anio_anterior()`),
+  `filtro_de()` (encierra al actor en su dominio y al Admin UN en sus UNs), y los indicadores `folios_por_estado`,
+  `folios_por_severidad`, `cumplimiento_sla`, `mttr`, `mtbf`, `gasto_vs_presupuesto`, `costo_total`, `top_equipos`,
+  `preventivos`, `hallazgos`, `cotizaciones`, `trabajos_especiales`, `carga_por_tecnico`, `penalizaciones`, `iguala`,
+  `inventario_y_caja`, `alertas_abiertas`, `jornada` (§6.8.4 sin mapa) y `comparativo_jerarquia` (§6.8.5). `tablero()` arma
+  el tablero del rol (`cliente`, `supervision`, `prestador`, `direccion`, `jornada`) y lo guarda en Redis con **TTL de
+  120 s**; sin Redis se recalcula. Cada indicador está documentado en `docs/bi/indicadores.md` (entregable ACT-8.1).
+- **`services/reportes_service.py`** (ACT-8.4): `secciones()` por plantilla (`cliente`, `prestador`, `jornada`),
+  `a_html()` y `a_excel()` con el logo y los colores del prestador, `generar()` (deja el registro con `ms_generacion` y
+  `filas`), `crear_programado()`, `toca_hoy()` y `periodo_de()`.
+- **Endpoints**: `/api/sla` (contador del folio, exclusiones y su decisión, cumplimiento del contrato, penalizaciones con
+  cálculo, cambio de estado y archivo PDF/Excel, iguala), `/api/bi` (tablero, jornada, indicador suelto, generar reporte,
+  generados y su archivo, CRUD de programados) y en `/api/alertas` el panel del usuario, atender, escalaciones y su
+  configuración. El detalle del folio trae `sla_contador` con pausas, exclusiones y cumplimiento.
+- **Conciliación de claves de alerta (§6.9.6)**: el catálogo de P01 ya traía los 20 nombres literales del documento, así que
+  P10 **eliminó las dos claves que P09 había duplicado** y migró su configuración, historial y supresiones:
+  `PRESUPUESTO_UMBRAL_ALCANZADO` → `PRESUPUESTO_ALERTA_1` y `PRESUPUESTO_EXCEDIDO` → `PRESUPUESTO_ALERTA_3` (con
+  `PRESUPUESTO_ALERTA_2` al 90 % ya en el catálogo). Las claves viejas siguen aceptándose como **alias** en
+  `alertas_service.canonica()`, junto con `SEGUIMIENTO_INTERNO_SIN_ACTUALIZAR` → `SEGUIMIENTO_SIN_UPDATE` y
+  `TECNICO_SIN_SEÑAL` → `TECNICO_SIN_SENAL`. Alertas nuevas: `SLA_INCUMPLIDO`, `EXCLUSION_SLA_PENDIENTE`,
+  `CONTRATO_POR_VENCER`, `IGUALA_LIMITE_ALCANZADO`, `SLA_INCUMPLIDO_ESCALADO_DIRECCION` y
+  `PRESUPUESTO_ESCALADO_DIRECCION` → **59 alertas y 51 evaluadores**. Las 5 de Fase 2 (`TECNICO_TIEMPO_MUERTO`,
+  `TECNICO_DESVIO_RUTA`, `TECNICO_SIN_SENAL`, `MEDIDOR_PROXIMO_PM`, `CERTIFICACION_VENCIDA`) quedan con `fase = 2`,
+  inactivas y con 422 `ALERTA_FASE_2` si se intentan activar.
+- **Tareas Celery**: `acma.consolidar_penalizaciones` (día 1, 05:00: penalizaciones e iguala del mes cerrado),
+  `acma.enviar_reportes_programados` (08:00 diario, filtra por periodicidad) y `acma.reporte_cierre_jornada` (22:30).
+- **Frontend**: módulo `contratos` con las pestañas Contratos / Cumplimiento y penalizaciones / Exclusiones (iguala, SLA por
+  severidad con unidad y tipo de penalización, revisión borrador → revisado → cerrado y exportación PDF/Excel); módulo
+  `alertas` rehecho como configuración central (catálogo agrupado por módulo con default, rango, umbral propio, canales,
+  roles y columna «Fase 2», escalaciones, supresiones e historial) y `components/PanelAlertas.tsx` colgado de la cabecera;
+  módulo `bi` (`pages/bi/Dashboard.tsx` con el tablero del rol y `pages/bi/Reportes.tsx`); `pages/folios/SeccionSLA.tsx` con
+  el contador y el botón «Registrar exclusión». Gráficas con **Recharts 3.10.1** (código abierto, compatible con React 19),
+  paleta accesible y **cada valor también en texto**. Con P10 los 27 módulos de Fase 1 tienen ruta: no queda ninguno
+  «Disponible en el prompt Pxx».
+- **Seed**: `scripts/seed_sla.py` convierte el contrato demo a modalidad iguala (20 correctivos y 8 preventivos al mes,
+  tarifa de $48,000, SLA y penalización por las 5 severidades), calcula `folio_sla` de todos los folios del seed con 3
+  incumplidos, 1 pausa por reasignación y 2 exclusiones (una aprobada y una pendiente), consolida las penalizaciones de 3
+  meses (una cerrada, una revisada y una en borrador), configura alertas por tenant con una supresión activa y 2
+  escalaciones en el historial, y deja 2 reportes programados. `scripts/seed_historico.py` genera el histórico sintético
+  (por defecto 1,200 folios cerrados en 12 meses con costo y `folio_sla`) y va **aparte** para no hacer lento el seed normal.
+- **Para P11 (endurecimiento y rendimiento)**: el bundle pasa de 500 kB por Recharts (conviene `import()` dinámico del
+  tablero); `comparativo_jerarquia()` recorre grupo por grupo y UN por UN (una consulta por nivel) y `consumo_iguala()`
+  recalcula al leer el tablero del prestador, así que con muchos clientes conviene materializarlos o alargar el TTL;
+  `seed_historico` tarda ~1 min por 1,000 folios; el reporte del cliente sobre 12 meses tarda ~0.9 s en PDF y ~1.3 s en
+  Excel; y el panel de alertas resuelve los roles destinatarios clave por clave (cachear el catálogo).
+
 ### Frontend
-- `src/config/modulos.ts` define los 25 módulos de Fase 1, su prompt y los roles que los ven. Al construir un módulo:
-  agregar `ruta`, la página en `App.tsx` (`PAGINAS`) y ajustar roles.
+- `src/config/modulos.ts` define los 27 módulos de Fase 1, su prompt y los roles que los ven. Desde P10 **todos tienen
+  `ruta`**: no queda ninguno con la etiqueta «Disponible en el prompt Pxx».
+- Gráficas con Recharts 3.10.1; cada valor va también en texto junto a la gráfica (accesibilidad).
 - `src/services/api.ts`: cliente con refresh single-flight y `ErrorAPI`. `useRecurso` para listados.
 - Colores del prestador vía variables CSS `--color-primario` / `--color-acento` (`aplicarTema`).
 - Dexie (`src/services/db.ts`) solo tiene `metadatos`; P05 agrega tablas offline con nuevas versiones del esquema.
@@ -911,6 +1003,51 @@
     el contador descarga la exportación universal en XML o Excel.
 103. **Póliza de reposición de caja chica**: una por fondo y por día, con las 12 columnas literales de §6.5; si no hay gastos
     aprobados sin consolidar, la generación devuelve vacío en lugar de repetir la póliza.
+104. **Un solo contrato activo por relación cliente–prestador** (§6.10.1 «contrato único»): el alta y la edición
+    rechazan con 409 `CONTRATO_TRASLAPADO` un segundo contrato activo cuyo período se traslape con otro del mismo cliente
+    y prestador, porque dejaría indefinido qué SLA y qué horario de servicio aplican. Si por datos heredados hubiera dos,
+    `contrato_vigente()` toma el de vigencia más reciente. El seed de P10 convierte el contrato demo a modalidad iguala en
+    lugar de agregar uno nuevo.
+105. **El SLA se firma en la unidad que elige el cliente** y ACMA guarda además su equivalente en horas: `tiempo_respuesta`
+    y `tiempo_resolucion` en la unidad, `*_horas` normalizado, con validación de 1 a 4,320 horas en el esquema y CHECK en
+    la tabla.
+106. **`contratos.estado` cumple la función del `activo` de §6.10.1**: no se duplicó la bandera.
+107. **El contador arranca en la captura del folio**; para los no críticos que el Admin UN clasificó (P07) arranca en la
+    autorización, que es la decisión ya tomada en ese prompt.
+108. **Respuesta = de `tiempo_inicio` a `asignado`** (§6.10.1 habla de «folio sin asignar»), no a `en_camino`.
+109. **La pausa por reasignación** se abre al entrar a `reasignado` y se cierra al volver a `asignado`. El documento dice
+    «reanuda cuando el nuevo técnico acepta», pero la aceptación explícita del técnico no existe en Fase 1 y la
+    reasignación forzada es inmediata: la pausa dura segundos.
+110. **`pendiente_informacion` también pausa el contador** (el folio espera datos del operador, no del prestador). No está
+    en la tabla de §6.10.1: queda como decisión pendiente de validación.
+111. **La penalización solo mira la resolución** (§6.10.1): monto fijo, o porcentaje sobre `folio_costos.costo_total` de
+    P09. Si el costo aún no está calculado, la base es 0 y queda el detalle del cálculo en `penalizacion_detalle_json`.
+112. **Un folio con `excluir_sla_por_cliente`** (P07, clasificación tardía del cliente) cuenta como cumplido y no genera
+    penalización, con el motivo escrito en el detalle.
+113. **El recálculo tras aprobar una exclusión no viola la inmutabilidad del folio**: el trigger de P04 protege `folios`,
+    y `folio_sla` no es parte del registro principal del folio cerrado.
+114. **Un período de penalizaciones `cerrado` no se recalcula**, aunque después se cierren más folios de ese mes.
+115. **El descuento en la factura CFDI es Fase 2**: `penalizaciones_periodo.incluido_en_factura_id` queda nulo y el
+    resumen se entrega en PDF y Excel.
+116. **La escalación por dueño vive en `alertas_configuracion.parametros.escalacion_de`**, no en el catálogo: el catálogo
+    es de la plataforma (§6.9.6) y la RLS impide que el prestador lo escriba. El Superadmin cambia el default del catálogo
+    y el Admin prestador la cadena de su prestador.
+117. **`REPROGRAMACION_ESCALADA_EMPRESA` no usa `escalacion_de`**: su regla de P07 es «tres reprogramaciones del mismo
+    registro», no un tiempo desde otra alerta.
+118. **`TECNICO_SIN_SENAL` conserva el nombre sin «ñ»** (regla 4 de identificadores sin acentos) aunque §6.9.6 la escribe
+    `TECNICO_SIN_SEÑAL`; el nombre del documento queda como alias.
+119. **`app` se agregó como canal** de la configuración de alertas: existe desde P07 en notificaciones y es el canal del
+    panel de alertas.
+120. **TTL del caché de BI: 120 segundos.** Los tableros se consultan en ráfagas y un minuto de desfase es aceptable para
+    indicadores operativos; sin Redis el cálculo simplemente se repite.
+121. **Recharts 3.10.1** como librería de gráficas (código abierto, compatible con React 19, la que sugiere ACT-8.1), con
+    paleta accesible y **cada valor también en texto** junto a la gráfica.
+122. **El Supervisor de operadores** recibe `sin_finanzas: true`, un tablero con solo conteos y SLA en riesgo, y **403** si
+    pide un indicador financiero suelto (§5.1 literal).
+123. **MTTR** = promedio de horas de la captura al cierre de los correctivos cerrados del período; **MTBF** = promedio de
+    horas entre capturas correctivas consecutivas **del mismo equipo** (con menos de dos fallas devuelve 0 con aviso).
+124. **Reportes**: tres plantillas (`cliente`, `prestador`, `jornada`); `dia_hora` admite «08:00», «lunes 08:00» y
+    «1 08:00», y el día del mes se limita a 28 para que todos los meses tengan envío.
 
 ## Notas de entorno (esta máquina)
 

@@ -34,6 +34,8 @@ import { Minutas } from './pages/minutas/Minutas'
 import { ResponderMinuta } from './pages/minutas/ResponderMinuta'
 import { Notificaciones } from './pages/Notificaciones'
 import { Activos } from './pages/activos/Activos'
+import { Dashboard } from './pages/bi/Dashboard'
+import { Reportes } from './pages/bi/Reportes'
 import { FichaEquipo } from './pages/activos/FichaEquipo'
 import { CajaChica } from './pages/caja_chica/CajaChica'
 import { Erp } from './pages/erp/Erp'
@@ -73,6 +75,8 @@ const PAGINAS: Record<string, ReactNode> = {
   presupuestos: <Presupuestos />,
   activos: <Activos />,
   erp: <Erp />,
+  bi: <Dashboard />,
+  sla: <Dashboard />,
 }
 
 function SinPermiso() {
@@ -110,6 +114,7 @@ export function App() {
         <Route path="sincronizacion" element={<Sincronizacion />} />
         <Route path="minutas/:minutaId" element={<ResponderMinuta />} />
         <Route path="activos/:equipoId" element={<FichaEquipo />} />
+        <Route path="bi/reportes" element={<Reportes />} />
         <Route path="preventivos/planes" element={ROLES_PLANES.includes(usuario.rol) || ['admin_empresa', 'admin_un', 'mesa_control'].includes(usuario.rol) ? <Planes /> : <SinPermiso />} />
         <Route path="preventivos/autorizaciones" element={ROLES_CALENDARIO.includes(usuario.rol) ? <Autorizaciones /> : <SinPermiso />} />
         <Route path="campo/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio modoCampo /> : <SinPermiso />} />

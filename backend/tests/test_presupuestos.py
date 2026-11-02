@@ -82,7 +82,8 @@ async def test_umbrales_excedido_y_comprometido(cliente, auth, datos):
     await validar_costo(cliente, auth, f["id"])
     d = (await cliente.get(f"/api/presupuestos/{p['id']}", headers=await auth(AE))).json()
     assert 90 <= Decimal(d["porcentaje"]) < 100 and d["semaforo"] == "amarillo" and Decimal(d["desviacion"]) < 0
-    assert await alertas_disparadas("PRESUPUESTO_UMBRAL_ALCANZADO", p["id"])
+    # P10 concilió las claves: §6.9.6 nombra PRESUPUESTO_ALERTA_1/2/3.
+    assert await alertas_disparadas("PRESUPUESTO_ALERTA_1", p["id"]) or await alertas_disparadas("PRESUPUESTO_ALERTA_2", p["id"])
     assert any(n["evento"] == "presupuesto.umbral" and n["datos"]["presupuesto_id"] == p["id"] for n in await bandeja(cliente, auth, AE))
     # Un segundo presupuesto chico queda excedido con el mismo folio.
     g, total2 = await _folio_con_costo(cliente, auth, datos, "3000.00")
@@ -90,7 +91,7 @@ async def test_umbrales_excedido_y_comprometido(cliente, auth, datos):
     await validar_costo(cliente, auth, g["id"])
     d2 = (await cliente.get(f"/api/presupuestos/{chico['id']}", headers=await auth(AE))).json()
     assert Decimal(d2["porcentaje"]) > 100 and d2["semaforo"] == "rojo" and Decimal(d2["desviacion"]) > 0
-    assert await alertas_disparadas("PRESUPUESTO_EXCEDIDO", chico["id"])
+    assert await alertas_disparadas("PRESUPUESTO_ALERTA_3", chico["id"])
     # Comprometido: un folio autorizado sin cerrar con monto estimado.
     from tests.folios_utiles import autorizar_sin_flujo
 

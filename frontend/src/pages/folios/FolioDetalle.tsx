@@ -12,6 +12,7 @@ import { notificar } from '../../services/notificaciones'
 import { ROLES_AUTORIZAN, ROLES_REASIGNAN, ROLES_SOLICITAN } from '../../types/preventivos'
 import { PanelPreventivo, ReasignarModal } from './Reasignar'
 import { Financiero } from './Financiero'
+import { SeccionSLA } from './SeccionSLA'
 import { EstadoInsignia, SeveridadInsignia, fecha } from './comunes'
 
 type Accion = (typeof ACCIONES)[number]
@@ -272,6 +273,8 @@ export function FolioDetalle() {
           )}
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Datos financieros</h3>
           <Financiero folioId={d.folio.id} alCambiar={cargar} />
+          <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Nivel de servicio (SLA)</h3>
+          <SeccionSLA folioId={d.folio.id} alCambiar={cargar} />
         </Tarjeta>
       </div>
 

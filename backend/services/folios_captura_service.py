@@ -37,7 +37,7 @@ from models.formularios import EstadoRespuesta, Formulario, FormularioEvidencia,
 from models.unidades import GrupoUNMiembro, UnidadNegocio, UsuarioGrupo, UsuarioUN
 from models.usuarios import Usuario
 from schemas.folios import DIAS, FolioEntrada
-from services import alertas_service, aprobacion_service, auditoria, catalogos_service, folio_estados, folios_sla, notificaciones, permisos_service
+from services import alertas_service, aprobacion_service, auditoria, catalogos_service, folio_estados, folios_sla, notificaciones, permisos_service, sla_service
 from services.folio_estados import ACTOR_SISTEMA, ActorFolio
 
 CREAN_SIEMPRE = {Rol.operador, Rol.admin_un, Rol.admin_empresa, Rol.supervisor_operadores, Rol.mesa_control, Rol.superadmin}
@@ -726,6 +726,7 @@ async def detalle(db: AsyncSession, actor: Actor, folio: Folio) -> dict[str, Any
         "reasignaciones": await _reasignaciones(db, folio), "evidencias": evidencias, **await _seguimiento_p07(db, folio), **await _p08(db, folio),
         "formulario_atencion": await _vinculo(db, ate), "refacciones": refacciones,
         "sla": sla, "encuesta": encuesta, "triggers_revision": triggers, "aprobacion": base["flujo"],
+        "sla_contador": await sla_service.detalle(db, folio),  # P10: pausas, exclusiones y cumplimiento
         "financiero": await _financiero(db, actor, folio),
         "decisiones": [{"id": d.id, "flujo_id": d.flujo_id, "nivel": d.nivel, "actor_id": d.actor_id, "actor_nombre": nombres.get(d.actor_id),
                         "decision": d.decision, "razon_rechazo": d.razon_rechazo, "modulo_destino": d.modulo_destino,

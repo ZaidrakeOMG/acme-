@@ -1,6 +1,9 @@
 from models.alertas import AlertaCatalogo, AlertaConfiguracion, AlertaHistorial, AlertaSupresion
 from models.auditoria import AuditAccesoAPI, AuditLog, ConfiguracionPrestador, ConfiguracionTenant
-from models.base import Base, Dominio, EstadoRegistro, NivelSeveridad, Rol
+from models.base import (
+    Base, CausaExclusionSLA, Dominio, EstadoPenalizacion, EstadoRegistro, FormatoReporte, MotivoPausaSLA, NivelSeveridad,
+    PeriodicidadReporte, Rol,
+)
 from models.catalogos import (
     CoberturaContrato, Equipo, EstadoActivo, EstadoImportacion, FamiliaEquipo, Habilidad, ImportacionCatalogo,
     NivelSeveridadCatalogo, Tecnico, TecnicoHabilidad, TecnicoTenantHabilitado, TipoEquipo, TipoFalla, TipoFallaSeveridad,
@@ -59,6 +62,8 @@ from models.costos import (
     PresupuestoConsumo, TarifaManoObra, TipoActividadPresupuesto,
 )
 from models.activos import ActivoDepreciacion, ActivoDepreciacionHistorial, ActivoReemplazoAlerta, ActivoTCOSnapshot, DecisionReemplazo, MetodoDepreciacion
+from models.sla import FolioSLAExclusion, FolioSLAPausa, IgualaConsumoPeriodo, PenalizacionPeriodo
+from models.reportes import ReporteGenerado, ReporteProgramado
 
 __all__ = [
     "Articulo", "EstadoCFDI", "EstadoGastoCajaChica", "EstadoOrdenCompra", "EstadoPoliza", "Existencia", "FondoCajaChica", "FormatoPoliza",
@@ -67,6 +72,8 @@ __all__ = [
     "AdaptadorERP", "ErpConfiguracion", "ErpEventoPendiente", "ErpExportacion", "EstadoEventoERP", "FolioCosto", "OperacionERP",
     "Presupuesto", "PresupuestoConsumo", "TarifaManoObra", "TipoActividadPresupuesto",
     "ActivoDepreciacion", "ActivoDepreciacionHistorial", "ActivoReemplazoAlerta", "ActivoTCOSnapshot", "DecisionReemplazo", "MetodoDepreciacion",
+    "CausaExclusionSLA", "EstadoPenalizacion", "FolioSLAExclusion", "FolioSLAPausa", "FormatoReporte", "IgualaConsumoPeriodo",
+    "MotivoPausaSLA", "PenalizacionPeriodo", "PeriodicidadReporte", "ReporteGenerado", "ReporteProgramado",
     "DecisionOCRechazo", "DecisionTECliente", "EstadoTrabajoEspecial", "EstatusOCActivo", "FolioActivoAutorizacion", "FolioActivoHistorial",
     "TEEvidencia", "TEHistorial", "TERespuestaCliente", "TipoEvidenciaTE", "TrabajoEspecial",
     "CanalNotificacion", "EstadoMinuta", "EstadoNotificacion", "EstadoRespuestaHallazgo", "Hallazgo", "Minuta", "MinutaConfiguracion",
