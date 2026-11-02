@@ -11,6 +11,7 @@ import { ACCIONES, accionFolio, aprobarFolio, comentarFolio, fijarMonto, obtener
 import { notificar } from '../../services/notificaciones'
 import { ROLES_AUTORIZAN, ROLES_REASIGNAN, ROLES_SOLICITAN } from '../../types/preventivos'
 import { PanelPreventivo, ReasignarModal } from './Reasignar'
+import { Financiero } from './Financiero'
 import { EstadoInsignia, SeveridadInsignia, fecha } from './comunes'
 
 type Accion = (typeof ACCIONES)[number]
@@ -241,6 +242,9 @@ export function FolioDetalle() {
           )}
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Refacciones ({d.refacciones.length})</h3>
           <ul className="text-sm">{d.refacciones.map((r) => <li key={r.id}>{r.cantidad} × {r.descripcion} · {r.origen} · ${r.costo_unitario}</li>)}</ul>
+          {d.folio.estado === 'pendiente_refaccion' && (
+            <p className="mt-1 text-sm"><Link className="text-primario underline" to={`/inventario?vista=ordenes`}>Generar orden de compra</Link> para la refacción que falta (§6.4 Tipo B).</p>
+          )}
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Encuesta</h3>
           <p className="text-sm">{d.encuesta ? `NPS ${d.encuesta.nps_score}` : 'Sin encuesta (P05).'}</p>
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Reasignaciones ({d.reasignaciones.length})</h3>
@@ -266,8 +270,8 @@ export function FolioDetalle() {
           {d.trabajo_especial && (
             <p className="mt-2 text-sm" data-testid="te-folio"><Insignia tono="acento">Trabajo especial</Insignia> <Link className="font-mono text-primario underline" to={`/trabajos-especiales?registro=${d.trabajo_especial.id}`}>{d.trabajo_especial.numero}</Link> · {d.trabajo_especial.estado}{d.trabajo_especial.urgencia && <> <Insignia tono="alerta">Urgencia</Insignia></>}</p>
           )}
-          <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Financiero</h3>
-          <p className="text-sm text-slate-500">Sección vacía hasta P09.</p>
+          <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Datos financieros</h3>
+          <Financiero folioId={d.folio.id} alCambiar={cargar} />
         </Tarjeta>
       </div>
 

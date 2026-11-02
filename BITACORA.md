@@ -2,6 +2,41 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-02 · P09 — Inventario, caja chica, costo del folio, presupuestos, ERP y activos
+
+- Migración `0009`: 21 tablas (`articulos`, `ubicaciones_inventario`, `existencias`, `movimientos_inventario` append-only,
+  `ordenes_compra` + partidas, `fondos_caja_chica`, `gastos_caja_chica`, `polizas_exportacion`, `validaciones_cfdi`,
+  `folio_costos`, `tarifas_mano_obra`, `presupuestos`, `presupuesto_consumos` append-only, `erp_eventos_pendientes`,
+  `erp_configuracion`, `erp_exportaciones`, `activo_depreciacion`, `activo_depreciacion_historial` append-only,
+  `activo_tco_snapshot`, `activo_reemplazo_alertas`), 13 ENUM, campos económicos en `tipos_equipo` y `equipos`, y 6 alertas
+  nuevas con sus evaluadores (41 en total). RLS forzada en todas.
+- `services/inventario_service.py`: los tres orígenes de refacción de §6.4 con costo promedio ponderado, traspaso al vehículo del
+  técnico, ajuste con razón, consumo en folio (409 `STOCK_INSUFICIENTE` en línea) y merge con alerta `STOCK_NEGATIVO` para los
+  consumos offline de §6.2; ciclo completo de la orden de compra con evento al ERP al aprobar y entrada al almacén al recibir.
+- `services/caja_chica_service.py`: fondo por técnico, captura de la factura con foto, aprobación en un toque que da de alta la
+  refacción, mueve el inventario y carga al fondo (409 `SALDO_INSUFICIENTE`), y póliza de reposición con las 12 columnas de §6.5
+  en Excel y XML. OCR y validación del CFDI quedan como stubs de Fase 1.
+- `services/costos_service.py`: el costo del folio se calcula al cerrar (refacciones + horas × tarifa vigente + otros + ajuste) y
+  la Mesa de control lo valida, lo que genera el evento `registrar_gasto` del ERP y carga el consumo a los presupuestos.
+- `services/presupuestos_service.py`: presupuestos por UN o por grupo y tipo de actividad, comprometido de los folios
+  autorizados sin cerrar, umbrales con alerta única por umbral y tablero consolidado Tenant → Grupo → UN con semáforo.
+- `services/activos_service.py`: cuatro métodos de depreciación, TCO con inactividad y valor residual, snapshot mensual, alerta
+  de reemplazo por umbral del valor de reposición y decisión reemplazar/reparar que genera el trabajo especial de P08.
+- `services/erp/`: capa desacoplada de §6.6 con los 4 eventos internos, adaptadores CONTPAQi y Microsip como stub de Fase 2 y
+  exportación universal XML/Excel configurable.
+- Routers `/api/inventario` (14 rutas), `/api/caja-chica` (10), `/api/presupuestos` (7), `/api/erp` (6) y `/api/activos` (7), más
+  `GET/POST /api/folios/{id}/costos[/validar]`. Tareas Celery de pólizas (23:00), depreciación y TCO (día 1) y exportación ERP.
+- Frontend: módulos `inventario`, `caja_chica`, `presupuestos`, `activos` (con la ficha del equipo) y `erp`; sección «Datos
+  financieros» del folio y captura del gasto de caja chica desde la atención del técnico.
+- Seed `seed_inventario.py` con 25 artículos, almacén y vehículos, OC, fondos, gastos, póliza, tarifas, presupuestos al 85 % y
+  125 %, configuración ERP y 6 activos con 12 meses de snapshots. Pruebas: pytest 307, vitest 87.
+- Decisiones pendientes 88–103 en `CONTEXTO.md`.
+- Incidencias resueltas: la cadena de RLS al validar un costo desde el contexto del prestador (`presupuesto_consumos`,
+  `alertas_historial` y `notificaciones` necesitaban el `prestador_id` del folio y el WITH CHECK ampliado); el control de
+  umbrales se movió de una columna en `presupuestos` a `alertas_historial` para no actualizar la fila del presupuesto;
+  `pycryptodome` quedó con su módulo nativo ilegible y bloqueaba MinIO (reinstalación forzada); Docker Desktop volvió a quedarse
+  en «Starting the Docker Engine» (misma corrección de sockets huérfanos, copias `*.huerfano-20261102-*`).
+
 ## 2026-10-29 · P08 — Trabajos especiales, conversión de cotizaciones y OC de activos
 
 - Migración `0008`: `trabajos_especiales`, `te_respuesta_cliente` y `te_historial` (append-only), `te_evidencias`,

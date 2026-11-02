@@ -118,7 +118,8 @@ class RefaccionEntrada(BaseModel):
     cantidad: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     origen: OrigenRefaccion = OrigenRefaccion.almacen
     costo_unitario: Decimal = Field(default=Decimal("0"), ge=0, max_digits=14, decimal_places=2)
-    articulo_id: UUID | None = None
+    articulo_id: UUID | None = Field(default=None, description="P09: descuenta del inventario; sin él queda la descripción libre")
+    ubicacion_id: UUID | None = Field(default=None, description="P09: de dónde se descuenta; por defecto el vehículo del técnico")
 
 
 class TransicionTabla(BaseModel):
@@ -323,7 +324,7 @@ class FolioDetalle(BaseModel):
     aprobacion: FlujoResumen | None
     decisiones: list[DecisionSalida]
     chat: list[dict[str, Any]] = Field(default_factory=list)             # P05
-    financiero: dict[str, Any] = Field(default_factory=dict)              # P09
+    financiero: dict[str, Any] = Field(default_factory=dict)              # P09: costo, refacciones y gastos de caja chica
     acciones: list[EstadoFolio] = Field(default_factory=list, description="Destinos válidos para el actor según §6.8.6")
     puede_aprobar: bool = False
 

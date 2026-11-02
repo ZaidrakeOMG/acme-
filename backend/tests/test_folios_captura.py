@@ -219,7 +219,8 @@ async def test_todas_las_validaciones_pasan_y_entra_al_flujo(cliente, auth, dato
     assert f["flujo"]["nivel_actual"] == 1 and f["flujo"]["estado"] == "activo" and f["flujo"]["rol_aprobador_actual"] == "admin_un"
     d = await detalle(cliente, auth, f["id"])
     assert [h["evento"] for h in d["historial"]] == ["transicion", "transicion", "aprobacion.inicio"]
-    assert d["historial"][1]["actor_rol"] == "sistema" and d["chat"] == [] and d["reasignaciones"] == [] and d["financiero"] == {}
+    assert d["historial"][1]["actor_rol"] == "sistema" and d["chat"] == [] and d["reasignaciones"] == []
+    assert d["financiero"]["visible"] is True and d["financiero"]["costo"] is None and d["financiero"]["refacciones"] == []
 
 
 async def test_monto_estimado_solo_prestador_en_captura_o_revision(cliente, auth, datos):

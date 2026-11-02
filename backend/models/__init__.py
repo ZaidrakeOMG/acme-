@@ -49,8 +49,24 @@ from models.trabajos_especiales import (
     DecisionOCRechazo, DecisionTECliente, EstadoTrabajoEspecial, EstatusOCActivo, FolioActivoAutorizacion, FolioActivoHistorial, TEEvidencia,
     TEHistorial, TERespuestaCliente, TipoEvidenciaTE, TrabajoEspecial,
 )
+from models.inventario import (
+    Articulo, EstadoCFDI, EstadoGastoCajaChica, EstadoOrdenCompra, EstadoPoliza, Existencia, FondoCajaChica, FormatoPoliza, GastoCajaChica,
+    MovimientoInventario, OrdenCompra, OrdenCompraPartida, PolizaExportacion, TipoMovimientoInventario, TipoUbicacionInventario,
+    UbicacionInventario, ValidacionCFDI,
+)
+from models.costos import (
+    AdaptadorERP, ErpConfiguracion, ErpEventoPendiente, ErpExportacion, EstadoEventoERP, FolioCosto, OperacionERP, Presupuesto,
+    PresupuestoConsumo, TarifaManoObra, TipoActividadPresupuesto,
+)
+from models.activos import ActivoDepreciacion, ActivoDepreciacionHistorial, ActivoReemplazoAlerta, ActivoTCOSnapshot, DecisionReemplazo, MetodoDepreciacion
 
 __all__ = [
+    "Articulo", "EstadoCFDI", "EstadoGastoCajaChica", "EstadoOrdenCompra", "EstadoPoliza", "Existencia", "FondoCajaChica", "FormatoPoliza",
+    "GastoCajaChica", "MovimientoInventario", "OrdenCompra", "OrdenCompraPartida", "PolizaExportacion", "TipoMovimientoInventario",
+    "TipoUbicacionInventario", "UbicacionInventario", "ValidacionCFDI",
+    "AdaptadorERP", "ErpConfiguracion", "ErpEventoPendiente", "ErpExportacion", "EstadoEventoERP", "FolioCosto", "OperacionERP",
+    "Presupuesto", "PresupuestoConsumo", "TarifaManoObra", "TipoActividadPresupuesto",
+    "ActivoDepreciacion", "ActivoDepreciacionHistorial", "ActivoReemplazoAlerta", "ActivoTCOSnapshot", "DecisionReemplazo", "MetodoDepreciacion",
     "DecisionOCRechazo", "DecisionTECliente", "EstadoTrabajoEspecial", "EstatusOCActivo", "FolioActivoAutorizacion", "FolioActivoHistorial",
     "TEEvidencia", "TEHistorial", "TERespuestaCliente", "TipoEvidenciaTE", "TrabajoEspecial",
     "CanalNotificacion", "EstadoMinuta", "EstadoNotificacion", "EstadoRespuestaHallazgo", "Hallazgo", "Minuta", "MinutaConfiguracion",

@@ -15,6 +15,7 @@ from models.folios import EstadoFolio, FolioKeywordAlerta, FolioRefaccion
 from routers.catalogos_equipos import tenant_de
 from routers.catalogos_tecnicos import prestador_de
 from schemas.comun import RESPUESTAS_ERROR, Mensaje
+from schemas.costos import FinancieroSalida, ValidarCostoEntrada  # P09
 from schemas.folios import (
     AprobarEntrada, AsignarEntrada, AtencionEntrada, ConfiguracionAprobacion, ConfirmacionUNEntrada, EvidenciaFolioEntrada,
     EvidenciaFolioSalida, FlujoResumen, FolioDetalle, FolioEntrada, FolioResumen, HistorialSalida, KeywordEntrada, KeywordSalida,
@@ -361,18 +362,45 @@ async def evidencias(folio_id: UUID, datos: EvidenciaFolioEntrada, db: DB, actor
 
 
 @router.post("/{folio_id}/refacciones", response_model=RefaccionSalida, status_code=201, summary="Registrar refacción consumida",
-             description="`articulo_id` sin FK hasta P09 (inventario); `gasto_caja_chica_id` lo llena P09.")
+             description="Con `articulo_id` descuenta del inventario (vehículo del técnico o `ubicacion_id`); sin él queda la "
+                         "descripción libre con origen y costo. Las de origen `caja_chica` las aplica la aprobación del gasto (§6.4).")
 async def refacciones(folio_id: UUID, datos: RefaccionEntrada, db: DB, actor: Actor = Depends(TODOS)):
+    from services import inventario_service
+
     folio = await svc.obtener(db, actor, folio_id)
     if folio.estado in (EstadoFolio.cerrado, EstadoFolio.cancelado):
         raise ErrorAPI(409, "FOLIO_INMUTABLE", "El folio está cerrado o cancelado")
     if actor.rol == Rol.tecnico and folio.tecnico_id != actor.id:
         raise prohibido("El folio no está asignado a ti")
-    r = FolioRefaccion(folio_id=folio.id, tenant_id=folio.tenant_id, prestador_id=folio.prestador_id, **datos.model_dump())
+    cuerpo = datos.model_dump()
+    ubicacion_id = cuerpo.pop("ubicacion_id", None)
+    r = FolioRefaccion(folio_id=folio.id, tenant_id=folio.tenant_id, prestador_id=folio.prestador_id, **cuerpo)
     db.add(r)
     await db.flush()
+    await inventario_service.consumir_en_folio(db, actor, folio, r, ubicacion_id=ubicacion_id)
     await db.commit()
     return RefaccionSalida.model_validate(r, from_attributes=True)
+
+
+@router.post("/{folio_id}/costos/validar", response_model=FinancieroSalida, summary="Validar el costo del folio (Mesa de control o Admin prestador)",
+             description="Ajuste con razón obligatoria. Al validarse se genera el evento ERP `registrar_gasto` y se registran "
+                         "los consumos en todos los presupuestos aplicables (UN, grupo y tipo de actividad).")
+async def validar_costo(folio_id: UUID, datos: ValidarCostoEntrada, request: Request, db: DB, actor: Actor = Depends(TODOS)):
+    from services import costos_service
+
+    folio = await svc.obtener(db, actor, folio_id)
+    await costos_service.validar(db, actor, folio, ajuste=datos.ajuste, razon_ajuste=datos.razon_ajuste, costo_otros=datos.costo_otros,
+                                 centro_costos=datos.centro_costos, request=request)
+    await db.commit()
+    return FinancieroSalida(**await costos_service.detalle_financiero(db, actor, folio))
+
+
+@router.get("/{folio_id}/costos", response_model=FinancieroSalida, summary="Datos financieros del folio (§6.8.6)")
+async def costos(folio_id: UUID, db: DB, actor: Actor = Depends(TODOS)):
+    from services import costos_service
+
+    folio = await svc.obtener(db, actor, folio_id)
+    return FinancieroSalida(**await costos_service.detalle_financiero(db, actor, folio))
 
 
 # --------------------------------------------------------------- aprobación

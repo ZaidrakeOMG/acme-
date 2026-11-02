@@ -113,6 +113,8 @@ class TipoEquipo(ConVersion, Base):
     nombre: Mapped[str] = mapped_column(String(120))
     descripcion: Mapped[str] = mapped_column(Text, default="")
     activa: Mapped[bool] = mapped_column(Boolean, default=True)
+    # P09 §6.9.4: costo/hora de inactividad por tipo de equipo que configura el tenant (el del equipo manda sobre este).
+    costo_hora_inactividad_default: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
 
 
 class Equipo(ConVersion, Base):
@@ -134,6 +136,11 @@ class Equipo(ConVersion, Base):
     notas: Mapped[str] = mapped_column(Text, default="")
     # P04: criticidad A/B/C/D capturada a mano por Admin empresa (cálculo automático §6.9.3 en Fase 2).
     criticidad: Mapped[str | None] = mapped_column(ENUM("A", "B", "C", "D", name="criticidad_activo", create_type=False), nullable=True)
+    # P09 §6.9.4: datos económicos del activo para la depreciación y el TCO.
+    costo_adquisicion: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    fecha_adquisicion: Mapped[date | None] = mapped_column(Date)
+    costo_hora_inactividad: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    numero_activo_fijo_erp: Mapped[str | None] = mapped_column(String(60))
 
 
 class TipoFalla(ConVersion, Base):

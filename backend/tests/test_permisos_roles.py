@@ -224,7 +224,7 @@ async def test_contrato_con_tenant_no_vinculado(cliente, auth, datos):
 
 async def test_catalogo_tiene_los_20_tipos_mas_los_de_cada_modulo(cliente, auth):
     catalogo = (await cliente.get("/api/alertas/catalogo", headers=await auth(OP))).json()
-    assert len(catalogo) == 49  # 20 del diseño + MATRIZ_SEVERIDAD_INCOMPLETA (P02) + GEOLOCALIZACION_FUERA_DE_UN (P03) + 3 de P04 + 3 de P06 + 14 de P07 + 7 de P08
+    assert len(catalogo) == 55  # 20 del diseño + MATRIZ_SEVERIDAD_INCOMPLETA (P02) + GEOLOCALIZACION_FUERA_DE_UN (P03) + 3 de P04 + 3 de P06 + 14 de P07 + 7 de P08 + 6 de P09 + 6 de P09
     assert {"SLA_RESPUESTA_EN_RIESGO", "COTIZACION_ESCALADA_DIRECCION", "TECNICO_SIN_SENAL"} <= {a["clave"] for a in catalogo}
 
 

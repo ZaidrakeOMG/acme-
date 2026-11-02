@@ -15,6 +15,7 @@ import { esSinConexion, syncEngine } from '../../../services/syncEngine'
 import type { Evidencia, Formulario, Respuesta } from '../../../types/formularios'
 import type { EstadoFolio, FolioDetalle } from '../../../types/folios'
 import { EstadoInsignia, SeveridadInsignia, fecha } from '../../folios/comunes'
+import { GastoCajaChica } from './GastoCajaChica'
 import { PlanDelTecnico } from './PlanDelTecnico'
 
 const ORDEN_ACCIONES: EstadoFolio[] = ['en_camino', 'en_ejecucion', 'pendiente_refaccion', 'cerrado']
@@ -228,6 +229,8 @@ export function AtencionTecnico() {
         </div>
       )}
       {d.formulario_atencion && <Aviso tipo="exito">Formulario de atención vinculado ({d.formulario_atencion.formulario_nombre}).</Aviso>}
+
+      {['en_ejecucion', 'pendiente_refaccion'].includes(f.estado) && <GastoCajaChica folioId={f.id} alRegistrar={cargar} />}
 
       {['en_ejecucion', 'pendiente_refaccion'].includes(f.estado) && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">

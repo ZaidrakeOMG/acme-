@@ -21,9 +21,21 @@
 | P06 | Calendario de preventivos, planes con triggers de Fase 1, autorizaciones y reasignación forzada | ✅ 2026-10-28 |
 | P07 | Minuta del día por UN y global, notificaciones multicanal (correo SMTP), cuatro módulos de seguimiento y clasificación de no críticos | ✅ 2026-10-29 |
 | P08 | Trabajos especiales con validación del cliente, conversión de cotizaciones y seguimiento de OC de activos | ✅ 2026-10-29 |
-| P09 | Inventario, caja chica manual, presupuestos y activos | Pendiente |
+| P09 | Inventario con los tres orígenes de refacción, caja chica manual, costo del folio, presupuestos, capa ERP y activos con TCO | ✅ 2026-11-02 |
 | P10 | Contratos/SLA (contador), alertas por módulo y BI | Pendiente |
 | P11 | Endurecimiento y despliegue | Pendiente |
+
+## Verificación al cierre de P09
+
+- Migración `0009_inventario_costos_activos.py` aplicada (subida, bajada y subida) y seed `seed_inventario.py` cargado.
+- `pytest`: **307 pruebas en verde** (incluye `test_inventario.py`, `test_ordenes_compra.py`, `test_caja_chica.py`,
+  `test_folio_costos.py`, `test_presupuestos.py`, `test_erp_exportacion.py` y `test_activos_tco.py`; cambiaron las de P04/P07 por
+  el catálogo de 55 alertas y los 41 evaluadores).
+- `vitest`: **87 pruebas en verde** (traspaso almacén → vehículo, ciclo de la OC, aprobación del gasto en un toque y captura del
+  técnico desde el folio, tablero de presupuestos con semáforo, ficha del equipo con TCO y decisión de reemplazo, sección
+  financiera del folio y bandeja del ERP). `tsc --noEmit` y `npm run build` en verde.
+- Suite completa de `pytest` corrida con los servidores de desarrollo apagados (regla 7 de P09): la máquina de 7 GB se queda sin
+  memoria si coinciden Docker, pytest y Vite.
 
 ## Verificación al cierre de P08
 
@@ -621,6 +633,68 @@
   costo; `equipos` creados por `alta_equipo()` alimentan activos y depreciación (`valor_reposicion`, `fecha_instalacion`, `contrato_id`).
   **Para P10**: `te_historial` y `folio_activo_historial` dan tiempos por etapa; `TE_PROGRAMADO_VENCIDO` y `OC_ACTIVO_*` entran al tablero.
 
+### Inventario, costos y activos (P09)
+- **Tablas (0009)**: `articulos`, `ubicaciones_inventario` (almacén o vehículo con `tecnico_id` y placas), `existencias`
+  (`cantidad`, `stock_minimo`, `costo_promedio` por ubicación+artículo), `movimientos_inventario` (**append-only**: entrada,
+  salida, traspaso, ajuste, consumo_folio con `origen` almacen/oc/caja_chica, folio, razón y referencia), `ordenes_compra` +
+  `orden_compra_partidas` (borrador → aprobada → enviada_erp → recibida | cancelada, `recibido` por partida),
+  `fondos_caja_chica`, `gastos_caja_chica` (factura con foto en MinIO, RFC, UUID, subtotal/IVA/total, estado y `estado_cfdi`),
+  `polizas_exportacion`, `validaciones_cfdi`, `folio_costos` (refacciones + mano de obra + otros + ajuste, horas y tarifa,
+  `origen_horas`, centro de costos, validación y `documento_erp_ref`), `tarifas_mano_obra`, `presupuestos` (UN **o** grupo con
+  CHECK excluyente, tipo de actividad, período, monto y `umbrales_alerta_json`), `presupuesto_consumos` (**append-only**),
+  `erp_eventos_pendientes`, `erp_configuracion`, `erp_exportaciones`, `activo_depreciacion`, `activo_depreciacion_historial`
+  (**append-only**), `activo_tco_snapshot` y `activo_reemplazo_alertas`. 13 ENUM nuevos; `tipos_equipo` y `equipos` ganan los
+  campos económicos (`costo_adquisicion`, `fecha_adquisicion`, `costo_hora_inactividad`, `numero_activo_fijo_erp`). 6 alertas
+  nuevas (`STOCK_NEGATIVO`, `OC_SIN_APROBAR`, `OC_SIN_RECIBIR`, `GASTO_CAJA_CHICA_SIN_APROBAR`, `PRESUPUESTO_UMBRAL_ALCANZADO`,
+  `PRESUPUESTO_EXCEDIDO`) y 9 evaluadores en `workers/evaluadores_inventario.py` (41 en total). RLS forzada en todas; las tablas
+  que el prestador escribe en contexto de tenant usan `acma_tenant_visible()` también en el WITH CHECK de escritura.
+- **`services/inventario_service.py`**: `_mover()` es el único escritor de existencias y movimientos; la entrada recalcula el
+  **costo promedio ponderado** y la salida no lo altera. `entrada` / `traspaso` (almacén → vehículo del técnico) / `ajuste`
+  (admite negativos, razón obligatoria), `consumir_en_folio()` (§6.4 Tipo A: en línea bloquea con 409 `STOCK_INSUFICIENTE`),
+  `aplicar_consumo_offline()` (§6.2: aplica los dos consumos, deja `SincronizacionConflicto` con `merge_alerta` y dispara
+  `STOCK_NEGATIVO`), ciclo de la OC (`crear_oc` / `aprobar_oc` → evento ERP `generar_oc` / `recibir_oc` → entrada al almacén /
+  `cancelar_oc`) y `tiene_materiales()` para el `refaccion_ok` de P06.
+- **`services/caja_chica_service.py`** (§6.4 Tipo C y §6.5): `capturar_gasto()` (el técnico sube la foto y captura a mano; OCR y
+  validación del CFDI son stubs de Fase 1), `aprobar_gasto()` resuelve en una sola transacción el alta de la refacción del folio,
+  el movimiento de inventario y el cargo al fondo (409 `SALDO_INSUFICIENTE` si el fondo no alcanza), `rechazar_gasto()` con razón,
+  `generar_poliza()` / `generar_polizas_del_dia()` con las 12 columnas literales de §6.5 en Excel más el XML de póliza.
+- **`services/costos_service.py`** (§6.8.6): `calcular()` corre suscrito al cierre del folio (`folio_estados.suscribir`) y suma
+  refacciones consumidas + mano de obra (horas × tarifa vigente) + otros + ajuste; `validar()` (Mesa de control, Admin prestador,
+  superadmin) cierra el costo, genera el evento ERP `registrar_gasto` y registra el consumo en los presupuestos aplicables;
+  `detalle_financiero()` respeta la visibilidad de costos del rol; `tarifa_vigente()` resuelve la tarifa más específica.
+- **`services/presupuestos_service.py`** (§6.8.5): `aplicables()` (la UN y sus grupos × tipo de actividad y período),
+  `registrar_consumo()`, `comprometido()` (folios autorizados sin cerrar con monto estimado), `_revisar_umbrales()` (dispara
+  `PRESUPUESTO_UMBRAL_ALCANZADO` / `PRESUPUESTO_EXCEDIDO` una sola vez por umbral, deduplicando contra `alertas_historial`),
+  `resumen()`, `consolidado()` (Tenant → Grupo → UN con semáforo verde/amarillo/rojo) y `disponible_para_folio()`.
+- **`services/activos_service.py`** (§6.9.4): `valor_en_libros()` con los 4 métodos (línea recta, doble saldo decreciente,
+  unidades de producción → `REQUIERE_MEDIDORES_FASE_2`, manual), `componentes_tco()` y `calcular_tco()` (adquisición +
+  preventivos + correctivos + inactividad − valor residual, con las refacciones como desglose), `_revisar_reemplazo()` (alerta
+  `ACTIVO_REEMPLAZO` al superar el umbral del valor de reposición), `decidir_reemplazo()` (aceptar genera el trabajo especial de
+  reemplazo de P08; posponer exige razón), `ficha()` y `calcular_mes()` para la tarea mensual.
+- **Capa ERP desacoplada** (§6.6, `services/erp/`): ACMA nunca habla con el ERP; `eventos.py` genera los 4 eventos internos
+  (`generar_oc`, `registrar_gasto`, `crear_activo_fijo`, `poliza_caja_chica`), `base.py` registra los adaptadores (CONTPAQi y
+  Microsip quedan como **stub** `omitido` de Fase 2) y `exportacion.py` produce la exportación universal (XML de pólizas y Excel
+  con columnas configurables) que en Fase 1 sustituye a los adaptadores.
+- **Endpoints**: `/api/inventario` (artículos, ubicaciones, existencias, movimientos entrada/traspaso/ajuste, órdenes de compra
+  con aprobar/recibir/cancelar), `/api/caja-chica` (fondos y reposición, ocr, gastos con imagen/aprobar/rechazar, pólizas y
+  archivo), `/api/presupuestos` (listado, consolidado, alta/edición, consumos, tarifas), `/api/erp` (configuración, eventos y
+  procesar, exportaciones y archivo), `/api/activos` (listado, ficha, datos-economicos, depreciacion, calcular, alertas-reemplazo,
+  decidir, umbral-reemplazo) y `GET/POST /api/folios/{id}/costos[/validar]`.
+- **Tareas Celery**: `acma.generar_polizas_caja_chica` (23:00), `acma.calcular_depreciacion_tco` (día 1, 03:30) y
+  `acma.exportar_erp_periodo` (día 1, 04:00).
+- **Frontend**: módulos `inventario` (`/inventario`), `caja_chica` (`/caja-chica`), `presupuestos` (`/presupuestos`), `activos`
+  (`/activos` y la ficha `/activos/:equipoId`) y `erp` (`/erp`); `pages/folios/Financiero.tsx` es la sección «Datos financieros»
+  del folio y `pages/campo/tecnico/GastoCajaChica.tsx` la captura del gasto desde la atención del técnico; el folio en
+  `pendiente_refaccion` ofrece generar la orden de compra.
+- **Seed** (`scripts/seed_inventario.py`): 25 artículos en 4 categorías, almacén central y un vehículo por técnico (2 artículos
+  bajo mínimo), 3 OC en distintos estados, 2 fondos con 5 gastos y 1 póliza, tarifas de mano de obra, costos calculados y
+  validados, presupuestos calibrados al 85 % y al 125 %, configuración ERP con los 4 tipos de evento y 6 activos con 12 meses de
+  snapshots y 1 alerta de reemplazo.
+- **Para P10**: `folio_costos.costo_total` es la base de la penalización por SLA; `presupuesto_consumos` y `presupuestos`
+  alimentan el gasto contra presupuesto del tablero; `activo_tco_snapshot` da el TCO histórico para el top de equipos por costo;
+  `erp_eventos_pendientes` y `erp_exportaciones` son la fuente del resumen exportable de penalizaciones; las 6 alertas nuevas
+  entran a la configuración central y `PRESUPUESTO_UMBRAL_ALCANZADO` debe conciliarse con `PRESUPUESTO_ALERTA_1/2/3`.
+
 ### Frontend
 - `src/config/modulos.ts` define los 25 módulos de Fase 1, su prompt y los roles que los ven. Al construir un módulo:
   agregar `ruta`, la página en `App.tsx` (`PAGINAS`) y ajustar roles.
@@ -804,6 +878,39 @@
     prestador; consultan además supervisores, dirección y los técnicos asignados. En la OC registra solo el Admin empresa; consultan Admin
     UN (sus UNs) y los roles de gestión del prestador.
 87. **`TE_URGENCIA_SIN_COTIZACION_RETROACTIVA` es informativa**: umbral en días por tenant y se silencia con la supresión de alertas de P01.
+88. **Costo promedio ponderado** para el inventario: cada entrada promedia por cantidad y la salida no altera el costo; el
+    consumo del folio se valúa al costo promedio de la ubicación de origen.
+89. **Horas de mano de obra**: se toman del formulario de atención si traen `horas_mano_obra` / `horas_trabajadas` /
+    `tiempo_horas` / `horas`; si no, se calculan entre `fecha_inicio_atencion` y `fecha_cierre`, con mínimo de 0.5 h. El origen
+    queda en `folio_costos.origen_horas` (formulario | calculadas | minimo).
+90. **Tarifa de mano de obra**: gana la más específica (tenant + tipo de folio > tenant > tipo de folio > general) y, a igual
+    especificidad, la de `vigente_desde` más reciente.
+91. **Costo de inactividad del TCO**: horas entre `fecha_falla` y `fecha_cierre` de los folios correctivos y especiales por el
+    costo/hora del equipo; si el equipo no lo tiene, el default de su tipo de equipo.
+92. **Comprometido del presupuesto**: folios autorizados y sin cerrar con `monto_estimado` capturado dentro del período; no se
+    suma al consumido, se muestra aparte y resta del disponible.
+93. **TCO** = adquisición + preventivos + correctivos + inactividad − valor residual. Las refacciones se muestran como desglose
+    porque ya están dentro de los costos de los folios: sumarlas las contaría dos veces.
+94. **Valor residual** = valor en libros del método de depreciación configurado; sin método configurado se usa el costo de
+    adquisición.
+95. **Unidades de producción** devuelve `REQUIERE_MEDIDORES_FASE_2` y conserva el último valor en libros capturado a mano,
+    porque los medidores de activos son Fase 2.
+96. **Consumo offline con existencia negativa** (§6.2): se aplican los dos consumos, se registra `SincronizacionConflicto` con
+    regla `merge_alerta` y se dispara `STOCK_NEGATIVO`; en línea el consumo se bloquea con 409 `STOCK_INSUFICIENTE`.
+97. **El fondo de caja chica nunca queda negativo**: la aprobación del gasto se bloquea con 409 `SALDO_INSUFICIENTE` y el Admin
+    prestador debe reponer el fondo primero.
+98. **Una sola tabla `presupuestos`** con `un_id` XOR `grupo_id` (CHECK) en lugar de la `presupuestos_grupo` separada de §6.8.5.
+99. **Umbrales de presupuesto deduplicados contra `alertas_historial`** (`datos_contexto_json['umbral']`) en vez de una columna
+    de control en `presupuestos`: la fila del presupuesto no se actualiza al validar un costo y se evita el choque con la RLS del
+    prestador.
+100. **`POST /api/activos/{id}/calcular` solo Admin empresa y superadmin**: el recálculo escribe tablas del tenant y el contexto
+    del prestador no las puede escribir; la tarea mensual lo hace con el rol sistema.
+101. **OCR de facturas y validación del CFDI ante el SAT son stubs de Fase 1**: devuelven `disponible: false` con el motivo y el
+    técnico captura los datos a mano; el modelo de datos (`validaciones_cfdi`, `estado_cfdi`) ya existe.
+102. **Adaptadores de ERP CONTPAQi y Microsip son Fase 2**: seleccionarlos deja los eventos en `omitido` con su motivo; en Fase 1
+    el contador descarga la exportación universal en XML o Excel.
+103. **Póliza de reposición de caja chica**: una por fondo y por día, con las 12 columnas literales de §6.5; si no hay gastos
+    aprobados sin consolidar, la generación devuelve vacío en lugar de repetir la póliza.
 
 ## Notas de entorno (esta máquina)
 
@@ -813,6 +920,7 @@
 - 2026-10-19: Docker Desktop no arrancaba por sockets huérfanos; se renombraron `%LOCALAPPDATA%\Docker\run` y
   `%LOCALAPPDATA%\docker-secrets-engine` (copias `*.viejo-20261019`, se pueden borrar).
 - 2026-10-27: mismo problema (`dockerInference`); copias `*.huerfano-20261027-*`, se pueden borrar.
+- 2026-11-02: tras reiniciar la maquina, Docker Desktop volvio a quedarse en el arranque del motor; misma correccion (cerrar Docker, `wsl --shutdown`, renombrar las carpetas); copias `*.huerfano-20261102-*`, se pueden borrar.
 - 2026-10-29: con pytest corriendo, `tsc` (typescript-go) se queda sin memoria en esta máquina (7 GB): cerrar los servidores de
   desarrollo viejos y correr `tsc`/vitest cuando pytest termina.
 - Zona horaria del horario de servicio: `zoneinfo` + paquete `tzdata` (ya en el venv) porque Windows no trae la base IANA.

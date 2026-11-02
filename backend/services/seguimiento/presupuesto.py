@@ -149,9 +149,19 @@ async def diferidos_de(db: AsyncSession, tenant_id: UUID, un_id: UUID | None = N
 async def monto_potencial(db: AsyncSession, actor: Actor, tenant_id: UUID | None) -> list[dict[str, Any]]:
     """Valor estratégico para el prestador: trabajo potencial diferido por UN (monto de cotizaciones asociadas o estimado)."""
     base.exigir_rol(actor, base.PRESTADOR | {Rol.admin_empresa, Rol.direccion_prestador}, "Consultar el monto potencial")
-    consulta = select(HallazgoPresupuesto.un_id, func.count(), func.coalesce(func.sum(HallazgoPresupuesto.monto_estimado), 0)).where(
-        HallazgoPresupuesto.estado == EstadoPresupuesto.diferido).group_by(HallazgoPresupuesto.un_id)
+    from models.costos import FolioCosto  # P09: el costo real del folio manda sobre el monto estimado
+
+    consulta = select(HallazgoPresupuesto).where(HallazgoPresupuesto.estado == EstadoPresupuesto.diferido)
     consulta = await base.alcance(db, actor, consulta, HallazgoPresupuesto)
     if tenant_id:
         consulta = consulta.where(HallazgoPresupuesto.tenant_id == tenant_id)
-    return [{"un_id": un_id, "diferidos": n, "monto_potencial": Decimal(m)} for un_id, n, m in (await db.execute(consulta)).all()]
+    filas = list((await db.execute(consulta)).scalars())
+    costos = {c.folio_id: c.costo_total for c in (await db.execute(select(FolioCosto).where(
+        FolioCosto.folio_id.in_({h.folio_id for h in filas if h.folio_id})))).scalars()} if any(h.folio_id for h in filas) else {}
+    por_un: dict = {}
+    for h in filas:
+        monto = costos.get(h.folio_id) if h.folio_id in costos else (h.monto_estimado or Decimal("0"))
+        fila = por_un.setdefault(h.un_id, {"un_id": h.un_id, "diferidos": 0, "monto_potencial": Decimal("0")})
+        fila["diferidos"] += 1
+        fila["monto_potencial"] += monto or Decimal("0")
+    return list(por_un.values())

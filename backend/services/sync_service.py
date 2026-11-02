@@ -265,8 +265,11 @@ async def _aplicar_una(db: AsyncSession, actor: Actor, m, mapa: dict[str, uuid.U
 
 
 async def aplicar_movimiento_inventario(db: AsyncSession, actor: Actor, refaccion: FolioRefaccion, dispositivo_id: str | None, ts: datetime | None) -> None:
-    """Gancho §6.2 "merge con alerta": P09 descuenta el stock y, si queda negativo, registra el conflicto y alerta al despachador."""
-    return None
+    """§6.2 «merge con alerta» (P09): ambos consumos offline se aplican; si la existencia queda negativa se registra el
+    conflicto en `sincronizacion_conflictos` y se dispara `STOCK_NEGATIVO` al despachador."""
+    from services import inventario_service
+
+    await inventario_service.aplicar_consumo_offline(db, actor, refaccion, dispositivo_id, ts)
 
 
 async def aplicar_mutaciones(db: AsyncSession, actor: Actor, lote, request: Request | None) -> tuple[list[dict[str, Any]], list]:

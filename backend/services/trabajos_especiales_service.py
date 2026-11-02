@@ -586,11 +586,17 @@ async def serializar(db: AsyncSession, actor: ActorFolio, tes: list[TrabajoEspec
     ids_usuarios = {t.creado_por_id for t in tes} | {t.tecnico_responsable_id for t in tes} | {UUID(x) for t in tes for x in t.tecnico_ids_json}
     usuarios = {u.id: u.nombre for u in (await db.execute(select(Usuario).where(Usuario.id.in_({i for i in ids_usuarios if i})))).scalars()}
     alertas = await seg_base.alertas_activas(db, [t.id for t in tes])
+    from models.costos import FolioCosto  # P09: el monto real del TE es el costo de su folio operativo
+
+    costos = {c.folio_id: c for c in (await db.execute(select(FolioCosto).where(
+        FolioCosto.folio_id.in_({t.folio_id for t in tes if t.folio_id})))).scalars()} if any(t.folio_id for t in tes) else {}
     salida = []
     for t in tes:
         un, eq, f = unidades.get(t.un_id), equipos.get(t.equipo_id), folios.get(t.folio_id)
         c, cr = cotizaciones.get(t.cotizacion_id), cotizaciones.get(t.cotizacion_retroactiva_id)
-        salida.append({**auditoria.instantanea(t), "id": t.id, "tenant_id": t.tenant_id, "prestador_id": t.prestador_id, "un_id": t.un_id, "equipo_id": t.equipo_id, "cotizacion_id": t.cotizacion_id,
+        costo = costos.get(t.folio_id)
+        salida.append({**auditoria.instantanea(t), "costo_real": costo.costo_total if costo else None, "costo_validado": bool(costo and costo.validado_at),
+                       "id": t.id, "tenant_id": t.tenant_id, "prestador_id": t.prestador_id, "un_id": t.un_id, "equipo_id": t.equipo_id, "cotizacion_id": t.cotizacion_id,
                        "hallazgo_id": t.hallazgo_id, "formulario_id": t.formulario_id, "respuesta_formulario_id": t.respuesta_formulario_id, "cotizacion_retroactiva_id": t.cotizacion_retroactiva_id,
                        "tecnico_responsable_id": t.tecnico_responsable_id, "folio_id": t.folio_id, "creado_por_id": t.creado_por_id, "created_at": t.created_at, "updated_at": t.updated_at,
                        "estado_desde": t.estado_desde, "enviado_at": t.enviado_at, "aceptado_at": t.aceptado_at, "programado_at": t.programado_at, "fecha_inicio": t.fecha_inicio, "fecha_cierre": t.fecha_cierre,

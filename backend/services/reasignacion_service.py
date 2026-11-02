@@ -58,9 +58,15 @@ async def candidatos(db: AsyncSession, actor: Actor, folio: Folio) -> list[dict[
         advertencias = []
         if not tiene:
             advertencias.append(f"Sin la habilidad requerida ({requerida})")
-        advertencias.append("Refacción no verificada: el inventario del vehículo llega en P09")
+        from services import inventario_service  # P09: existencia en el vehículo del candidato
+
+        refaccion_ok, faltantes = await inventario_service.tiene_materiales(db, u.id, folio)
+        if refaccion_ok is False:
+            advertencias.append("Sin las refacciones previstas en su vehículo: " + "; ".join(faltantes[:3]))
+        elif refaccion_ok is None:
+            advertencias.append("Refacción no verificada: el folio no tiene materiales con artículo de inventario")
         salida.append({"usuario_id": u.id, "tecnico_id": t.id, "nombre": u.nombre, "vehiculo_placas": t.vehiculo_placas, "habilidad_ok": tiene,
-                       "habilidad_requerida": requerida, "carga_dia": cargas.get(u.id, 0), "refaccion_ok": None, "es_actual": u.id == folio.tecnico_id,
+                       "habilidad_requerida": requerida, "carga_dia": cargas.get(u.id, 0), "refaccion_ok": refaccion_ok, "es_actual": u.id == folio.tecnico_id,
                        "advertencias": advertencias, "fecha": hoy.isoformat()})
     return salida
 
@@ -93,8 +99,13 @@ async def reasignar(db: AsyncSession, actor: Actor, folio: Folio, tecnico_destin
         if not (razon_sin_habilidad or "").strip():
             raise ErrorAPI(422, "RAZON_REQUERIDA", "Reasignar sin la habilidad requerida exige razón")
         advertencias.append(f"Asignado sin la habilidad {requerida} (permiso del despachador)")
-    refaccion_ok = None  # P09: inventario del vehículo
-    advertencias.append("Refacción no verificada (inventario del vehículo en P09)")
+    from services import inventario_service
+
+    refaccion_ok, faltantes = await inventario_service.tiene_materiales(db, usuario.id, folio)
+    if refaccion_ok is False:
+        advertencias.append("El vehículo del técnico destino no tiene las refacciones previstas: " + "; ".join(faltantes[:4]))
+    elif refaccion_ok is None:
+        advertencias.append("Sin refacciones previstas con artículo de inventario: no se verificó el vehículo")
     if advertencias and not confirmar_advertencias:
         raise ErrorAPI(409, "CONFIRMACION_REQUERIDA", "Hay advertencias; confirma explícitamente la reasignación", advertencias)
     origen_id = folio.tecnico_id

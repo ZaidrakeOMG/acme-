@@ -671,6 +671,13 @@ async def _p08(db: AsyncSession, folio: Folio) -> dict[str, Any]:
                                  "fecha_programada": te.fecha_programada, "tecnico_responsable_id": te.tecnico_responsable_id, "tecnicos": te.tecnico_ids_json} if te else None}
 
 
+async def _financiero(db: AsyncSession, actor: Actor, folio: Folio) -> dict[str, Any]:
+    """P09: costo del folio, refacciones con su importe y gastos de caja chica (§6.8.6 «datos financieros»)."""
+    from services import costos_service
+
+    return await costos_service.detalle_financiero(db, actor, folio) or {}
+
+
 async def _reasignaciones(db: AsyncSession, folio: Folio) -> list[dict[str, Any]]:
     from services import reasignacion_service  # import local: reasignacion_service depende de este módulo
 
@@ -719,8 +726,9 @@ async def detalle(db: AsyncSession, actor: Actor, folio: Folio) -> dict[str, Any
         "reasignaciones": await _reasignaciones(db, folio), "evidencias": evidencias, **await _seguimiento_p07(db, folio), **await _p08(db, folio),
         "formulario_atencion": await _vinculo(db, ate), "refacciones": refacciones,
         "sla": sla, "encuesta": encuesta, "triggers_revision": triggers, "aprobacion": base["flujo"],
+        "financiero": await _financiero(db, actor, folio),
         "decisiones": [{"id": d.id, "flujo_id": d.flujo_id, "nivel": d.nivel, "actor_id": d.actor_id, "actor_nombre": nombres.get(d.actor_id),
                         "decision": d.decision, "razon_rechazo": d.razon_rechazo, "modulo_destino": d.modulo_destino,
                         "modulo_destino_id": d.modulo_destino_id, "canal": d.canal, "timestamp": d.timestamp, "notas": d.notas} for d in decisiones],
-        "chat": [], "financiero": {}, "acciones": folio_estados.destinos_de(actor, folio.estado), "puede_aprobar": puede_aprobar,
+        "chat": [], "acciones": folio_estados.destinos_de(actor, folio.estado), "puede_aprobar": puede_aprobar,
     }

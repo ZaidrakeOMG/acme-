@@ -293,6 +293,7 @@ class FolioRefaccion(ConVersion, Base):
     origen: Mapped[OrigenRefaccion] = mapped_column(pg_enum(OrigenRefaccion, "origen_refaccion"), default=OrigenRefaccion.almacen)
     costo_unitario: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     gasto_caja_chica_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    ubicacion_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # P09: ubicación de la que se descontó
 
 
 class FolioSLA(ConVersion, Base):

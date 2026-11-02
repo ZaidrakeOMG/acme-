@@ -183,6 +183,26 @@ Correo saliente: deja `SMTP_HOST` vacío para el modo *stub* (los `.eml` quedan 
 `APP_URL_PUBLICA` es la base de los enlaces. Para PDF con diseño instala el runtime GTK3 (WeasyPrint); sin él se genera un PDF
 mínimo de texto.
 
+## Inventario, costos y activos (P09)
+
+Los tres orígenes de refacción de §6.4: existencias del almacén y del vehículo de cada técnico con costo promedio ponderado,
+orden de compra cuando la refacción no está en inventario y compra directa en refaccionaria pagada con caja chica. El gasto de
+caja chica se captura con la foto de la factura desde la atención del folio y el Admin prestador lo aprueba en un toque: eso da
+de alta la refacción, mueve el inventario y carga al fondo del técnico. Al cerrar un folio se calcula su costo (refacciones más
+horas por la tarifa vigente) y al validarlo se carga a los presupuestos de la UN, de sus grupos y del tipo de actividad, con
+tablero consolidado y semáforo. La ficha de cada equipo reúne historial, refacciones, depreciación (cuatro métodos) y costo total
+de propiedad, y recomienda el reemplazo cuando el TCO supera el porcentaje configurado de su valor de reposición. La integración
+con ERPs es una capa desacoplada: ACMA genera eventos en su formato interno y, en Fase 1, el contador descarga la exportación
+universal en XML de pólizas o Excel configurable.
+
+| Módulo | Ruta | Quién entra |
+|---|---|---|
+| Inventario | `/inventario` | Admin prestador, despachador, mesa de control, técnico (su vehículo) |
+| Caja chica | `/caja-chica` | Admin prestador (aprueba), técnico (captura) |
+| Presupuestos | `/presupuestos` | Admin empresa (alta), Admin UN y supervisores (lectura) |
+| Equipos y activos | `/activos` | Admin empresa, Admin UN, prestador |
+| Integración ERP | `/erp` | Admin prestador, dirección, mesa de control |
+
 ## Trabajos especiales y OC de activos (P08)
 
 - `/trabajos-especiales`: el prestador (Admin prestador, Mesa de control, Despachador) crea el TE —o lo convierte desde una cotización

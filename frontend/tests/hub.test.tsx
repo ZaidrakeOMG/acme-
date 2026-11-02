@@ -18,7 +18,10 @@ describe('RoleHub', () => {
     await entrarComo('superadmin')
     await screen.findByRole('heading', { name: /Hola/ })
     for (const m of MODULOS) expect(screen.getByTestId(`modulo-${m.id}`)).toBeInTheDocument()
-    expect(within(screen.getByTestId('modulo-inventario')).getByText('Disponible en el prompt P09')).toBeInTheDocument()
+    expect(within(screen.getByTestId('modulo-sla')).getByText('Disponible en el prompt P10')).toBeInTheDocument()
+    expect(screen.getByTestId('modulo-inventario')).toHaveAttribute('href', '/inventario')
+    expect(screen.getByTestId('modulo-presupuestos')).toHaveAttribute('href', '/presupuestos')
+    expect(screen.getByTestId('modulo-activos')).toHaveAttribute('href', '/activos')
     expect(screen.getByTestId('modulo-trabajos_especiales')).toHaveAttribute('href', '/trabajos-especiales')
     expect(screen.getByTestId('modulo-oc_activos')).toHaveAttribute('href', '/oc-activos')
     expect(screen.getByTestId('modulo-minuta')).toHaveAttribute('href', '/minutas')
@@ -42,13 +45,15 @@ describe('RoleHub', () => {
     },
   )
 
-  it('técnico: sus módulos futuros no son enlaces y muestran el prompt', async () => {
+  it('técnico: ve sus módulos construidos como enlaces y no los de otros roles', async () => {
     await entrarComo('tecnico')
     const tarjeta = await screen.findByTestId('modulo-inventario')
-    expect(tarjeta.tagName).toBe('ARTICLE')
-    expect(within(tarjeta).getByText('Disponible en el prompt P09')).toBeInTheDocument()
+    expect(tarjeta.tagName).toBe('A')
+    expect(tarjeta).toHaveAttribute('href', '/inventario')
     expect(screen.getByTestId('modulo-app_campo')).toHaveAttribute('href', '/campo')
+    expect(screen.getByTestId('modulo-caja_chica')).toHaveAttribute('href', '/caja-chica')
     expect(screen.queryByTestId('modulo-usuarios')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('modulo-presupuestos')).not.toBeInTheDocument()
   })
 
   it('admin empresa ve administración de su tenant pero no prestadores ni auditoría', async () => {

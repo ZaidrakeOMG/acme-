@@ -30,6 +30,10 @@ celery_app.conf.update(
         "generar-minutas": {"task": "acma.generar_minutas", "schedule": 600.0},
         "enviar-notificaciones-pendientes": {"task": "acma.enviar_notificaciones_pendientes", "schedule": 120.0},
         "calificar-admin-un": {"task": "acma.calificar_admin_un", "schedule": crontab(hour=6, minute=30)},
+        # P09: reposición de caja chica al cierre de jornada, depreciación y TCO mensuales, exportación opcional al ERP.
+        "polizas-caja-chica": {"task": "acma.generar_polizas_caja_chica", "schedule": crontab(hour=23, minute=0)},
+        "depreciacion-tco": {"task": "acma.calcular_depreciacion_tco", "schedule": crontab(hour=3, minute=30, day_of_month=1)},
+        "exportar-erp-periodo": {"task": "acma.exportar_erp_periodo", "schedule": crontab(hour=4, minute=0, day_of_month=1)},
     },
 )
 

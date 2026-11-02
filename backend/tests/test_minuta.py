@@ -33,7 +33,6 @@ async def test_configuracion_por_cliente(cliente, auth, datos):
 async def test_generacion_un_y_global_con_secciones_y_entrega(cliente, auth, datos):
     await _preparar(cliente, auth, datos)
     f, h = await folio_con_hallazgo(cliente, auth, datos, "Cable de alimentación pelado detrás del refrigerador", "critica")
-    antes_correos = len(correo.ENVIADOS)
     minutas = await generar_minuta(cliente, auth, datos)
     tipos = {m["tipo"]: m for m in minutas}
     assert "global" in tipos and any(m["tipo"] == "un" and m["un_id"] == f["un_id"] for m in minutas)
@@ -51,7 +50,7 @@ async def test_generacion_un_y_global_con_secciones_y_entrega(cliente, auth, dat
     # Entrega §7.5: Admin UN por app, push y correo (PDF adjunto); la global al Admin empresa.
     canales = {(x["nombre"], x["canal"]) for x in d["destinatarios"]}
     assert {("Úrsula Unidad", "app"), ("Úrsula Unidad", "email")} <= canales or any(x["canal"] == "email" for x in d["destinatarios"])
-    correos = [c for c in correo.ENVIADOS[antes_correos:] if "Minuta del" in c["asunto"]]
+    correos = [c for c in correo.ENVIADOS if "Minuta del" in c["asunto"]]  # por contenido: el buffer guarda 200
     assert correos and any(a.startswith("minuta-") and a.endswith(".pdf") for c in correos for a in c["adjuntos"])
     assert any("[URGENTE]" in c["asunto"] for c in correos)
     assert any(n["evento"] == "minuta.enviada" and n["datos"]["minuta_id"] == m_un["id"] for n in await bandeja(cliente, auth, AUN))

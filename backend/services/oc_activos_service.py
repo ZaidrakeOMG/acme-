@@ -325,6 +325,9 @@ async def alta_equipo(db: AsyncSession, folio: Folio, actor: ActorFolio, aut: Fo
                               recurso_tipo="equipo", recurso_id=equipo.id, despues={"codigo": codigo, "folio": folio.numero_folio, "incompleto": incompleto, "datos": datos})
     if aut is not None:
         await _historial(db, folio, aut.estatus_multinivel.value, aut.estatus_multinivel.value, actor, f"Equipo {codigo} dado de alta al cerrar" + (" (ficha incompleta)" if incompleto else ""))
+    from services.erp import eventos as erp_eventos  # §6.6: crear activo fijo en el ERP del tenant
+
+    await erp_eventos.crear_activo_fijo(db, folio, equipo)
     if incompleto:
         await alertas_service.disparar(db, "ACTIVO_INSTALADO_INCOMPLETO", tenant_id=folio.tenant_id, prestador_id=folio.prestador_id, entidad_tipo="equipo", entidad_id=equipo.id,
                                        datos={"codigo": codigo, "numero_folio": folio.numero_folio, "faltan": ["tipo_equipo"], "un": un.codigo if un else None})

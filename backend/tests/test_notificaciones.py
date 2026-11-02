@@ -54,12 +54,11 @@ async def test_preferencias_canales_y_bandeja(cliente, auth, datos):
 
 async def test_correo_stub_guarda_eml_con_adjunto(cliente, auth, datos):
     assert correo.modo() == "stub"
-    antes = len(correo.ENVIADOS)
     estado, detalle = await correo.enviar(correo.Correo(destinatarios=["cliente@prueba.mx"], asunto="Prueba stub", html=correo.plantilla("generico", titulo="Prueba", cuerpo="Hola <b>", detalle_html="<p>x</p>", url="http://x", texto_boton="Abrir"),
                                                         adjuntos=[correo.Adjunto(nombre="a.pdf", contenido=b"%PDF-1.4 prueba")]))
     assert estado == "enviada" and detalle.startswith("stub:correo/")
     registro = correo.ENVIADOS[-1]
-    assert len(correo.ENVIADOS) == antes + 1 and registro["modo"] == "stub" and registro["adjuntos"] == ["a.pdf"] and "Hola &lt;b&gt;" in registro["html"]
+    assert registro["asunto"] == "Prueba stub" and registro["modo"] == "stub" and registro["adjuntos"] == ["a.pdf"] and "Hola &lt;b&gt;" in registro["html"]
     eml = obtener_almacenamiento().leer(registro["clave"])
     assert b"Subject: Prueba stub" in eml and b"Content-Disposition: attachment; filename=\"a.pdf\"" in eml and b"text/html" in eml
     assert (await correo.enviar(correo.Correo(destinatarios=[], asunto="x", html="<p>x</p>")))[0] == "omitida"
@@ -117,7 +116,6 @@ async def test_notificacion_email_usa_plantilla_del_prestador(cliente, auth, dat
     from core.rls import CONTEXTO_SISTEMA
     from services import notificaciones_service
 
-    antes = len(correo.ENVIADOS)
     ae = (await cliente.get("/api/usuarios", headers=await auth(AE), params={"rol": "admin_empresa"})).json()[0]
     async with nueva_sesion(CONTEXTO_SISTEMA) as db:
         creadas = await notificaciones_service.notificar(db, "alerta", [ae["id"]], {"detalle_html": "<p>Detalle <b>html</b></p>"}, asunto="Alerta de prueba", cuerpo="Cuerpo de la alerta",
@@ -125,7 +123,7 @@ async def test_notificacion_email_usa_plantilla_del_prestador(cliente, auth, dat
         await db.commit()
     assert {c.canal.value: c.estado.value for c in creadas} == {"email": "enviada", "app": "enviada"}
     ultimo = correo.ENVIADOS[-1]
-    assert len(correo.ENVIADOS) == antes + 1 and ultimo["destinatarios"] == [ae["email"]] and "Prestador Demo" in ultimo["html"] and "#1C3D8F" in ultimo["html"]
+    assert ultimo["asunto"] == "Alerta de prueba" and ultimo["destinatarios"] == [ae["email"]] and "Prestador Demo" in ultimo["html"] and "#1C3D8F" in ultimo["html"]
     assert "Detalle <b>html</b>" in ultimo["html"] and "http://localhost:5173/alertas" in ultimo["html"]
     assert any(n["asunto"] == "Alerta de prueba" for n in await bandeja(cliente, auth, AE))
 

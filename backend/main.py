@@ -8,8 +8,8 @@ from core.errors import registrar_manejadores
 from core.middleware import configurar_cors, instalar_middleware
 from routers import (
     alertas, auditoria, auth, catalogos_equipos, catalogos_importar, catalogos_tecnicos, chat, configuracion, contratos,
-    clasificacion, folios, formularios, grupos_un, minutas, notificaciones, oc_activos, prestadores, preventivos, push, reasignaciones, seguimiento, sync, tenants,
-    trabajos_especiales, unidades_negocio, usuarios,
+    activos, caja_chica, clasificacion, erp, folios, formularios, grupos_un, inventario, minutas, notificaciones, oc_activos, prestadores, presupuestos,
+    preventivos, push, reasignaciones, seguimiento, sync, tenants, trabajos_especiales, unidades_negocio, usuarios,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -31,7 +31,7 @@ configurar_cors(app)
 
 for modulo in (auth, usuarios, tenants, prestadores, unidades_negocio, grupos_un, contratos, alertas, configuracion, auditoria,
                catalogos_tecnicos, catalogos_equipos, catalogos_importar, formularios, folios, chat, sync, push, preventivos, reasignaciones, minutas, seguimiento, clasificacion, notificaciones,
-               trabajos_especiales, oc_activos):
+               trabajos_especiales, oc_activos, inventario, caja_chica, presupuestos, erp, activos):
     app.include_router(modulo.router)
 
 
