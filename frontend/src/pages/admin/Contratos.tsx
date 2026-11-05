@@ -60,7 +60,7 @@ export function Contratos() {
     <div>
       <Encabezado
         titulo="Contratos y SLAs"
-        descripcion="Un contrato por relación cliente–prestador (§6.10.1): vigencia, modalidad por evento o iguala, SLA y penalización por cada nivel de severidad, cumplimiento del período y exclusiones justificadas."
+        descripcion="Un contrato por relación cliente–prestador: vigencia, modalidad por evento o iguala, SLA y penalización por cada nivel de severidad, cumplimiento del período y exclusiones justificadas."
         acciones={puedeEditar && vista === 'contratos' ? <Boton onClick={() => setEditar('nuevo')}>Nuevo contrato</Boton> : undefined}
       />
       <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Vistas de contratos">
@@ -159,7 +159,7 @@ function FormularioContrato({ contrato, tenants, soloLectura, alGuardar }: { con
       const resol = s.tiempo_resolucion * f
       return !(resp >= 1 && resol <= 4320 && resol >= resp)
     })
-    if (invalido) return setError('Cada nivel requiere entre 1 y 4,320 horas equivalentes y resolución ≥ respuesta (§6.10.1)')
+    if (invalido) return setError('Cada nivel requiere entre 1 y 4,320 horas equivalentes y resolución ≥ respuesta')
     if (modalidad === 'iguala' && !(Number(folios) >= 0 && Number(tarifa) > 0)) {
       return setError('La modalidad iguala requiere la tarifa mensual y los correctivos incluidos')
     }
@@ -385,7 +385,7 @@ function BandejaExclusiones() {
 
   return (
     <Tarjeta titulo="Exclusiones de SLA">
-      <p className="mb-2 text-sm text-slate-600">El prestador registra la causa y el período; el Admin empresa decide (§6.10.1).
+      <p className="mb-2 text-sm text-slate-600">El prestador registra la causa y el período; el Admin empresa decide.
         Solo los períodos aprobados se descuentan del contador, incluso si el folio ya cerró.</p>
       <label className="mb-2 flex items-center gap-1 text-sm"><input type="checkbox" checked={pendientes}
         onChange={(e) => setPendientes(e.target.checked)} /> Solo las pendientes de decisión</label>

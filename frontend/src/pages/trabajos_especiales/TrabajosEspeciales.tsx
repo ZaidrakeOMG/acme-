@@ -59,7 +59,7 @@ export function TrabajosEspeciales() {
 
   return (
     <div>
-      <Encabezado titulo="Trabajos especiales" descripcion="Servicios fuera del mantenimiento regular (§6.10.6): creación, validación del cliente por botón, programación, ejecución con formulario propio y cierre con evidencia y firma. Los TE de urgencia nacen del cliente sin monto."
+      <Encabezado titulo="Trabajos especiales" descripcion="Servicios fuera del mantenimiento regular: creación, validación del cliente por botón, programación, ejecución con formulario propio y cierre con evidencia y firma. Los TE de urgencia nacen del cliente sin monto."
         acciones={puedeCrear ? <Boton onClick={() => setCreando(true)}>{esCliente ? 'Crear TE de urgencia' : 'Nuevo trabajo especial'}</Boton> : undefined} />
       <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Vistas">
         {vistas.map(({ v, texto }) => <button key={v} role="tab" aria-selected={vista === v} className={`rounded-lg px-3 py-1.5 text-sm ${vista === v ? 'bg-primario text-white' : 'border border-slate-300'}`} onClick={() => ir({ vista: v, registro: null })}>{texto}</button>)}

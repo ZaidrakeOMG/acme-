@@ -2,6 +2,114 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-05 · P11a — Endurecimiento: seguridad, rendimiento, respaldos y paquete de producción
+
+Sin funcionalidad nueva. Tres commits: `129e6e9` seguridad, `2fb5a71` rendimiento y respaldos, y el de documentación
+y paquete de producción.
+
+### Seguridad (§6.9.5)
+
+- **Sesión en cookie.** El refresh deja `localStorage` y pasa a la cookie `httpOnly` `acma_refresh` (ruta
+  `/api/auth`, `SameSite=Strict`, `Secure` en producción) con doble envío por la cabecera `X-ACMA-CSRF`. El token de
+  acceso vive en memoria y en `localStorage` queda solo una marca sin valor, para saber si vale la pena intentar
+  renovar al abrir la app: recargar sin red **no** cierra la sesión y el modo offline de P05 sigue funcionando.
+- **Vida de la sesión:** 8 h, 2 h para roles administrativos, heredada en cada rotación (renovar no regala otras 8 h)
+  y cierre a los 30 min de inactividad.
+- **Contraseñas:** vencimiento a 90 días para roles administrativos con un 403 `CONTRASENA_VENCIDA` en todo menos el
+  propio perfil, el cambio y el cierre de sesión; restablecimiento por correo con token de un solo uso de 30 min que
+  revoca las sesiones abiertas. Pantallas nuevas: cambio obligatorio, «olvidé mi contraseña» y el enlace del correo.
+- **MFA:** el mismo código TOTP no se acepta dos veces dentro de su ventana (`usuarios.mfa_ultimo_paso`).
+- **Auditoría:** acceso a datos sensibles (costos del folio, descarga de reportes, detalle de folio cerrado) con
+  tabla, id y número de registros; ip y geolocalización aproximada en los eventos de login; aviso al superadmin
+  cuando una IP queda bloqueada.
+- **Retención de `audit_accesos_api`:** 90 días las llamadas normales y 1 año los errores 4xx/5xx, copiados a
+  `audit_accesos_api_errores` antes de soltar la partición. Siempre `DETACH`+`DROP`, nunca `DELETE`, para no tocar la
+  auditoría. Tarea `acma.purgar_accesos_api` a las 03:50.
+- **Cifrado de archivos con llave por dueño** (lo que el diseño §2.5 pide y faltaba): sobre AES-256-GCM con llave
+  derivada por HKDF para cada cliente o prestador y la ruta del objeto firmada como datos autenticados, así que un
+  archivo no se puede mover al expediente de otro cliente. Lo escrito antes sigue legible.
+- **§6.7:** trigger `acma_evidencia_folio_inmutable` para que la evidencia de un folio cerrado no se pueda borrar ni
+  desde la base, más pruebas del saldo de caja chica y de que los sellos de fecha y la geolocalización no son
+  editables.
+- **Cabeceras y secretos:** HSTS solo en producción, COOP y CORP nuevas, CSP estricta forzada por entorno y
+  `X-ACMA-CSRF` en CORS; el guardia de producción rechaza valores de ejemplo en diez variables, la clave de cifrado
+  del `.env.example`, CORS vacío y `APP_URL_PUBLICA` sin https. `.env.production.example` y
+  `generar_secretos.py --compose`.
+- **Dependencias:** `pip-audit` sin vulnerabilidades; `npm audit` de 10 avisos a 6, todos de la cadena de
+  construcción. Imágenes de Docker fijadas por versión exacta o digest.
+- `docs/seguridad/checklist_iso27001.md` con cada requisito, su implementación y la prueba que lo verifica.
+
+**La prueba de acceso cruzado generada desde las rutas de la app (ACT-1.6) encontró dos fallas reales:**
+`usuario_actual` reventaba con `AttributeError` en el canal SSE del chat al leer la ruta, y
+`GET /api/seguimiento/por-un/{un_id}` respondía 200 con listas vacías para una UN de otro cliente, lo que confirmaba
+su existencia. Y `tests/test_seguridad.py` envejecía **todas** las sesiones de la base (la política deja al rol
+`sistema` tocar cualquier fila), lo que tumbaba 34 pruebas del final de la suite: ahora usa su propio usuario.
+
+### Rendimiento (ACT-1.6, §6.7)
+
+Pruebas de carga con Locust en `backend/pruebas_carga/`: 50 técnicos sincronizando y atendiendo folios, 20 de oficina
+en listados, detalle, minuta, tablero y SLA, y el operador capturando. Cuatro defectos encontrados y corregidos:
+
+1. **El pool de conexiones se agotaba:** 128 de 724 peticiones fallaban (17.7 %) con `QueuePool limit of size 10
+   overflow 10`. Ahora es configurable y la espera baja de 30 s a 10 s.
+2. **argon2 bloqueaba el event loop:** 110 ms de CPU por verificación, llamados de forma síncrona dentro de
+   funciones `async`. Ahora en un hilo, con tope de concurrencia, y el historial de contraseñas corta en la primera
+   coincidencia. Los parámetros de argon2 no se tocaron.
+3. **Tres cachés que no cacheaban:** `d.setdefault(k, await f())` evalúa el `await` siempre, así que había una
+   consulta por elemento del ciclo en tres lugares.
+4. **Faltaban índices:** el listado de folios ordena siempre por `capturado_at DESC` y hacía `Seq Scan` +
+   `top-N heapsort` sobre los 1,433 folios del cliente para devolver 50 (migración `0012`).
+
+Resultado: de 17.7 % de errores y mediana de 29 s a 0.02–0.6 % de errores y mediana de 1–2 s, con siete veces más
+peticiones atendidas. `docs/rendimiento/resultados.md` lleva el antes y después, el costo real de cada endpoint sin
+carga, la memoria medida y el servidor recomendado para 50 y para 500 técnicos — y dice sin adornos que los
+percentiles de estas corridas no sirven para comprometer un SLA, porque el generador de carga comparte los 8 núcleos
+de esta máquina.
+
+### Respaldos (§6.9.5, ACT-10.1)
+
+- `scripts/respaldo.sh`: base completa en formato custom comprimido más los objetos de MinIO, **verificación de lo
+  que acaba de escribir** (`pg_restore --list` y presencia de las tablas críticas), registro de conteos para el
+  cotejo, rotación 14/8/12 y copia opcional a otra región.
+- `scripts/restaurar.sh`: recrea la base, carga con `--jobs=4`, **coteja los conteos de nueve tablas críticas** y
+  falla si alguna no cuadra, informa la versión de esquema y repone los archivos. Sobre producción exige escribir el
+  nombre de la base.
+- Medido: respaldo 21 s, restauración 47 s (20 s la base, 9 s los archivos), 9/9 tablas cotejadas, esquema `0012`.
+- `docs/operacion/recuperacion_desastres.md` con el procedimiento, la extrapolación por volumen, la plantilla de la
+  prueba trimestral y el aviso de que **el respaldo diario da un RPO de hasta 24 h, no de 1 h**: para cumplirlo hace
+  falta archivado continuo de WAL, con sus opciones y su costo documentados.
+- `tests/test_respaldo.py` automatiza el ensayo completo; se activa con `ACMA_PRUEBA_RESPALDO=1`.
+
+### Paquete de producción
+
+`Dockerfile` del backend (dos etapas, usuario sin privilegios, WeasyPrint con sus librerías nativas: en el servidor
+los PDF salen con el diseño completo), imagen del frontend que compila la PWA y la sirve con Caddy, y
+`docker-compose.prod.yml` con proxy, API (gunicorn + uvicorn), worker, beat, PostgreSQL, Redis con contraseña y
+MinIO: healthchecks y límites de memoria en todos, migraciones en un servicio de una sola ejecución del que depende
+la API. `seed_produccion.py` crea solo el superadmin —con contraseña temporal que nace vencida— y las cuatro
+plantillas base: ningún dato demo. Observabilidad: logs de una línea en JSON y `/api/salud/detalle` con base de
+datos, Redis, almacenamiento y Celery.
+
+**Probado completo en local** con `ACMA_DOMINIO=localhost`, y el ensayo encontró cuatro fallas reales que ya están
+corregidas: `/api/*` servía el `index.html` de la PWA (Caddy ejecuta `try_files` antes de `reverse_proxy`), el beat
+de Celery no arrancaba por el dueño del volumen de su calendario, el healthcheck del worker preguntaba por un nodo
+inexistente (`$HOSTNAME` sin shell que lo expanda) y `seed_produccion.py` aceptaba un correo que el login rechaza,
+con lo que creaba un superadmin incapaz de entrar.
+
+### Documentación y limpieza
+
+- `docs/decisiones_para_validar.md`: 28 preguntas para el negocio, en lenguaje llano, cada una con la opción que
+  eligió el sistema y qué cambia si se responde distinto. Las 124 decisiones pendientes quedaron clasificadas en
+  CONTEXTO.md (resueltas, requieren validación, Fase 2).
+- `docs/operacion/despliegue.md` y `monitoreo.md`; README con índice de documentos, sección de producción y las
+  secciones de cada prompt en orden.
+- **Textos internos fuera de la interfaz:** 34 referencias al documento de diseño (`§6.9.4`) y a los prompts
+  (`(P09)`, «Disponible en el prompt Pxx») que el usuario final veía en pantalla. Se quitó también el campo `prompt`
+  del catálogo de módulos y la rama muerta del hub, porque los 27 módulos ya tienen pantalla.
+
+**Pruebas:** 394 pytest (1 saltado a propósito: el ciclo de respaldo), 109 vitest, `tsc --noEmit` y `npm run build`
+en verde, con los servidores de desarrollo apagados.
+
 ## 2026-11-02 · P10 — Contratos y SLA, configuración central de alertas, tableros y reportes ejecutivos
 
 - Migración `0010`: `folio_sla_pausas`, `folio_sla_exclusiones`, `penalizaciones_periodo`, `iguala_consumo_periodo`,

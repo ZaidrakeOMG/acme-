@@ -75,7 +75,7 @@ export function Dashboard() {
   return (
     <div>
       <Encabezado titulo="Inteligencia de negocio"
-        descripcion="Indicadores del período con la jerarquía cliente → grupo → unidad de negocio (§6.8.5). Cada valor se muestra también en texto; los cálculos se hacen en el servidor y se guardan 120 segundos en caché."
+        descripcion="Indicadores del período con la jerarquía cliente → grupo → unidad de negocio. Cada valor se muestra también en texto; los cálculos se hacen en el servidor y se guardan 120 segundos en caché."
         acciones={<Link className="text-sm text-primario underline" to="/bi/reportes">Reportes ejecutivos</Link>} />
       <div className="mb-4 flex flex-wrap items-end gap-2">
         <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => ir({ desde: e.target.value })} />

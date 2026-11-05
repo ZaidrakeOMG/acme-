@@ -232,8 +232,9 @@ export function FolioDetalle() {
           </dl>
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">SLA</h3>
           {d.sla ? (
-            <p className="text-sm">Respuesta {d.sla.tiempo_respuesta_prometido_horas} h · Resolución {d.sla.tiempo_resolucion_prometido_horas} h
-              <span className="text-xs text-slate-500"> (reales y pausas en P10)</span></p>
+            <p className="text-sm">Comprometido: respuesta {d.sla.tiempo_respuesta_prometido_horas} h · resolución
+              {' '}{d.sla.tiempo_resolucion_prometido_horas} h
+              <span className="text-xs text-slate-500"> · los tiempos reales y las pausas están más abajo</span></p>
           ) : <p className="text-sm text-slate-500">Se fija al autorizar.</p>}
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Evidencias ({d.evidencias.length})</h3>
           <ul className="text-sm">{d.evidencias.map((e) => <li key={e.id}><Insignia>{e.tipo}</Insignia> <span className="font-mono text-xs">{e.archivo_key}</span> · {fecha(e.timestamp_captura)}</li>)}</ul>
@@ -244,10 +245,10 @@ export function FolioDetalle() {
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Refacciones ({d.refacciones.length})</h3>
           <ul className="text-sm">{d.refacciones.map((r) => <li key={r.id}>{r.cantidad} × {r.descripcion} · {r.origen} · ${r.costo_unitario}</li>)}</ul>
           {d.folio.estado === 'pendiente_refaccion' && (
-            <p className="mt-1 text-sm"><Link className="text-primario underline" to={`/inventario?vista=ordenes`}>Generar orden de compra</Link> para la refacción que falta (§6.4 Tipo B).</p>
+            <p className="mt-1 text-sm"><Link className="text-primario underline" to={`/inventario?vista=ordenes`}>Generar orden de compra</Link> para la refacción que falta.</p>
           )}
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Encuesta</h3>
-          <p className="text-sm">{d.encuesta ? `NPS ${d.encuesta.nps_score}` : 'Sin encuesta (P05).'}</p>
+          <p className="text-sm">{d.encuesta ? `NPS ${d.encuesta.nps_score}` : 'Sin encuesta.'}</p>
           <h3 className="mt-3 text-xs font-semibold uppercase text-slate-500">Reasignaciones ({d.reasignaciones.length})</h3>
           {d.reasignaciones.length === 0 ? <p className="text-sm text-slate-500">Sin reasignaciones.</p> : (
             <ul className="text-sm" data-testid="reasignaciones">

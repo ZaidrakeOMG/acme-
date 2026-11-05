@@ -11,7 +11,7 @@ export function Severidades() {
   const [editar, setEditar] = useState<Severidad | null>(null)
   return (
     <Tarjeta titulo="Niveles de severidad" >
-      <p className="mb-3 text-sm text-slate-600">Los 5 niveles del prestador (§6.10.1). Los tiempos son de referencia; los contractuales se fijan en cada contrato.</p>
+      <p className="mb-3 text-sm text-slate-600">Los 5 niveles del prestador. Los tiempos son de referencia; los contractuales se fijan en cada contrato.</p>
       {error && <Aviso>{error}</Aviso>}
       <Tabla
         filas={datos ?? []}

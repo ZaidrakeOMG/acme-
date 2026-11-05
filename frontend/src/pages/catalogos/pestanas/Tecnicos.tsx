@@ -191,7 +191,7 @@ function FichaTecnico({ tecnico, habilidades, grupos, alCambiar }: {
 
       {editar && tenants.datos && (
         <section>
-          <h3 className="mb-2 font-semibold text-slate-800">Clientes adicionales que puede atender (§6.10.8)</h3>
+          <h3 className="mb-2 font-semibold text-slate-800">Clientes adicionales que puede atender</h3>
           {tenants.datos.map((t) => (
             <label key={t.id} className="flex items-center gap-2">
               <input type="checkbox" checked={tecnico.tenants_habilitados.includes(t.id)}

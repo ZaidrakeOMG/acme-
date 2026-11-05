@@ -128,7 +128,7 @@ describe('Reasignación forzada', () => {
     expect(await screen.findByText('3 reasignaciones')).toBeInTheDocument()
     expect(within(screen.getByTestId('por-razon')).getByText('66.7%')).toBeInTheDocument()
     expect(within(screen.getByTestId('por-razon')).getByText('Incidencia del técnico')).toBeInTheDocument()
-    expect(screen.getByText('Catálogo de razones (§6.8.2)')).toBeInTheDocument()
+    expect(screen.getByText('Catálogo de razones')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Agregar' })).toBeInTheDocument()
   })
 })

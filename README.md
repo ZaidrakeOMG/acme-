@@ -11,6 +11,23 @@ de servicio de mantenimiento. Referencia obligatoria: `ACMA_Documento_Diseno_v2.
 | Frontend | React 19 + TypeScript estricto + Vite, PWA (vite-plugin-pwa), Tailwind 4, react-router, react-hook-form + zod, Dexie |
 | Archivos | MinIO (S3-compatible) en desarrollo |
 | Pruebas | pytest + pytest-asyncio + httpx · vitest + testing-library |
+| Producción | Docker Compose: Caddy (HTTPS automático), gunicorn + uvicorn, Celery, PostgreSQL, Redis, MinIO |
+
+## Dónde está cada cosa
+
+| Si busca… | Lea |
+|---|---|
+| Qué hay hecho, qué se decidió y por qué | [`CONTEXTO.md`](CONTEXTO.md) |
+| Qué se hizo cada día | [`BITACORA.md`](BITACORA.md) |
+| **Decisiones que el negocio debe confirmar** | [`docs/decisiones_para_validar.md`](docs/decisiones_para_validar.md) |
+| Cómo publicar en un servidor nuevo, actualizar y revertir | [`docs/operacion/despliegue.md`](docs/operacion/despliegue.md) |
+| Qué revisar cada día en producción | [`docs/operacion/monitoreo.md`](docs/operacion/monitoreo.md) |
+| Respaldos, restauración y qué hacer si se pierde el servidor | [`docs/operacion/recuperacion_desastres.md`](docs/operacion/recuperacion_desastres.md) |
+| Estado de cada requisito de seguridad ISO 27001 | [`docs/seguridad/checklist_iso27001.md`](docs/seguridad/checklist_iso27001.md) |
+| Cuánta carga aguanta y qué servidor hace falta | [`docs/rendimiento/resultados.md`](docs/rendimiento/resultados.md) |
+| Cómo medir la carga otra vez | [`backend/pruebas_carga/README.md`](backend/pruebas_carga/README.md) |
+| Contrato de los 22 tipos de campo de formularios | [`docs/formularios/tipos_de_campo.md`](docs/formularios/tipos_de_campo.md) |
+| Qué significa cada indicador de BI | [`docs/bi/indicadores.md`](docs/bi/indicadores.md) |
 
 ## Requisitos en Windows
 
@@ -112,19 +129,33 @@ npm run build                               # tsc + vite build + service worker
 
 ```
 acma/
-  README.md, CONTEXTO.md, BITACORA.md, docker-compose.yml, .env.example
+  README.md, CONTEXTO.md, BITACORA.md
+  docker-compose.yml                desarrollo (PostgreSQL + PostGIS, Redis, MinIO)
+  docker-compose.prod.yml           produccion (Caddy, API, Celery, PostgreSQL, Redis, MinIO)
+  .env.example, .env.production.example
   docker/postgres/01_roles.sh       roles y bases (init de PostgreSQL)
-  docs/prompts/                     prompts de desarrollo (P01…P11)
+  docker/Caddyfile                  proxy inverso, HTTPS y cabeceras de la PWA
+  scripts/respaldo.sh               respaldo diario verificado, con rotacion y copia remota
+  scripts/restaurar.sh              restauracion con cotejo de conteos
+  docs/
+    decisiones_para_validar.md      preguntas para el negocio
+    operacion/                      despliegue, monitoreo, recuperacion de desastres
+    seguridad/checklist_iso27001.md
+    rendimiento/resultados.md
+    formularios/, bi/, prompts/
   backend/
+    Dockerfile                      imagen de la API y de los workers (multietapa, sin root)
     main.py                         app FastAPI
-    core/sql_migracion.py           helpers para migraciones con SQL explícito
-    core/                           config, db, rls, security, errors, middleware, dependencias
+    core/                           config, db, rls, security, cookies, errors, middleware,
+                                    dependencias, observabilidad, sql_migracion
     models/  schemas/  routers/  services/
-    workers/                        celery_app.py y tareas.py
-    alembic/versions/0001_cimientos.py … 0005_chat_offline.py
-    scripts/                        seed_dev.py, seed_folios.py, seed_campo.py, generar_secretos.py, generar_vapid.py
+    workers/                        celery_app.py y tareas/
+    alembic/versions/               0001_cimientos.py … 0012_indices_rendimiento.py
+    scripts/                        seed_dev.py, seed_produccion.py, generar_secretos.py, generar_vapid.py, …
+    pruebas_carga/                  Locust: preparar.py, locustfile.py
     tests/
   frontend/
+    Dockerfile                      compila la PWA y la sirve con Caddy
     src/ (components, pages, hooks, services, contexts, types, config)
     public/  tests/
 ```
@@ -183,6 +214,39 @@ Correo saliente: deja `SMTP_HOST` vacío para el modo *stub* (los `.eml` quedan 
 `APP_URL_PUBLICA` es la base de los enlaces. Para PDF con diseño instala el runtime GTK3 (WeasyPrint); sin él se genera un PDF
 mínimo de texto.
 
+## Trabajos especiales y OC de activos (P08)
+
+- `/trabajos-especiales`: el prestador (Admin prestador, Mesa de control, Despachador) crea el TE —o lo convierte desde una cotización
+  autorizada en `/seguimiento`—, lo envía al cliente y, aceptado, lo programa con técnicos que tengan `ejecutar_trabajos_especiales`; el
+  cliente (Admin empresa / Admin UN) lo acepta o rechaza con comentario desde la bandeja «Por validar» y puede crear TE de urgencia
+  sin monto. Al programarse se crea el folio operativo `especial` que el técnico atiende en `/campo` con el formulario del TE; el cierre
+  exige formulario, evidencia fotográfica y firma.
+- `/oc-activos`: folios clasificados como instalación de activo en el formulario (`clasifica_instalacion_activo`) esperan la OC del
+  cliente; el Admin empresa registra el estatus y el número de OC; con la OC autorizada el folio entra al flujo de asignación y al
+  cerrarse el equipo se da de alta en el catálogo (`ACT-<folio>`).
+- Datos demo: TE-000001 … TE-000008 y folios CD-000038 … CD-000041 (`scripts/seed_trabajos_especiales.py`).
+
+## Inventario, costos y activos (P09)
+
+Los tres orígenes de refacción de §6.4: existencias del almacén y del vehículo de cada técnico con costo promedio ponderado,
+orden de compra cuando la refacción no está en inventario y compra directa en refaccionaria pagada con caja chica. El gasto de
+caja chica se captura con la foto de la factura desde la atención del folio y el Admin prestador lo aprueba en un toque: eso da
+de alta la refacción, mueve el inventario y carga al fondo del técnico. Al cerrar un folio se calcula su costo (refacciones más
+horas por la tarifa vigente) y al validarlo se carga a los presupuestos de la UN, de sus grupos y del tipo de actividad, con
+tablero consolidado y semáforo. La ficha de cada equipo reúne historial, refacciones, depreciación (cuatro métodos) y costo total
+de propiedad, y recomienda el reemplazo cuando el TCO supera el porcentaje configurado de su valor de reposición. La integración
+con ERPs es una capa desacoplada: ACMA genera eventos en su formato interno y, en Fase 1, el contador descarga la exportación
+universal en XML de pólizas o Excel configurable.
+
+| Módulo | Ruta | Quién entra |
+|---|---|---|
+| Inventario | `/inventario` | Admin prestador, despachador, mesa de control, técnico (su vehículo) |
+| Caja chica | `/caja-chica` | Admin prestador (aprueba), técnico (captura) |
+| Presupuestos | `/presupuestos` | Admin empresa (alta), Admin UN y supervisores (lectura) |
+| Equipos y activos | `/activos` | Admin empresa, Admin UN, prestador |
+| Integración ERP | `/erp` | Admin prestador, dirección, mesa de control |
+
+
 ## Contratos y SLA, alertas y BI (P10)
 
 Cada contrato mide su cumplimiento: el contador de SLA corre desde la captura del folio, se pausa en la reasignación y
@@ -211,37 +275,55 @@ ejecutivos se descargan en PDF o Excel y se pueden programar por correo.
 | Inteligencia de negocio | `/bi` | Todos los roles con tablero |
 | Reportes ejecutivos | `/bi/reportes` | Admin empresa, Admin prestador, supervisores |
 
-## Inventario, costos y activos (P09)
 
-Los tres orígenes de refacción de §6.4: existencias del almacén y del vehículo de cada técnico con costo promedio ponderado,
-orden de compra cuando la refacción no está en inventario y compra directa en refaccionaria pagada con caja chica. El gasto de
-caja chica se captura con la foto de la factura desde la atención del folio y el Admin prestador lo aprueba en un toque: eso da
-de alta la refacción, mueve el inventario y carga al fondo del técnico. Al cerrar un folio se calcula su costo (refacciones más
-horas por la tarifa vigente) y al validarlo se carga a los presupuestos de la UN, de sus grupos y del tipo de actividad, con
-tablero consolidado y semáforo. La ficha de cada equipo reúne historial, refacciones, depreciación (cuatro métodos) y costo total
-de propiedad, y recomienda el reemplazo cuando el TCO supera el porcentaje configurado de su valor de reposición. La integración
-con ERPs es una capa desacoplada: ACMA genera eventos en su formato interno y, en Fase 1, el contador descarga la exportación
-universal en XML de pólizas o Excel configurable.
+## Seguridad y sesiones (P11a)
 
-| Módulo | Ruta | Quién entra |
-|---|---|---|
-| Inventario | `/inventario` | Admin prestador, despachador, mesa de control, técnico (su vehículo) |
-| Caja chica | `/caja-chica` | Admin prestador (aprueba), técnico (captura) |
-| Presupuestos | `/presupuestos` | Admin empresa (alta), Admin UN y supervisores (lectura) |
-| Equipos y activos | `/activos` | Admin empresa, Admin UN, prestador |
-| Integración ERP | `/erp` | Admin prestador, dirección, mesa de control |
+La sesión vive en una cookie `httpOnly` con ruta limitada a `/api/auth` y protección CSRF de doble envío; el token de
+acceso solo existe en memoria del navegador, así que recargar sin red **no** cierra la sesión (el modo offline de P05
+sigue funcionando). La sesión dura 8 horas — 2 para los roles administrativos — y se cierra a los 30 minutos sin uso.
+La contraseña de los roles administrativos vence a los 90 días: al entrar, ACMA exige cambiarla antes de abrir
+cualquier módulo. Hay restablecimiento por correo con un enlace de un solo uso que vence en 30 minutos.
 
-## Trabajos especiales y OC de activos (P08)
+Los archivos del Object Storage se guardan **cifrados** (AES-256-GCM) con una llave derivada para cada cliente o
+prestador; la ruta del objeto va firmada, así que un archivo no se puede mover al expediente de otro cliente. Las
+columnas sensibles (secreto MFA, datos fiscales) ya se cifraban desde P01.
 
-- `/trabajos-especiales`: el prestador (Admin prestador, Mesa de control, Despachador) crea el TE —o lo convierte desde una cotización
-  autorizada en `/seguimiento`—, lo envía al cliente y, aceptado, lo programa con técnicos que tengan `ejecutar_trabajos_especiales`; el
-  cliente (Admin empresa / Admin UN) lo acepta o rechaza con comentario desde la bandeja «Por validar» y puede crear TE de urgencia
-  sin monto. Al programarse se crea el folio operativo `especial` que el técnico atiende en `/campo` con el formulario del TE; el cierre
-  exige formulario, evidencia fotográfica y firma.
-- `/oc-activos`: folios clasificados como instalación de activo en el formulario (`clasifica_instalacion_activo`) esperan la OC del
-  cliente; el Admin empresa registra el estatus y el número de OC; con la OC autorizada el folio entra al flujo de asignación y al
-  cerrarse el equipo se da de alta en el catálogo (`ACT-<folio>`).
-- Datos demo: TE-000001 … TE-000008 y folios CD-000038 … CD-000041 (`scripts/seed_trabajos_especiales.py`).
+La bitácora de accesos a la API se conserva 90 días y los errores un año; la purga suelta particiones completas, nunca
+borra filas, para no tocar la auditoría. El estado de cada requisito está en
+[`docs/seguridad/checklist_iso27001.md`](docs/seguridad/checklist_iso27001.md).
+
+## Producción
+
+Todo el despliegue es un `docker-compose.prod.yml`: Caddy con HTTPS automático sirviendo la PWA y haciendo de proxy,
+la API con gunicorn y varios workers de uvicorn, el worker y el beat de Celery, PostgreSQL 16 + PostGIS, Redis con
+contraseña y MinIO. Las migraciones corren en un servicio de una sola ejecución y la API no arranca hasta que
+terminan bien.
+
+```bash
+cp .env.production.example .env   # y rellenar cada <...>
+```
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Antes de eso hay que generar los secretos; el backend **se niega a arrancar** si alguno conserva un valor de ejemplo,
+si falta el dominio en `CORS_ORIGENES` o si `APP_URL_PUBLICA` no es https:
+
+```bash
+cd backend && .venv/Scripts/python -m scripts.generar_secretos --compose
+```
+
+Y sembrar el superadmin inicial, que entra con una contraseña temporal y debe cambiarla de inmediato:
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm api python -m scripts.seed_produccion --email admin@cliente.com --nombre "Nombre Apellido"
+```
+
+Pasos completos para un servidor nuevo, actualización y reversión:
+[`docs/operacion/despliegue.md`](docs/operacion/despliegue.md). Respaldo diario y restauración:
+`scripts/respaldo.sh` y `scripts/restaurar.sh`, documentados en
+[`docs/operacion/recuperacion_desastres.md`](docs/operacion/recuperacion_desastres.md).
 
 ## Problemas conocidos en Windows
 

@@ -80,7 +80,7 @@ export function Reporte() {
       )}
       {razones.datos && (
         <div className="mt-6">
-          <Tarjeta titulo="Catálogo de razones (§6.8.2)">
+          <Tarjeta titulo="Catálogo de razones">
             <Tabla
               filas={razones.datos}
               columnas={[

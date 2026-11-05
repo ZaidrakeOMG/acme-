@@ -64,7 +64,7 @@ export function Inventario() {
 
   return (
     <div>
-      <Encabezado titulo="Inventario" descripcion="Tres orígenes de refacciones (§6.4): almacén, orden de compra y caja chica. Cada movimiento recalcula la existencia y el costo promedio ponderado; el historial es inmutable."
+      <Encabezado titulo="Inventario" descripcion="Tres orígenes de refacciones: almacén, orden de compra y caja chica. Cada movimiento recalcula la existencia y el costo promedio ponderado; el historial es inmutable."
         acciones={gestiona ? (
           <div className="flex flex-wrap gap-2">
             {escribe && <Boton variante="secundario" onClick={() => setModal('articulo')}>Nuevo artículo</Boton>}

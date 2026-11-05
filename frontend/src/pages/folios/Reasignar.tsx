@@ -60,7 +60,7 @@ export function ReasignarModal({ folio, alCerrar, alReasignar }: { folio: FolioR
               <span className="font-medium">{c.nombre}</span> <span className="text-xs text-slate-500">{c.vehiculo_placas ?? ''} · {c.carga_dia} folio(s) activos</span>
               <span className="mt-1 flex flex-wrap gap-1">
                 {c.habilidad_ok ? <Insignia tono="ok">Habilidad {c.habilidad_requerida ?? 'ok'}</Insignia> : <Insignia tono="alerta">Sin habilidad {c.habilidad_requerida}</Insignia>}
-                {c.refaccion_ok === null && <Insignia>Refacción no verificada (P09)</Insignia>}
+                {c.refaccion_ok === null && <Insignia>Refacción no verificada</Insignia>}
               </span>
             </span>
           </label>

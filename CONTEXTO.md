@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-10-29 · P08 Trabajos especiales, conversión de cotizaciones y OC de activos**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-11-05 · P11a Endurecimiento: seguridad, rendimiento, respaldos y paquete de producción**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -23,7 +23,23 @@
 | P08 | Trabajos especiales con validación del cliente, conversión de cotizaciones y seguimiento de OC de activos | ✅ 2026-10-29 |
 | P09 | Inventario con los tres orígenes de refacción, caja chica manual, costo del folio, presupuestos, capa ERP y activos con TCO | ✅ 2026-11-02 |
 | P10 | Contratos con iguala y contador de SLA, penalizaciones, configuración central de alertas, tableros por rol y reportes ejecutivos | ✅ 2026-11-02 |
-| P11 | Endurecimiento y despliegue | Pendiente |
+| P11a | Endurecimiento: seguridad de §6.9.5, pruebas de carga, respaldos con restauración medida y paquete de producción | ✅ 2026-11-05 |
+| P11b | Publicación en `acma.unai.com.mx` con el servidor definitivo y los datos reales de UNAI | Pendiente |
+
+## Verificación al cierre de P11a
+
+- Migraciones `0011_endurecimiento.py` y `0012_indices_rendimiento.py` aplicadas (subida, bajada y subida).
+- **394 pytest** en verde con los servidores de desarrollo apagados, más 1 saltado a propósito
+  (`tests/test_respaldo.py`, que levanta y borra bases; se activa con `ACMA_PRUEBA_RESPALDO=1` y se corrió aparte).
+- **109 vitest**, `tsc --noEmit` y `npm run build` en verde.
+- Pruebas de carga con 71 usuarios (50 técnicos, 20 de oficina, 1 operador): de **17.7 % de errores y mediana de
+  29 s** a **0.02–0.6 % y mediana de 1–2 s**. Resultados y cálculo del servidor en `docs/rendimiento/resultados.md`.
+- Respaldo (21 s) y **restauración medida (47 s)** con cotejo de las nueve tablas críticas: 9/9 coincidieron y el
+  esquema restaurado fue `0012`.
+- **`docker-compose.prod.yml` probado completo en local** con `ACMA_DOMINIO=localhost`: los siete servicios en
+  `healthy`, migraciones en un servicio de una sola ejecución, `seed_produccion.py`, login con MFA obligatorio,
+  `/api/salud/detalle` con las cuatro dependencias en verde, PWA servida por Caddy con HTTPS y redirección desde
+  HTTP, y logs en JSON. Cuatro fallas reales encontradas y corregidas en ese ensayo (ver decisiones 128 a 131).
 
 ## Verificación al cierre de P10
 
@@ -794,6 +810,34 @@
 - Colores del prestador vía variables CSS `--color-primario` / `--color-acento` (`aplicarTema`).
 - Dexie (`src/services/db.ts`) solo tiene `metadatos`; P05 agrega tablas offline con nuevas versiones del esquema.
 
+## Clasificación de las decisiones pendientes (P11a, entregable 5)
+
+Las 124 decisiones de la lista siguiente quedaron repartidas en tres grupos.
+
+**1. Resueltas.** La mayoría eran decisiones de implementación que el diseño no definía y que ya están tomadas,
+probadas y sin efecto visible para el usuario: no hay nada que preguntar. P11a cerró además estas seis, que sí
+estaban abiertas de verdad:
+
+| N.º | Qué estaba abierto | Cómo quedó |
+|---|---|---|
+| 1 | Vida del JWT: P01 pedía 15 min + 7 días; §6.9.5 pide 8 h (2 h admins) | Las dos cosas: sesión de 8 h (2 h administrativos) con cierre por inactividad a los 30 min, y token de acceso corto que se renueva solo |
+| 6 | Retención de `audit_accesos_api` | 90 días las llamadas normales y 1 año los errores 4xx/5xx, purgando con `DETACH`+`DROP` de particiones; tarea diaria a las 03:50 |
+| 7 | Refresh token en `localStorage` | Cookie `httpOnly` con ruta `/api/auth`, `SameSite=Strict`, `Secure` en producción y CSRF de doble envío |
+| 11 | Pendientes de §6.9.5 sin cubrir | Los cinco cerrados: vencimiento de contraseña a 90 días, aviso al admin por bloqueo de IP, geolocalización en la auditoría de login, llaves de cifrado por dueño para los archivos y TOTP que no se puede reutilizar |
+| 12 | Imagen de MinIO en `latest` | Fijada por digest, igual que PostgreSQL; Redis y las bases de las imágenes propias, por versión exacta |
+| 74 | WeasyPrint sin librerías nativas en Windows | La imagen de producción las trae, así que en el servidor los PDF salen con el diseño completo; en Windows sigue el generador mínimo |
+
+**2. Requieren validación del negocio: 28 preguntas.** Están en
+[`docs/decisiones_para_validar.md`](docs/decisiones_para_validar.md), redactadas para una persona no técnica, con la
+opción que eligió el sistema y su efecto. Corresponden a las decisiones **2, 23, 27, 30, 31, 32, 35, 43, 44, 50, 54,
+55, 59, 62, 63, 64, 65, 68, 88, 89, 90, 91, 92, 93, 94, 103, 104, 107, 108, 110, 111, 112, 114, 120 y 122** (varias
+se agruparon en una sola pregunta), más dos puntos de infraestructura que P11a dejó explícitos: el destino de los
+respaldos fuera del servidor y el RPO real.
+
+**3. Fase 2.** Decisiones **26, 36, 46, 72, 95, 101, 102 y 115**: dependen de módulos que el alcance pone en Fase 2
+(medidores de activos, OCR y validación del CFDI ante el SAT, adaptadores de ERP, WhatsApp y SMS, criticidad
+automática por FMEA, descuento de penalizaciones en el CFDI, ETA y ruta). No hay nada que decidir hasta entonces.
+
 ## Decisiones pendientes de validación (regla 1)
 
 1. **Vida del JWT:** P01 pide acceso de 15 min + refresh de 7 días; §6.9.5 dice 8 h (2 h admins). Se siguió P01.
@@ -1049,6 +1093,52 @@
 124. **Reportes**: tres plantillas (`cliente`, `prestador`, `jornada`); `dia_hora` admite «08:00», «lunes 08:00» y
     «1 08:00», y el día del mes se limita a 28 para que todos los meses tengan envío.
 
+125. **La contraseña se compara fuera del event loop.** argon2 cuesta ~110 ms de CPU por verificación con 4 hilos;
+    llamarlo de forma síncrona dentro de una función `async` congelaba todas las peticiones del proceso. Ahora va en
+    un hilo y con tope de concurrencia (`HASH_CONCURRENCIA`, 2 por proceso) para que una tanda de inicios de sesión
+    no se coma la CPU. **Los parámetros de argon2 no se bajaron**: siguen en el default de argon2-cffi (t=3,
+    m=64 MiB, p=4), más fuertes que el mínimo de OWASP.
+126. **El pool de conexiones es configurable** (`DB_POOL_SIZE` 15, `DB_POOL_OVERFLOW` 10, `DB_POOL_TIMEOUT` 10 s).
+    La regla: `workers × (size + overflow) ≤ max_connections − margen`; `docker-compose.prod.yml` levanta PostgreSQL
+    con `max_connections=200` para 4 workers.
+127. **El listado de folios sigue leyendo todos los folios del cliente con RLS activa.** La migración 0012 agrega los
+    índices por `capturado_at DESC` y sin RLS la consulta baja de 3.4 ms a 0.74 ms, pero con las políticas puestas el
+    planeador estima 1 fila donde hay 1,433 y prefiere el `Seq Scan`. Con cientos de miles de folios habrá que
+    acotar el listado por ventana de tiempo (queda como decisión a validar, porque cambia lo que ve el usuario).
+128. **Las rutas de la API van en su propio bloque `handle` del Caddyfile.** Caddy ejecuta `try_files` antes de
+    `reverse_proxy`, así que con un matcher suelto `/api/*` terminaba sirviendo el `index.html` de la PWA. Lo
+    encontró el ensayo del paquete de producción.
+129. **El directorio del calendario de Celery beat se crea en la imagen con dueño `acma`.** Docker copia el dueño del
+    directorio de la imagen al inicializar un volumen vacío; sin eso el volumen quedaba de root y beat no arrancaba
+    (`Permission denied`). Si se cambia esa línea del `Dockerfile` hay que borrar el volumen.
+130. **El healthcheck del worker usa `CMD-SHELL`.** En la forma exec no hay shell, `$HOSTNAME` llegaba literal y el
+    worker salía siempre `unhealthy` aunque estuviera trabajando. Beat tiene el suyo propio (la frescura de su
+    calendario), porque el de la imagen pega a `/api/salud` y beat no atiende HTTP.
+131. **`seed_produccion.py` valida el correo con las mismas reglas que el login.** Un dominio reservado (`.local`,
+    `.test`) creaba un superadmin que nunca podía entrar y el error aparecía hasta el primer día de uso.
+132. **`/api/salud` es ligera a propósito** (la usa el healthcheck del contenedor: si Redis se cae, no hay que
+    reiniciar la API) y el estado de las dependencias vive en `/api/salud/detalle`, que responde 503 si alguna falla.
+    Crear el cliente de MinIO hace E/S de red **síncrona**, así que esa comprobación va en un hilo: en el event loop
+    bloqueaba varios segundos y tumbaba por tiempo de espera las otras tres.
+133. **El cifrado de archivos se hizo en la aplicación, no con SSE de MinIO.** El sobre AES-256-GCM lleva la llave
+    derivada por HKDF para cada dueño y la ruta del objeto firmada, así que un archivo no se puede mover al
+    expediente de otro cliente. MinIO SSE-C exige TLS hacia MinIO y SSE-S3 exige el servicio KES: ninguno se puede
+    probar sin montar infraestructura extra, y el sobre cumple lo que pide el diseño («llaves por tenant») hoy. Lo
+    escrito antes de P11a sigue legible porque el sobre se detecta por su marca.
+134. **HSTS solo en producción.** Un HSTS cacheado desde un `localhost` sin TLS deja al navegador exigiendo https en
+    todo `localhost` y rompe el desarrollo de cualquier proyecto en esa máquina.
+135. **La geolocalización del login es aproximada y opcional.** No se incluye la base GeoLite2 (su licencia exige
+    registro y aceptar sus términos): con `GEOIP_BASE` vacío la auditoría anota `geo: null`, y las IP privadas se
+    marcan como `red_local`. `services/geoip.py` es la interfaz lista para conectar la base cuando el cliente la
+    descargue.
+136. **Las seis vulnerabilidades moderadas que quedan en el frontend son de la cadena de construcción**
+    (`vite-plugin-pwa` → `workbox-build` → `glob`, `minimatch`, `deepmerge`) y no viajan en el paquete que recibe el
+    navegador. El arreglo que propone `npm audit` es *bajar* `vite-plugin-pwa` de 2.x a 1.1.0, un retroceso de
+    versión que cambiaría el generador del service worker: no se aplica.
+137. **La prueba del ciclo de respaldo y restauración no corre en la suite normal.** Levanta y borra bases y necesita
+    `docker compose`: se activa con `ACMA_PRUEBA_RESPALDO=1` y es, en un comando, el ensayo trimestral que pide
+    §6.9.5.
+
 ## Notas de entorno (esta máquina)
 
 - Python 3.12 instalado con `py install 3.12`; el venv vive en `backend/.venv`.
@@ -1063,6 +1153,13 @@
 - Zona horaria del horario de servicio: `zoneinfo` + paquete `tzdata` (ya en el venv) porque Windows no trae la base IANA.
 - `pywebpush` instalado en el venv (P05); `fake-indexeddb` como devDependency del frontend para probar Dexie en vitest.
 - Las pruebas de vitest y pytest se corren por separado: en paralelo con el build, vitest falla por tiempos de espera.
+- Las **pruebas de carga** y la suite de pytest no pueden correr a la vez: el generador de carga, la API, PostgreSQL y
+  MinIO ya se pelean por los 8 núcleos de esta máquina, y los percentiles salen inservibles. Entre dos corridas
+  idénticas el p95 va de 6.1 a 8.3 s: el número a comprometer se mide en el servidor, con el generador en otra máquina.
+- Los guiones `.sh` se prueban en Git Bash con `MSYS2_ARG_CONV_EXCL="/tmp"`: sin eso, MSYS convierte las rutas del
+  CONTENEDOR (`/tmp/...`) a rutas de Windows y `docker cp` falla. En Linux no hace falta.
+- `pip-audit` y `locust` quedaron en `requirements.txt` marcados como herramientas locales; el `Dockerfile` de
+  producción los excluye al instalar.
 - P07: `aiosmtplib`, `aiosmtpd` y `weasyprint` en el venv. WeasyPrint no carga en esta máquina (faltan GTK/Pango: «cannot load
   library libgobject-2.0-0»); `services/pdf.py` cae al generador mínimo. Para PDF con estilos instalar el runtime GTK3 o
   ejecutar en Linux. vitest corre los archivos en serie (`fileParallelism: false`, 30 s por prueba).

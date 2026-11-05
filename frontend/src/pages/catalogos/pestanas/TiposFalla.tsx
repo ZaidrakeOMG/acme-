@@ -37,7 +37,7 @@ export function TiposFalla() {
         </select>
       }
     >
-      <p className="mb-3 text-sm text-slate-600">El prestador define los síntomas técnicos por familia; el cliente asigna su severidad en la matriz. «Revisión manual» es un flag global que solo cambia el superadmin (§6.8.6).</p>
+      <p className="mb-3 text-sm text-slate-600">El prestador define los síntomas técnicos por familia; el cliente asigna su severidad en la matriz. «Revisión manual» es un flag global que solo cambia el superadmin.</p>
       {(error || aviso) && <Aviso>{error ?? aviso}</Aviso>}
       <Tabla
         filas={datos ?? []}

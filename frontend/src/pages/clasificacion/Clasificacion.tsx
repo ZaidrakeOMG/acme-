@@ -39,7 +39,7 @@ export function Clasificacion() {
   const vistas: ('pendientes' | 'calificacion' | 'configuracion')[] = ['pendientes', 'calificacion', ...(usuario.rol === 'admin_empresa' || usuario.rol === 'superadmin' ? ['configuracion' as const] : [])]
   return (
     <div>
-      <Encabezado titulo="Folios no críticos" descripcion="Clasifica dentro del plazo los folios no críticos de tus unidades (§6.10.5). Si no los clasificas a tiempo no cuenta contra el prestador en el SLA, pero descuenta puntos de tu calificación."
+      <Encabezado titulo="Folios no críticos" descripcion="Clasifica dentro del plazo los folios no críticos de tus unidades. Si no los clasificas a tiempo no cuenta contra el prestador en el SLA, pero descuenta puntos de tu calificación."
                   acciones={<div className="flex gap-1">{vistas.map((v) => <button key={v} className={`rounded-lg px-3 py-1.5 text-sm ${vista === v ? 'bg-primario text-white' : 'border border-slate-300'}`} onClick={() => setVista(v)}>{{ pendientes: 'Pendientes', calificacion: 'Calificación', configuracion: 'Configuración' }[v]}</button>)}</div>} />
       {error && <div className="mb-3"><Aviso>{error}</Aviso></div>}
       {aviso && <div className="mb-3"><Aviso tipo="exito">{aviso}</Aviso></div>}

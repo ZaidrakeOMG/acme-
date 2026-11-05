@@ -57,7 +57,7 @@ export function CajaChica() {
 
   return (
     <div>
-      <Encabezado titulo="Caja chica" descripcion="Compras directas en refaccionaria (§6.4 Tipo C): el técnico captura la factura desde el folio y el Admin prestador aprueba en un toque, lo que da de alta la refacción, mueve el inventario y afecta el fondo. La extracción OCR y la validación del CFDI ante el SAT llegan en Fase 2."
+      <Encabezado titulo="Caja chica" descripcion="Compras directas en refaccionaria: el técnico captura la factura desde el folio y el Admin prestador aprueba en un toque, lo que da de alta la refacción, mueve el inventario y afecta el fondo. La extracción OCR y la validación del CFDI ante el SAT llegan en Fase 2."
         acciones={aprueba && vista === 'fondos' ? <Boton onClick={() => setNuevoFondo(true)}>Autorizar fondo</Boton>
           : aprueba && vista === 'polizas' ? <Boton onClick={() => void ejecutar(async () => { const p = await generarPoliza({}); if (!p) throw new Error('No hay gastos aprobados sin consolidar hoy') }, 'Póliza de reposición generada')}>Generar póliza de hoy</Boton>
           : undefined} />
@@ -130,7 +130,7 @@ function FormFondo({ alCerrar, alGuardar }: { alCerrar: () => void; alGuardar: (
   return (
     <Modal titulo="Autorizar fondo de caja chica" abierto alCerrar={alCerrar}>
       <div className="space-y-3" data-testid="form-fondo">
-        <Aviso tipo="info">El técnico necesita además el permiso `usar_caja_chica` en el catálogo de técnicos (§6.8.3).</Aviso>
+        <Aviso tipo="info">El técnico necesita además el permiso `usar_caja_chica` en el catálogo de técnicos.</Aviso>
         <Selector etiqueta="Técnico" value={d.tecnico_id} onChange={(e) => setD({ ...d, tecnico_id: e.target.value })}
           opciones={[{ valor: '', texto: 'Elegir…' }, ...(tecnicos.datos ?? []).map((t) => ({ valor: t.usuario_id, texto: t.nombre }))]} />
         <Campo etiqueta="Monto autorizado" type="number" value={d.monto_inicial} onChange={(e) => setD({ ...d, monto_inicial: e.target.value })} />

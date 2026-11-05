@@ -48,7 +48,7 @@ export function Minutas() {
   const pendientes = minutas.filter((m) => m.estado === 'pendiente_validacion')
   return (
     <div>
-      <Encabezado titulo="Minuta del día" descripcion="Cierre de jornada por UN y global del cliente (§7.1): estatus de los módulos de seguimiento, preventivos, hallazgos, cotizaciones y peticiones. Se entrega por correo con PDF, push y aquí."
+      <Encabezado titulo="Minuta del día" descripcion="Cierre de jornada por UN y global del cliente: estatus de los módulos de seguimiento, preventivos, hallazgos, cotizaciones y peticiones. Se entrega por correo con PDF, push y aquí."
                   acciones={esPrestador && usuario && ROLES_VALIDAN.includes(usuario.rol) ? <Boton variante="secundario" onClick={() => void generar()} disabled={!tenantId}>Generar minuta de {hasta}</Boton> : undefined} />
       <div className="mb-4 flex flex-wrap items-end gap-2">
         <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
@@ -96,7 +96,7 @@ function ConfiguracionMinuta({ tenantId }: { tenantId: string }) {
   }
   return (
     <div className="mt-6">
-      <Tarjeta titulo="Configuración de la minuta de este cliente (§7.2)">
+      <Tarjeta titulo="Configuración de la minuta de este cliente">
         {error && <Aviso>{error}</Aviso>}
         {aviso && <Aviso tipo="exito">{aviso}</Aviso>}
         <div className="grid gap-3 sm:grid-cols-3">

@@ -19,7 +19,7 @@ Leyenda: ✅ implementado y probado · ⚙️ implementado, se verifica al despl
 | Política de contraseñas | Mínimo 10 caracteres con complejidad, historial de 10, vencimiento de 90 días para administradores | ✅ | `core/security.py::validar_contrasena`, tabla `historial_contrasenas`, `core/dependencias.py` | `test_seguridad.py::test_politica_de_contrasena` y `::test_contrasena_vencida_bloquea_todo_menos_el_cambio` |
 | Cifrado en reposo | AES-256 en columnas sensibles y archivos del Object Storage **con llaves por tenant** | ✅ | `core/security.py` (`cifrar`, `cifrar_archivo`, `clave_por_dueno`), `services/almacenamiento.py` | `test_seguridad.py::test_los_archivos_se_guardan_cifrados_con_llave_por_dueno` |
 | Gestión de sesiones | JWT de 8 h (2 h administradores), refresh rotativo, cierre por inactividad | ✅ | `services/auth_service.py`, `core/cookies.py` | `test_seguridad.py::test_vida_de_la_sesion_por_rol` y `::test_sesion_expirada_y_cierre_por_inactividad` |
-| Recuperación ante desastres | Respaldo diario a otra región, RTO < 4 h, RPO < 1 h, prueba trimestral | ⚙️ | `scripts/respaldo.sh`, `scripts/restaurar.sh`, `docs/operacion/recuperacion_desastres.md` | restauración medida y documentada; la *otra región* y la prueba trimestral son 🏢 |
+| Recuperación ante desastres | Respaldo diario a otra región, RTO < 4 h, RPO < 1 h, prueba trimestral | ⚙️ | `scripts/respaldo.sh`, `scripts/restaurar.sh`, `docs/operacion/recuperacion_desastres.md` | **Restauración medida: 47 s** con las 9 tablas críticas cotejadas. **RTO cumplido; el RPO real es de hasta 24 h, no de 1 h**: requiere archivado de WAL, documentado y sin decidir. La *otra región* y la prueba trimestral son 🏢 |
 | Gestión de vulnerabilidades | Escaneo de dependencias, análisis estático, parchado en 72 h de lo crítico | ⚙️ / 🗓️ | `pip-audit` y `npm audit`, documentados en la sección 5 | sin vulnerabilidades conocidas en el backend; el análisis estático y el plazo de parchado son Fase 2 |
 
 ## 2. Registro inmutable de eventos (§6.9.5)
@@ -61,7 +61,7 @@ purga.
 | Cifrado en tránsito | TLS lo termina Caddy con certificado automático; HSTS de dos años, solo en producción | ⚙️ `docs/operacion/despliegue.md` |
 | Cifrado de columnas sensibles | AES-256-GCM en el secreto TOTP y en los datos fiscales del prestador | ✅ |
 | Cifrado de archivos | AES-256-GCM con llave derivada por HKDF para cada dueño; la ruta del objeto va firmada, así que un archivo no se puede mover al expediente de otro cliente | ✅ |
-| Cifrado del disco | Volúmenes de PostgreSQL y MinIO sobre almacenamiento cifrado del proveedor | 🏢 es una opción del servidor contratado; `docs/operacion/despliegue.md` explica cómo verificarlo |
+| Cifrado del disco | Volúmenes de PostgreSQL y MinIO sobre almacenamiento cifrado del proveedor | 🏢 es una opción del servidor contratado; el comando para comprobarlo está en `docs/operacion/despliegue.md` §9 |
 | Custodia de llaves | `CLAVE_CIFRADO` y `JWT_SECRETO` se generan con `scripts/generar_secretos.py` y viven solo en el gestor de secretos del cliente; el backend se niega a arrancar con valores de ejemplo | ✅ / 🏢 el gestor de secretos lo elige el cliente |
 | Cabeceras del navegador | CSP `default-src 'none'`, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, COOP y CORP; `Cache-Control: no-store` en toda la API | ✅ `test_seguridad.py::test_cabeceras_de_seguridad_de_la_api` |
 | CSRF | El refresh vive en cookie `httpOnly` con ruta limitada a `/api/auth` y `SameSite=Strict`, más doble envío con la cabecera `X-ACMA-CSRF` | ✅ `test_auth.py::test_sesion_en_cookie_httponly_y_csrf` |
@@ -90,6 +90,12 @@ cd frontend && npm audit
 
 Pendiente de Fase 2 según el diseño: análisis estático de código y el compromiso de parchar lo crítico en 72 horas.
 
+El **paquete de producción se probó completo en local** (`docker-compose.prod.yml` con `ACMA_DOMINIO=localhost`):
+los siete servicios en `healthy`, MFA obligatorio exigido en el primer acceso, la contraseña temporal del
+superadmin naciendo vencida, TLS con redirección desde HTTP y las cabeceras de la PWA en su lugar. El ensayo
+encontró cuatro fallas reales (ruteo del proxy, permisos del volumen de Celery beat, healthcheck del worker y
+validación del correo del superadmin), ya corregidas; están anotadas en `docs/operacion/despliegue.md` §8.
+
 ## 6. Restricciones duras del negocio (§6.7)
 
 No las pide la norma, pero se verifican igual porque protegen la integridad del expediente:
@@ -99,7 +105,7 @@ No las pide la norma, pero se verifican igual porque protegen la integridad del 
 | La evidencia de una orden cerrada es inmutable por 5 años | Trigger `acma_evidencia_folio_inmutable` sobre `folio_evidencias`: con el folio cerrado o cancelado no hay `UPDATE`, `DELETE` ni `TRUNCATE`, ni siquiera desde la base de datos | `test_seguridad.py::test_la_evidencia_de_un_folio_cerrado_no_se_puede_borrar` |
 | El fondo de caja chica nunca queda negativo | Validación en el servicio antes de registrar el gasto | `test_seguridad.py::test_el_fondo_de_caja_chica_nunca_queda_negativo` |
 | Sellos de fecha y geolocalización no editables por el usuario | El servidor los fija; un ajuste declarado se audita y respeta el radio permitido | `test_seguridad.py::test_el_sello_de_fecha_y_la_geolocalizacion_no_son_editables` |
-| 50 técnicos en simultáneo, escalable a 500+ | Medido con las pruebas de carga | `docs/rendimiento/resultados.md` |
+| 50 técnicos en simultáneo, escalable a 500+ | Medido con las pruebas de carga: con todo aplicado, ni un error de servidor en tres corridas de 71 usuarios | `backend/pruebas_carga/`, `docs/rendimiento/resultados.md` |
 
 ## 7. Lo que queda fuera del software
 

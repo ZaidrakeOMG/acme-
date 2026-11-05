@@ -35,7 +35,7 @@ export function OcActivos() {
   if (!usuario) return null
   return (
     <div>
-      <Encabezado titulo="OC de activos" descripcion="Folios de instalación de activo que esperan la orden de compra del cliente (§6.10.7). ACMA no genera la OC en el ERP: el Admin empresa registra aquí el número y el estatus del trámite; con la OC autorizada el folio entra al flujo de asignación y, al cerrarse, el equipo se da de alta." />
+      <Encabezado titulo="OC de activos" descripcion="Folios de instalación de activo que esperan la orden de compra del cliente. ACMA no genera la OC en el ERP: el Admin empresa registra aquí el número y el estatus del trámite; con la OC autorizada el folio entra al flujo de asignación y, al cerrarse, el equipo se da de alta." />
       <div className="mb-4 flex flex-wrap items-end gap-2">
         {esPrestador && <Selector etiqueta="Cliente" value={filtros.tenant_id} onChange={(e) => setFiltros({ ...filtros, tenant_id: e.target.value })} opciones={[{ valor: '', texto: 'Todos' }, ...(tenants.datos ?? []).map((t) => ({ valor: t.id, texto: t.razon_social }))]} />}
         <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={filtros.incluir_resueltos} onChange={(e) => setFiltros({ ...filtros, incluir_resueltos: e.target.checked })} /> Incluir resueltos</label>

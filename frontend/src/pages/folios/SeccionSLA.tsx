@@ -105,7 +105,7 @@ function FormExclusion({ alCerrar, alGuardar }: {
   return (
     <Modal titulo="Registrar exclusión de SLA" abierto alCerrar={alCerrar}>
       <div className="space-y-3" data-testid="form-exclusion">
-        <Aviso tipo="info">El prestador registra la causa y el período; el Admin empresa lo aprueba o lo rechaza (§6.10.1).
+        <Aviso tipo="info">El prestador registra la causa y el período; el Admin empresa lo aprueba o lo rechaza.
           Solo los períodos aprobados se descuentan del contador.</Aviso>
         <Selector etiqueta="Causa" value={d.causa} onChange={(e) => setD({ ...d, causa: e.target.value as CausaExclusion })}
           opciones={(Object.keys(NOMBRE_CAUSA) as CausaExclusion[]).map((c) => ({ valor: c, texto: NOMBRE_CAUSA[c] }))} />

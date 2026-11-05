@@ -63,7 +63,7 @@ export function ResponderMinuta() {
       {d.notas_despachador && <Aviso tipo="info">Notas del despachador: {d.notas_despachador}</Aviso>}
 
       {d.puede_validar && (
-        <Tarjeta titulo="Validación del despachador (§7.2)">
+        <Tarjeta titulo="Validación del despachador">
           <p className="mb-2 text-sm text-slate-600">Revisa el contenido, añade notas para el cliente y aprueba el envío. Si la ventana vence, ACMA la envía automáticamente y la marca «enviada sin validación».</p>
           <Campo etiqueta="Notas del despachador" value={notas} onChange={(e) => setNotas(e.target.value)} />
           <div className="mt-2"><Boton onClick={() => void validar()}>Aprobar y enviar</Boton></div>
@@ -143,7 +143,7 @@ export function ResponderMinuta() {
           {s.peticiones.length === 0 ? <p className="text-sm text-slate-500">Sin peticiones.</p> : <ul className="list-disc pl-5 text-sm">{s.peticiones.map((p) => <li key={p.peticion_id}>{p.texto} <span className="text-xs text-slate-500">({p.un} · {p.capturado_por} · {p.origen})</span></li>)}</ul>}
         </Tarjeta>
         {s.pendientes_autorizacion.length > 0 && (
-          <Tarjeta titulo="Folios pendientes de tu autorización (§6.8.7)">
+          <Tarjeta titulo="Folios pendientes de tu autorización">
             <ul className="text-sm">{s.pendientes_autorizacion.map((p) => <li key={p.folio_id}><Link className="font-mono text-xs text-primario underline" to={`/folios/${p.folio_id}`}>{p.numero_folio}</Link> · Nivel {p.nivel} · {p.descripcion}</li>)}</ul>
           </Tarjeta>
         )}
@@ -184,7 +184,7 @@ function FormularioRespuesta({ minutaId, hallazgo, alResponder }: { minutaId: st
   return (
     <div className="mt-3 rounded-lg border border-primario/30 bg-primario/5 p-3" data-testid="respuesta-hallazgo">
       {error && <div className="mb-2"><Aviso>{error}</Aviso></div>}
-      <p className="mb-2 text-sm font-medium text-slate-800">Elige una de las seis opciones (§7.4)</p>
+      <p className="mb-2 text-sm font-medium text-slate-800">Elige una de las seis opciones</p>
       <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Opciones de respuesta">
         {OPCIONES_RESPUESTA.map((o) => (
           <label key={o.valor} className={`cursor-pointer rounded-lg border bg-white p-2 text-sm ${opcion === o.valor ? 'border-primario' : 'border-slate-200'}`}>

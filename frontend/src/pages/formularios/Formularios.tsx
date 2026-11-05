@@ -38,7 +38,7 @@ export function Formularios() {
 
   return (
     <div>
-      <Encabezado titulo="Formularios dinámicos" descripcion="Diseña, versiona, asigna y publica formularios con los 22 tipos de campo (§4.3)."
+      <Encabezado titulo="Formularios dinámicos" descripcion="Diseña, versiona, asigna y publica formularios con los 22 tipos de campo."
                   acciones={<div className="flex gap-2">
                     <Link to="/formularios/plantillas"><Boton variante="secundario">Plantillas</Boton></Link>
                     {disena && <Link to="/formularios/constructor"><Boton>Nuevo formulario</Boton></Link>}

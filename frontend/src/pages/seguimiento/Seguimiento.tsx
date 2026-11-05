@@ -44,7 +44,7 @@ export function Seguimiento() {
 
   return (
     <div>
-      <Encabezado titulo="Módulos de seguimiento" descripcion="Cotizaciones, Por presupuesto, Seguimiento interno y Reprogramación (§7.7): cada registro muestra su estado, días en el estado y próxima alerta; las tarjetas en rojo tienen alertas activas." />
+      <Encabezado titulo="Módulos de seguimiento" descripcion="Cotizaciones, Por presupuesto, Seguimiento interno y Reprogramación: cada registro muestra su estado, días en el estado y próxima alerta; las tarjetas en rojo tienen alertas activas." />
       <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Módulos">
         {MODULOS.map((m) => <button key={m} role="tab" aria-selected={modulo === m} className={`rounded-lg px-3 py-1.5 text-sm ${modulo === m ? 'bg-primario text-white' : 'border border-slate-300'}`} onClick={() => ir({ modulo: m, registro: null })}>{NOMBRE_MODULO[m]}</button>)}
         <span className="mx-2 border-l border-slate-200" />

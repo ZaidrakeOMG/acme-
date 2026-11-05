@@ -1,0 +1,70 @@
+# ACMA · proxy inverso y servidor de la PWA. P11a.
+#
+# Caddy pide y renueva el certificado solo (Let's Encrypt) con el dominio de ACMA_DOMINIO. Para probar en local se
+# usa ACMA_DOMINIO=localhost, que hace que Caddy emita un certificado interno y no salga a internet.
+
+{
+	email {$ACMA_CORREO_TLS}
+	admin off
+}
+
+# Comprobación del propio proxy, sin tocar el backend: la usa el healthcheck del contenedor.
+:80 {
+	respond /salud-proxy "ok" 200
+}
+
+{$ACMA_DOMINIO:localhost} {
+	encode zstd gzip
+
+	# Los `handle` son excluyentes y se evalúan por especificidad: lo que entra a /api o /ws NO pasa por el
+	# `try_files` de la PWA. Con matchers sueltos (`@api` + `reverse_proxy @api`) no funciona, porque Caddy ejecuta
+	# `rewrite`/`try_files` ANTES de `reverse_proxy` y /api/salud terminaba sirviendo el index.html.
+	handle /api/* {
+		reverse_proxy api:8000 {
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Real-IP {remote_host}
+			# El SSE del chat necesita que el proxy no acumule la respuesta en búfer.
+			flush_interval -1
+		}
+	}
+
+	# WebSocket del chat: Caddy negocia la actualización de protocolo solo.
+	handle /ws/* {
+		reverse_proxy api:8000 {
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# --- PWA -------------------------------------------------------------------
+	handle {
+		root * /srv
+
+		# Cabeceras de seguridad del documento. La API pone las suyas (core/middleware.py); estas son para la PWA.
+		header {
+			Strict-Transport-Security "max-age=63072000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			Referrer-Policy "no-referrer"
+			# Cámara y geolocalización las usa la app de campo; el micrófono, las notas de voz de los formularios.
+			Permissions-Policy "camera=(self), geolocation=(self), microphone=(self)"
+			Cross-Origin-Opener-Policy "same-origin"
+			# CSP de la PWA: sin `unsafe-inline` en scripts. `style-src` admite inline porque Tailwind inyecta
+			# estilos en tiempo de ejecución; `connect-src` cubre la API y el WebSocket del mismo origen.
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+			-Server
+		}
+
+		# El service worker y el manifiesto NO se cachean: si el navegador se queda con uno viejo, la app no se
+		# actualiza nunca. Los archivos con hash en el nombre sí se cachean para siempre.
+		@sw path /sw.js /registerSW.js /manifest.webmanifest /workbox-*.js
+		header @sw Cache-Control "no-cache, must-revalidate"
+
+		@estaticos path /assets/*
+		header @estaticos Cache-Control "public, max-age=31536000, immutable"
+
+		# SPA: cualquier ruta que no sea un archivo existente la resuelve React Router.
+		try_files {path} /index.html
+		file_server
+	}
+}

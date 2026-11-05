@@ -1,0 +1,10 @@
+# Lo que no debe entrar al contexto de construccion (el .venv solo pesa cientos de MB y no sirve en la imagen).
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+pruebas_carga/
+celerybeat-schedule*
+*.log
+.env

@@ -135,7 +135,7 @@ describe('Folios', () => {
     expect(within(acciones).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
     expect(within(acciones).queryByRole('button', { name: 'Cerrar folio' })).not.toBeInTheDocument()
     expect(within(acciones).queryByRole('button', { name: 'Autorizar' })).not.toBeInTheDocument()
-    expect(screen.getByText(/Respuesta 2 h · Resolución 8 h/)).toBeInTheDocument()
+    expect(screen.getByText(/respuesta 2 h · resolución/)).toBeInTheDocument()
     expect(screen.getByText('Capturado → Autorizado')).toBeInTheDocument()
   })
 

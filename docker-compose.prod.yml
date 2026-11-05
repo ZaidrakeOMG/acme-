@@ -1,0 +1,284 @@
+# ACMA · despliegue de producción. P11a.
+#
+#   cp .env.production.example .env   # y rellenar cada <...>
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Pasos completos, requisitos del servidor y procedimiento de actualización: docs/operacion/despliegue.md
+#
+# Todas las imágenes van fijadas por versión exacta o digest: un `pull` no cambia la versión por debajo.
+# Los límites de memoria están calculados para un servidor de 16 GB (ver docs/rendimiento/resultados.md).
+name: acma-prod
+
+x-entorno-comun: &entorno-comun
+  ACMA_ENTORNO: produccion
+  DATABASE_URL: ${DATABASE_URL:?falta DATABASE_URL}
+  DATABASE_MIGRATIONS_URL: ${DATABASE_MIGRATIONS_URL:?falta DATABASE_MIGRATIONS_URL}
+  DATABASE_READ_URL: ${DATABASE_READ_URL:-}
+  REDIS_URL: ${REDIS_URL:?falta REDIS_URL}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL:?falta CELERY_BROKER_URL}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?falta CELERY_RESULT_BACKEND}
+  JWT_SECRETO: ${JWT_SECRETO:?falta JWT_SECRETO}
+  CLAVE_CIFRADO: ${CLAVE_CIFRADO:?falta CLAVE_CIFRADO}
+  MFA_OBLIGATORIO: "true"
+  CORS_ORIGENES: ${CORS_ORIGENES:?falta CORS_ORIGENES}
+  APP_URL_PUBLICA: ${APP_URL_PUBLICA:?falta APP_URL_PUBLICA}
+  ALMACENAMIENTO_MODO: minio
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ROOT_USER: ${MINIO_ROOT_USER:?falta MINIO_ROOT_USER}
+  MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?falta MINIO_ROOT_PASSWORD}
+  MINIO_BUCKET: ${MINIO_BUCKET:-acma}
+  MINIO_SEGURO: "false"
+  TIEMPO_REAL_MODO: redis
+  VAPID_CLAVE_PUBLICA: ${VAPID_CLAVE_PUBLICA:-}
+  VAPID_CLAVE_PRIVADA: ${VAPID_CLAVE_PRIVADA:-}
+  VAPID_CONTACTO: ${VAPID_CONTACTO:-mailto:soporte@acma.dev}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-ACMA <no-responder@acma.dev>}
+  SMTP_TLS: ${SMTP_TLS:-starttls}
+  NOTIFICACIONES_ENVIO_INLINE: "false"
+  SESION_HORAS: ${SESION_HORAS:-8}
+  SESION_HORAS_ADMIN: ${SESION_HORAS_ADMIN:-2}
+  SESION_INACTIVIDAD_MINUTOS: ${SESION_INACTIVIDAD_MINUTOS:-30}
+  CONTRASENA_DIAS_ADMIN: ${CONTRASENA_DIAS_ADMIN:-90}
+  RETENCION_ACCESOS_DIAS: ${RETENCION_ACCESOS_DIAS:-90}
+  RETENCION_ACCESOS_ERRORES_DIAS: ${RETENCION_ACCESOS_ERRORES_DIAS:-365}
+  GEOIP_BASE: ${GEOIP_BASE:-}
+  # El pool es por proceso: workers x (size + overflow) debe caber en max_connections.
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-15}
+  DB_POOL_OVERFLOW: ${DB_POOL_OVERFLOW:-10}
+  LOG_JSON: "true"
+
+x-log-json: &log-json
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  # --------------------------------------------------------------- proxy + PWA
+  proxy:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: acma-web:${ACMA_VERSION:-0.1.0}
+    restart: unless-stopped
+    environment:
+      ACMA_DOMINIO: ${ACMA_DOMINIO:?falta ACMA_DOMINIO}
+      ACMA_CORREO_TLS: ${ACMA_CORREO_TLS:?falta ACMA_CORREO_TLS}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - caddy_datos:/data        # certificados: sin esto se piden de nuevo en cada reinicio
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *log-json
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ------------------------------------------------------------------- API
+  api:
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    image: acma-api:${ACMA_VERSION:-0.1.0}
+    restart: unless-stopped
+    environment:
+      <<: *entorno-comun
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+    depends_on:
+      migraciones:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/salud"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    logging: *log-json
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # ------------------------------------------------- migraciones (una sola vez)
+  # Corre `alembic upgrade head` y termina. La API no arranca hasta que esto salga bien.
+  migraciones:
+    image: acma-api:${ACMA_VERSION:-0.1.0}
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    restart: "no"
+    environment: *entorno-comun
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *log-json
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # --------------------------------------------------------- Celery (tareas)
+  worker:
+    image: acma-api:${ACMA_VERSION:-0.1.0}
+    restart: unless-stopped
+    environment: *entorno-comun
+    command: ["celery", "-A", "workers.celery_app", "worker", "--loglevel=info", "--concurrency=${CELERY_CONCURRENCIA:-4}"]
+    depends_on:
+      api:
+        condition: service_healthy
+    # CMD-SHELL y no CMD: en la forma exec no hay shell, `$$HOSTNAME` llegaba literal al comando y se preguntaba por
+    # un nodo que no existe, asi que el worker siempre salia `unhealthy`.
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A workers.celery_app inspect ping -d celery@$$(hostname) --timeout 10 | grep -q pong"]
+      interval: 60s
+      timeout: 20s
+      start_period: 60s
+      retries: 3
+    logging: *log-json
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  beat:
+    image: acma-api:${ACMA_VERSION:-0.1.0}
+    restart: unless-stopped
+    environment: *entorno-comun
+    # El calendario vive en un volumen: si se pierde, las tareas periódicas se re-disparan al arrancar.
+    command: ["celery", "-A", "workers.celery_app", "beat", "--loglevel=info",
+              "--schedule=/var/lib/acma/celerybeat-schedule"]
+    volumes:
+      - beat_datos:/var/lib/acma
+    # Beat no atiende HTTP, asi que el healthcheck de la imagen (curl a /api/salud) no le sirve. Se comprueba que
+    # siga escribiendo su calendario: con `maxinterval` de 5 min lo toca mucho antes de los 10 que se exigen aqui.
+    healthcheck:
+      test: ["CMD-SHELL", "find /var/lib/acma/celerybeat-schedule -newermt '-10 minutes' | grep -q ."]
+      interval: 60s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+    depends_on:
+      worker:
+        condition: service_started
+    logging: *log-json
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # --------------------------------------------------------------- PostgreSQL
+  postgres:
+    # PostgreSQL 16.4 + PostGIS 3.4, fijado por digest.
+    image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-acma_super}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERPASSWORD:?falta POSTGRES_SUPERPASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-acma}
+      ACMA_OWNER_PASSWORD: ${ACMA_OWNER_PASSWORD:?falta ACMA_OWNER_PASSWORD}
+      ACMA_API_PASSWORD: ${ACMA_API_PASSWORD:?falta ACMA_API_PASSWORD}
+    # max_connections=200: 4 workers x 25 del pool, mas Celery, los respaldos y una sesion de psql.
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-4GB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE:-8GB}
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=512MB
+      - -c
+      - random_page_cost=1.1       # disco SSD/NVMe
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - log_checkpoints=on
+    volumes:
+      - pg_datos:/var/lib/postgresql/data
+      # El mismo script de roles de P01: crea acma_owner y acma_api (sin BYPASSRLS).
+      - ./docker/postgres/01_roles.sh:/docker-entrypoint-initdb.d/01_roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-acma_super} -d ${POSTGRES_DB:-acma}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging: *log-json
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+
+  # --------------------------------------------------------------------- Redis
+  redis:
+    image: redis:7.4.9-alpine
+    restart: unless-stopped
+    # Con contraseña y persistencia AOF: la cola de Celery no se puede perder en un reinicio.
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?falta REDIS_PASSWORD}
+    volumes:
+      - redis_datos:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *log-json
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  # --------------------------------------------------------------------- MinIO
+  minio:
+    # RELEASE.2025-09-07T16-13-09Z, fijado por digest.
+    image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?falta MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?falta MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_datos:/data
+    # La consola solo se expone al host (127.0.0.1): no sale a internet. El puerto es configurable porque en una
+    # maquina con otro MinIO el 9001 ya esta ocupado.
+    ports:
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 20s
+      timeout: 10s
+      start_period: 20s
+      retries: 5
+    logging: *log-json
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+volumes:
+  pg_datos:
+  redis_datos:
+  minio_datos:
+  caddy_datos:
+  caddy_config:
+  beat_datos:

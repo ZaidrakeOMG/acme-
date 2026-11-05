@@ -45,7 +45,7 @@ export function Activos() {
 
   return (
     <div>
-      <Encabezado titulo="Equipos y activos" descripcion="Ficha por equipo con historial, depreciación y costo total de propiedad (§6.9.4). Cuando el TCO acumulado supera el porcentaje configurado de su valor de reposición, ACMA recomienda reemplazar. La criticidad automática, el FMEA, el MTBF y el MTTR llegan en Fase 2."
+      <Encabezado titulo="Equipos y activos" descripcion="Ficha por equipo con historial, depreciación y costo total de propiedad. Cuando el TCO acumulado supera el porcentaje configurado de su valor de reposición, ACMA recomienda reemplazar. La criticidad automática, el FMEA, el MTBF y el MTTR llegan en Fase 2."
         acciones={decide ? <Boton variante="secundario" onClick={() => setUmbral(true)}>Umbral de reemplazo</Boton> : undefined} />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex gap-1" role="tablist" aria-label="Vistas de activos">

@@ -58,7 +58,7 @@ export function Presupuestos() {
 
   return (
     <div>
-      <Encabezado titulo="Presupuestos" descripcion="Gasto contra presupuesto por unidad de negocio, grupo y tipo de actividad (§6.8.5). El consumo se registra al validarse el costo de cada folio; el comprometido son los folios autorizados que aún no cierran."
+      <Encabezado titulo="Presupuestos" descripcion="Gasto contra presupuesto por unidad de negocio, grupo y tipo de actividad. El consumo se registra al validarse el costo de cada folio; el comprometido son los folios autorizados que aún no cierran."
         acciones={escribe ? <Boton onClick={() => setCreando(true)}>Nuevo presupuesto</Boton> : undefined} />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex gap-1" role="tablist" aria-label="Vistas de presupuesto">

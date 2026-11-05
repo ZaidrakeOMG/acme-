@@ -1,0 +1,13 @@
+# Contexto de la imagen del frontend: solo hacen falta frontend/ y docker/Caddyfile.
+.git/
+backend/
+docs/
+scripts/
+frontend/node_modules/
+frontend/dist/
+frontend/dev-dist/
+frontend/coverage/
+*.docx
+.env
+.env.*
+!/.env.production.example

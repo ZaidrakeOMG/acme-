@@ -109,7 +109,7 @@ function EditorPlan({ plan, alCerrar, alGuardar }: { plan: Plan | null; alCerrar
                     opciones={[{ valor: '', texto: 'Elegir…' }, ...(tipos.datos ?? []).map((x) => ({ valor: x.id, texto: x.nombre }))]} />
           <Campo etiqueta="Ventana de ejecución (días)" type="number" min={0} max={365} value={b.tiempo_ventana_dias} onChange={(e) => setB({ ...b, tiempo_ventana_dias: e.target.value })} />
           <Selector etiqueta="Formulario preventivo" value={b.formulario_id} onChange={(e) => setB({ ...b, formulario_id: e.target.value })}
-                    opciones={[{ valor: '', texto: 'Resolver por tipo de equipo (P03)' }, ...(formularios.datos ?? []).map((f) => ({ valor: f.id, texto: f.nombre }))]} />
+                    opciones={[{ valor: '', texto: 'Resolver por tipo de equipo' }, ...(formularios.datos ?? []).map((f) => ({ valor: f.id, texto: f.nombre }))]} />
           <Campo etiqueta="Descripción" value={b.descripcion} onChange={(e) => setB({ ...b, descripcion: e.target.value })} />
           {plan && <Selector etiqueta="Estado" value={b.estado} onChange={(e) => setB({ ...b, estado: e.target.value as 'activo' | 'inactivo' })} opciones={[{ valor: 'activo', texto: 'Activo' }, { valor: 'inactivo', texto: 'Inactivo' }]} />}
         </div>

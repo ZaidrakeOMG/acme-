@@ -13,7 +13,7 @@ import {
 
 const ROLES: Rol[] = ['superadmin', 'admin_prestador', 'direccion_prestador', 'mesa_control', 'despachador', 'supervisor_prestador', 'tecnico', 'admin_empresa', 'admin_un', 'supervisor_operadores', 'operador']
 const TIPOS_FORMULARIO = ['captura_operador', 'atencion_tecnico', 'preventivo', 'trabajo_especial', 'encuesta', 'libre'] as const
-const NOMBRE_CATALOGO: Record<CatalogoSistema, string> = { equipos_tenant: 'Equipos del tenant', unidades_negocio: 'Unidades de negocio', tecnicos_prestador: 'Técnicos del prestador', tipos_falla: 'Tipos de falla', tipos_equipo: 'Tipos de equipo', familias_equipo: 'Familias de equipo', materiales: 'Materiales / refacciones (P09)', proveedores_externos: 'Proveedores externos (P08)', catalogo_personalizado: 'Catálogo personalizado' }
+const NOMBRE_CATALOGO: Record<CatalogoSistema, string> = { equipos_tenant: 'Equipos del tenant', unidades_negocio: 'Unidades de negocio', tecnicos_prestador: 'Técnicos del prestador', tipos_falla: 'Tipos de falla', tipos_equipo: 'Tipos de equipo', familias_equipo: 'Familias de equipo', materiales: 'Materiales / refacciones', proveedores_externos: 'Proveedores externos', catalogo_personalizado: 'Catálogo personalizado' }
 
 const clave = (texto: string, existentes: Set<string>) => {
   let base = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'campo'
@@ -187,7 +187,7 @@ export function Constructor() {
           {esSuper && !f && <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" checked={meta.es_plantilla_base} onChange={(e) => setMeta({ ...meta, es_plantilla_base: e.target.checked })} /> Plantilla base de plataforma</label>}
         </div>
         <fieldset className="mt-3" disabled={!puedeEditar || usuario?.rol === 'mesa_control'}>
-          <legend className="text-sm font-medium text-slate-700">Rol destino (§4.3)</legend>
+          <legend className="text-sm font-medium text-slate-700">Rol destino</legend>
           <div className="mt-1 flex flex-wrap gap-3 text-sm">
             {ROLES.map((r) => <label key={r} className="flex items-center gap-1"><input type="checkbox" checked={meta.rol_destino.includes(r)} onChange={(e) => setMeta({ ...meta, rol_destino: e.target.checked ? [...meta.rol_destino, r] : meta.rol_destino.filter((x) => x !== r) })} /> {r}</label>)}
           </div>

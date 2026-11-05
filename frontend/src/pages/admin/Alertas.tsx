@@ -59,7 +59,7 @@ export function Alertas() {
   return (
     <div>
       <Encabezado titulo="Configuración central de alertas"
-        descripcion="Un solo lugar para todos los umbrales del sistema (§6.9.6). El Superadmin fija el valor por defecto y el rango; cada cliente y cada prestador ajustan su umbral, sus canales y sus roles destinatarios dentro de ese rango. Las alertas cuya fuente de datos llega en Fase 2 se muestran etiquetadas y no se pueden activar." />
+        descripcion="Un solo lugar para todos los umbrales del sistema. El Superadmin fija el valor por defecto y el rango; cada cliente y cada prestador ajustan su umbral, sus canales y sus roles destinatarios dentro de ese rango. Las alertas cuya fuente de datos llega en Fase 2 se muestran etiquetadas y no se pueden activar." />
       <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Vistas de alertas">
         {([['catalogo', 'Catálogo y umbrales'], ['escalaciones', 'Escalaciones a Dirección'], ['supresiones', 'Supresiones'], ['historial', 'Historial']] as [Vista, string][]).map(([v, texto]) => (
           <button key={v} role="tab" aria-selected={vista === v} onClick={() => ir(v)}
@@ -158,7 +158,7 @@ function FormularioAlerta({ alerta, params, alGuardar }: { alerta: AlertaEfectiv
       {fase2 && <Aviso tipo="info">La fuente de datos de esta alerta (GPS, medidores o certificaciones) llega en Fase 2:
         puedes dejar su umbral preparado, pero no se puede activar.</Aviso>}
       {alerta.escalacion_de && <Aviso tipo="info">Escala desde <strong>{alerta.escalacion_de}</strong>: el umbral se mide
-        desde que esa alerta se disparó, no desde el hecho original (§6.9.6).</Aviso>}
+        desde que esa alerta se disparó, no desde el hecho original.</Aviso>}
       {error && <Aviso>{error}</Aviso>}
       <label className="block text-sm">
         <span className="mb-1 block font-medium text-slate-700">Umbral ({UNIDADES[alerta.tipo_umbral] || alerta.tipo_umbral}) — rango {min} a {max}, default {Number(alerta.umbral_default)}</span>
@@ -272,7 +272,7 @@ function Supresiones({ consulta, alertas }: { consulta: Record<string, string | 
   return (
     <Tarjeta titulo="Supresiones temporales" acciones={<Boton onClick={() => setNueva(true)}>Suprimir una alerta</Boton>}>
       <p className="mb-2 text-sm text-slate-600">Silencia una alerta por un período, con razón documentada. Solo los roles
-        administradores pueden hacerlo (§6.9.6); al vencer, la alerta vuelve sola.</p>
+        administradores pueden hacerlo; al vencer, la alerta vuelve sola.</p>
       <label className="mb-2 flex items-center gap-1 text-sm"><input type="checkbox" checked={soloActivas}
         onChange={(e) => setSoloActivas(e.target.checked)} /> Solo las vigentes</label>
       {error && <Aviso>{error}</Aviso>}

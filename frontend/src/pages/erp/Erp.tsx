@@ -53,7 +53,7 @@ export function Erp() {
 
   return (
     <div>
-      <Encabezado titulo="Integración ERP" descripcion="ACMA nunca se conecta directamente con un ERP (§6.6): genera un evento en su formato interno y un adaptador lo traduce. Los adaptadores de CONTPAQi y Microsip llegan en Fase 2; en Fase 1 el contador descarga la exportación universal en XML de pólizas o Excel configurable." />
+      <Encabezado titulo="Integración ERP" descripcion="ACMA nunca se conecta directamente con un ERP: genera un evento en su formato interno y un adaptador lo traduce. Los adaptadores de CONTPAQi y Microsip llegan en Fase 2; en Fase 1 el contador descarga la exportación universal en XML de pólizas o Excel configurable." />
       <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Vistas de ERP">
         {([['eventos', 'Bandeja de eventos'], ['exportaciones', 'Exportaciones'], ['configuracion', 'Configuración']] as [Vista, string][]).map(([v, texto]) => (
           <button key={v} role="tab" aria-selected={vista === v} className={`rounded-lg px-3 py-1.5 text-sm ${vista === v ? 'bg-primario text-white' : 'border border-slate-300'}`}

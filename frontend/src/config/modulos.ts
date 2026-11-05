@@ -1,7 +1,6 @@
 /**
  * Módulos de Fase 1 (Anexo de alcance v1.0) y roles que los ven (§5 del Documento de Diseño v2.5).
- * `prompt` indica en qué prompt se construye; los que no son P01 se muestran como "Disponible en el prompt Pxx".
- * La asignación módulo→rol de los módulos futuros es preliminar (ver CONTEXTO.md, decisiones pendientes).
+ * Los 27 módulos de Fase 1 tienen pantalla; cada uno declara su ruta y los roles que lo ven.
  */
 import type { Rol } from '../types/api'
 
@@ -11,9 +10,8 @@ export interface Modulo {
   id: string
   nombre: string
   descripcion: string
-  prompt: string
   grupo: GrupoModulo
-  ruta?: string
+  ruta: string
   roles: Rol[]
 }
 
@@ -21,64 +19,62 @@ const PRESTADOR_GESTION: Rol[] = ['admin_prestador', 'mesa_control', 'despachado
 const LECTURA_EJECUTIVA: Rol[] = ['direccion_prestador', 'supervisor_prestador']
 
 export const MODULOS: Modulo[] = [
-  // ---------------------------------------------------------------- P01
-  { id: 'usuarios', nombre: 'Usuarios', descripcion: 'Altas, roles y estado de los usuarios', prompt: 'P01', grupo: 'Administración',
+  { id: 'usuarios', nombre: 'Usuarios', descripcion: 'Altas, roles y estado de los usuarios', grupo: 'Administración',
     ruta: '/usuarios', roles: ['superadmin', 'admin_prestador', 'admin_empresa'] },
-  { id: 'tenants', nombre: 'Clientes (tenants)', descripcion: 'Empresas cliente y su vínculo con prestadores', prompt: 'P01',
+  { id: 'tenants', nombre: 'Clientes (tenants)', descripcion: 'Empresas cliente y su vínculo con prestadores',
     grupo: 'Administración', ruta: '/tenants', roles: ['superadmin', 'admin_prestador'] },
-  { id: 'prestadores', nombre: 'Prestadores', descripcion: 'Datos fiscales, logo y colores del prestador', prompt: 'P01',
+  { id: 'prestadores', nombre: 'Prestadores', descripcion: 'Datos fiscales, logo y colores del prestador',
     grupo: 'Administración', ruta: '/prestadores', roles: ['superadmin', 'admin_prestador'] },
-  { id: 'unidades', nombre: 'Unidades de negocio', descripcion: 'UNs, ubicación y grupos de UNs', prompt: 'P01', grupo: 'Administración',
+  { id: 'unidades', nombre: 'Unidades de negocio', descripcion: 'UNs, ubicación y grupos de UNs', grupo: 'Administración',
     ruta: '/unidades', roles: ['superadmin', 'admin_empresa', 'admin_un', 'supervisor_operadores', ...PRESTADOR_GESTION] },
-  { id: 'contratos', nombre: 'Contratos y SLAs', descripcion: 'Vigencia, modalidad y SLAs por severidad', prompt: 'P01',
+  { id: 'contratos', nombre: 'Contratos y SLAs', descripcion: 'Vigencia, modalidad y SLAs por severidad',
     grupo: 'Administración', ruta: '/contratos', roles: ['superadmin', 'admin_prestador', 'direccion_prestador', 'mesa_control', 'admin_empresa'] },
-  { id: 'alertas', nombre: 'Configuración de alertas', descripcion: 'Umbrales, canales y supresiones', prompt: 'P01',
+  { id: 'alertas', nombre: 'Configuración de alertas', descripcion: 'Umbrales, canales y supresiones',
     grupo: 'Administración', ruta: '/alertas', roles: ['superadmin', 'admin_prestador', 'admin_empresa'] },
-  { id: 'auditoria', nombre: 'Auditoría', descripcion: 'Eventos de seguridad y accesos a la API', prompt: 'P01', grupo: 'Administración',
+  { id: 'auditoria', nombre: 'Auditoría', descripcion: 'Eventos de seguridad y accesos a la API', grupo: 'Administración',
     ruta: '/auditoria', roles: ['superadmin'] },
 
-  // ------------------------------------------------------------ P02–P10
-  { id: 'catalogos', nombre: 'Catálogos maestros', descripcion: 'Técnicos, equipos, fallas, severidades e importador', prompt: 'P02',
+  { id: 'catalogos', nombre: 'Catálogos maestros', descripcion: 'Técnicos, equipos, fallas, severidades e importador',
     grupo: 'Administración', ruta: '/catalogos', roles: ['superadmin', 'admin_prestador', 'admin_empresa', 'admin_un', 'mesa_control', 'despachador'] },
-  { id: 'formularios', nombre: 'Formularios dinámicos', descripcion: 'Constructor con 22 tipos de campo, plantillas y versiones', prompt: 'P03',
+  { id: 'formularios', nombre: 'Formularios dinámicos', descripcion: 'Constructor con 22 tipos de campo, plantillas y versiones',
     grupo: 'Administración', ruta: '/formularios', roles: ['superadmin', 'admin_prestador', 'mesa_control'] },
-  { id: 'mis_formularios', nombre: 'Mis formularios', descripcion: 'Formularios dirigidos a tu rol: llenar, reanudar y consultar', prompt: 'P03',
+  { id: 'mis_formularios', nombre: 'Mis formularios', descripcion: 'Formularios dirigidos a tu rol: llenar, reanudar y consultar',
     grupo: 'Operación', ruta: '/mis-formularios', roles: ['superadmin', 'admin_prestador', 'mesa_control', 'despachador', 'tecnico', 'supervisor_prestador', 'direccion_prestador', 'admin_empresa', 'admin_un', 'supervisor_operadores', 'operador'] },
-  { id: 'folios', nombre: 'Folios', descripcion: 'Ciclo de vida, validaciones y aprobaciones', prompt: 'P04', grupo: 'Operación',
+  { id: 'folios', nombre: 'Folios', descripcion: 'Ciclo de vida, validaciones y aprobaciones', grupo: 'Operación',
     ruta: '/folios', roles: ['superadmin', ...PRESTADOR_GESTION, 'admin_empresa', 'admin_un', 'supervisor_operadores', 'operador', 'tecnico'] },
-  { id: 'app_campo', nombre: 'App de campo y chat', descripcion: 'Captura, evidencias, firma y modo offline', prompt: 'P05',
+  { id: 'app_campo', nombre: 'App de campo y chat', descripcion: 'Captura, evidencias, firma y modo offline',
     grupo: 'Operación', ruta: '/campo', roles: ['operador', 'tecnico', 'admin_un'] },
-  { id: 'preventivos', nombre: 'Preventivos y planes', descripcion: 'Calendario mensual, planes con triggers y autorizaciones', prompt: 'P06',
+  { id: 'preventivos', nombre: 'Preventivos y planes', descripcion: 'Calendario mensual, planes con triggers y autorizaciones',
     grupo: 'Operación', ruta: '/preventivos/calendario', roles: ['superadmin', ...PRESTADOR_GESTION, 'admin_empresa', 'admin_un', 'supervisor_operadores'] },
-  { id: 'reasignaciones', nombre: 'Reasignaciones', descripcion: 'Reporte de causas y catálogo de razones (§6.8.2)', prompt: 'P06', grupo: 'Operación',
+  { id: 'reasignaciones', nombre: 'Reasignaciones', descripcion: 'Reporte de causas y catálogo de razones (§6.8.2)', grupo: 'Operación',
     ruta: '/reasignaciones/reporte', roles: ['superadmin', ...PRESTADOR_GESTION, 'direccion_prestador', 'supervisor_prestador', 'admin_empresa'] },
-  { id: 'minuta', nombre: 'Minuta del día', descripcion: 'Cierre de jornada por UN y global: validación, entrega y respuesta', prompt: 'P07', grupo: 'Seguimiento',
+  { id: 'minuta', nombre: 'Minuta del día', descripcion: 'Cierre de jornada por UN y global: validación, entrega y respuesta', grupo: 'Seguimiento',
     ruta: '/minutas', roles: ['superadmin', ...PRESTADOR_GESTION, 'admin_empresa', 'admin_un', 'supervisor_operadores', ...LECTURA_EJECUTIVA] },
-  { id: 'seguimiento', nombre: 'Seguimiento', descripcion: 'Cotizaciones, por presupuesto, seguimiento interno y reprogramación', prompt: 'P07',
+  { id: 'seguimiento', nombre: 'Seguimiento', descripcion: 'Cotizaciones, por presupuesto, seguimiento interno y reprogramación',
     grupo: 'Seguimiento', ruta: '/seguimiento', roles: ['superadmin', ...PRESTADOR_GESTION, ...LECTURA_EJECUTIVA, 'admin_empresa', 'admin_un', 'supervisor_operadores'] },
-  { id: 'clasificacion', nombre: 'Folios no críticos', descripcion: 'Clasificación en plazo y calificación del Admin UN', prompt: 'P07',
+  { id: 'clasificacion', nombre: 'Folios no críticos', descripcion: 'Clasificación en plazo y calificación del Admin UN',
     grupo: 'Seguimiento', ruta: '/clasificacion', roles: ['superadmin', 'admin_empresa', 'admin_un', 'supervisor_operadores'] },
-  { id: 'notificaciones', nombre: 'Notificaciones', descripcion: 'Bandeja y preferencias de canal por evento', prompt: 'P07', grupo: 'Operación',
+  { id: 'notificaciones', nombre: 'Notificaciones', descripcion: 'Bandeja y preferencias de canal por evento', grupo: 'Operación',
     ruta: '/notificaciones', roles: ['superadmin', 'admin_prestador', 'direccion_prestador', 'mesa_control', 'despachador', 'supervisor_prestador', 'tecnico', 'admin_empresa', 'admin_un', 'supervisor_operadores', 'operador'] },
-  { id: 'trabajos_especiales', nombre: 'Trabajos especiales', descripcion: 'Ciclo de 8 estados, validación del cliente por botón y TE de urgencia', prompt: 'P08',
+  { id: 'trabajos_especiales', nombre: 'Trabajos especiales', descripcion: 'Ciclo de 8 estados, validación del cliente por botón y TE de urgencia',
     grupo: 'Operación', ruta: '/trabajos-especiales', roles: ['superadmin', ...PRESTADOR_GESTION, 'admin_empresa', 'admin_un', 'supervisor_operadores', ...LECTURA_EJECUTIVA] },
-  { id: 'oc_activos', nombre: 'OC de activos', descripcion: 'Seguimiento del trámite de OC para instalación de activos', prompt: 'P08', grupo: 'Seguimiento',
+  { id: 'oc_activos', nombre: 'OC de activos', descripcion: 'Seguimiento del trámite de OC para instalación de activos', grupo: 'Seguimiento',
     ruta: '/oc-activos', roles: ['superadmin', 'admin_empresa', 'admin_un', 'supervisor_operadores', ...PRESTADOR_GESTION] },
-  { id: 'inventario', nombre: 'Inventario', descripcion: 'Artículos, existencias por almacén y vehículo, movimientos y órdenes de compra', prompt: 'P09',
+  { id: 'inventario', nombre: 'Inventario', descripcion: 'Artículos, existencias por almacén y vehículo, movimientos y órdenes de compra',
     grupo: 'Finanzas y activos', ruta: '/inventario', roles: ['superadmin', ...PRESTADOR_GESTION, 'tecnico', ...LECTURA_EJECUTIVA] },
-  { id: 'caja_chica', nombre: 'Caja chica', descripcion: 'Fondo por técnico, captura de la factura y pólizas de reposición', prompt: 'P09',
+  { id: 'caja_chica', nombre: 'Caja chica', descripcion: 'Fondo por técnico, captura de la factura y pólizas de reposición',
     grupo: 'Finanzas y activos', ruta: '/caja-chica', roles: ['superadmin', ...PRESTADOR_GESTION, 'tecnico', 'direccion_prestador'] },
-  { id: 'presupuestos', nombre: 'Presupuestos', descripcion: 'Gasto contra presupuesto por UN, grupo y tipo de actividad', prompt: 'P09',
+  { id: 'presupuestos', nombre: 'Presupuestos', descripcion: 'Gasto contra presupuesto por UN, grupo y tipo de actividad',
     grupo: 'Finanzas y activos', ruta: '/presupuestos', roles: ['superadmin', 'admin_empresa', 'admin_un', 'supervisor_operadores', 'admin_prestador', 'mesa_control', 'direccion_prestador'] },
-  { id: 'activos', nombre: 'Equipos y activos', descripcion: 'Ficha, historial, depreciación, TCO y reemplazo recomendado', prompt: 'P09',
+  { id: 'activos', nombre: 'Equipos y activos', descripcion: 'Ficha, historial, depreciación, TCO y reemplazo recomendado',
     grupo: 'Finanzas y activos', ruta: '/activos', roles: ['superadmin', 'admin_empresa', 'admin_un', 'supervisor_operadores', ...PRESTADOR_GESTION, ...LECTURA_EJECUTIVA] },
-  { id: 'erp', nombre: 'Integración ERP', descripcion: 'Eventos, exportación universal XML/Excel y adaptadores', prompt: 'P09',
+  { id: 'erp', nombre: 'Integración ERP', descripcion: 'Eventos, exportación universal XML/Excel y adaptadores',
     grupo: 'Finanzas y activos', ruta: '/erp', roles: ['superadmin', 'admin_prestador', 'direccion_prestador', 'mesa_control', 'despachador'] },
   { id: 'sla', nombre: 'Contador de SLA', descripcion: 'Cumplimiento del contrato, pausas, exclusiones y penalizaciones del período',
-    prompt: 'P10', grupo: 'Análisis', ruta: '/contratos?vista=cumplimiento',
+    grupo: 'Análisis', ruta: '/contratos?vista=cumplimiento',
     roles: ['superadmin', 'admin_prestador', 'mesa_control', 'despachador', 'admin_empresa', 'admin_un', ...LECTURA_EJECUTIVA] },
   { id: 'bi', nombre: 'Inteligencia de negocio', descripcion: 'Tablero por rol con la jerarquía cliente → grupo → UN y reportes comparativos',
-    prompt: 'P10', grupo: 'Análisis', ruta: '/bi',
+    grupo: 'Análisis', ruta: '/bi',
     roles: ['superadmin', 'admin_prestador', 'mesa_control', 'despachador', 'admin_empresa', 'admin_un', 'supervisor_operadores', ...LECTURA_EJECUTIVA] },
 ]
 

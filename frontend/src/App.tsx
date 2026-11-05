@@ -133,10 +133,10 @@ export function App() {
         <Route path="campo/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio modoCampo /> : <SinPermiso />} />
         <Route path="campo/folio/:folioId/cierre" element={['operador', 'admin_un', 'superadmin'].includes(usuario.rol) ? <CierreOperador /> : <SinPermiso />} />
         <Route path="campo/folio/:folioId" element={usuario.rol === 'tecnico' ? <AtencionTecnico /> : <DetalleOperador />} />
-        {MODULOS.filter((m) => m.ruta).map((m) => (
+        {MODULOS.map((m) => (
           <Route
             key={m.id}
-            path={m.ruta!.slice(1)}
+            path={m.ruta.slice(1)}
             element={usuario.rol === 'superadmin' || m.roles.includes(usuario.rol) ? PAGINAS[m.id] : <SinPermiso />}
           />
         ))}
