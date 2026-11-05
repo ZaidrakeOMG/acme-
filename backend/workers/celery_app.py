@@ -39,6 +39,8 @@ celery_app.conf.update(
         "consolidar-penalizaciones": {"task": "acma.consolidar_penalizaciones", "schedule": crontab(hour=5, minute=0, day_of_month=1)},
         "reportes-programados": {"task": "acma.enviar_reportes_programados", "schedule": crontab(hour=8, minute=0)},
         "cierre-jornada": {"task": "acma.reporte_cierre_jornada", "schedule": crontab(hour=22, minute=30)},
+        # P11a: retención de la bitácora de accesos a la API (§6.9.5).
+        "purgar-accesos-api": {"task": "acma.purgar_accesos_api", "schedule": crontab(hour=3, minute=50)},
     },
 )
 

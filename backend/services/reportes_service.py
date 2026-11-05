@@ -24,7 +24,7 @@ from models.base import Dominio, FormatoReporte, PeriodicidadReporte, Rol
 from models.organizaciones import Prestador
 from models.reportes import ReporteGenerado, ReporteProgramado
 from services import auditoria, bi_service, pdf
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 from services.bi_service import Filtro
 
 log = logging.getLogger("acma.reportes")
@@ -209,7 +209,7 @@ async def generar(db: AsyncSession, actor: Actor, *, tipo: str, formato: Formato
     filas = sum(len(b["filas"]) for b in bloques)
     clave = (f"reportes/{filtro.tenant_id or filtro.prestador_id or 'plataforma'}/{tipo}-{filtro.desde}-{filtro.hasta}"
              f"-{datetime.now(UTC):%Y%m%d%H%M%S}.{ext}")
-    obtener_almacenamiento().guardar(clave, datos, mime)
+    obtener_almacenamiento().guardar(clave, datos, mime, dueno=dueno_de(filtro.tenant_id, filtro.prestador_id))
     registro = ReporteGenerado(programado_id=programado.id if programado else None, tenant_id=filtro.tenant_id,
                                prestador_id=filtro.prestador_id, tipo_reporte=tipo, formato=formato,
                                filtros_json={"desde": str(filtro.desde), "hasta": str(filtro.hasta),

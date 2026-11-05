@@ -19,7 +19,7 @@ function campoClave(tipo: string): string {
 }
 
 async function entrar(rol: Parameters<typeof perfil>[0], rutas = {}, ruta = '/formularios/constructor') {
-  localStorage.setItem('acma.refresh', TOKENS.refresh_token)
+  localStorage.setItem('acma.sesion', '1')  // P11a: solo la marca; el refresh va en cookie httpOnly
   const llamadas = simularApi({
     'POST /api/auth/refresh': () => ({ json: TOKENS }),
     'GET /api/auth/yo': () => ({ json: perfil(rol, { prestador_id: 'p0000000-0000-0000-0000-000000000001' }) }),

@@ -74,6 +74,24 @@ async def registrar(
     )
 
 
+async def registrar_acceso_datos(sesion: AsyncSession, actor, request: Request | None, *, tabla: str,
+                                 registros: int, recurso_id: Any = None, detalle: dict[str, Any] | None = None) -> None:
+    """§6.9.5 «Acceso a datos sensibles»: tabla consultada, ID del registro y cantidad de registros devueltos.
+
+    Se usa en los datos financieros (P09/P10), la descarga de reportes y el historial de un folio cerrado. P11a.
+    """
+    await registrar(
+        sesion, "acceso.datos_sensibles",
+        actor_id=getattr(actor, "id", None),
+        actor_rol=getattr(getattr(actor, "rol", None), "value", None),
+        tenant_id=getattr(actor, "tenant_id", None),
+        prestador_id=getattr(actor, "prestador_id", None),
+        recurso_tipo=tabla, recurso_id=recurso_id,
+        despues={"tabla": tabla, "registros": registros, **(detalle or {})},
+        request=request,
+    )
+
+
 async def registrar_actor(sesion: AsyncSession, actor, evento_tipo: str, request: Request | None = None, **kw) -> None:
     """Atajo con los datos del actor autenticado (core.dependencias.Actor)."""
     kw.setdefault("tenant_id", actor.tenant_id)

@@ -16,7 +16,7 @@ from routers.catalogos_tecnicos import prestador_de
 from schemas.catalogos import ImportacionSalida
 from schemas.comun import RESPUESTAS_ERROR
 from services import auditoria, importador_service as imp
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 
 router = APIRouter(prefix="/api/catalogos/importar", tags=["Catálogos · importador"], responses=RESPUESTAS_ERROR)
 
@@ -79,7 +79,8 @@ async def subir(catalogo: str, request: Request, db: DB, archivo: UploadFile = F
     columnas, filas = imp.leer_archivo(nombre, contenido)
     r = await imp.validar(db, cat, columnas, filas, t, p)
     clave = f"importaciones/{t or p}/{uuid.uuid4().hex}-{nombre[-80:]}"
-    obtener_almacenamiento().guardar(clave, contenido, archivo.content_type or "application/octet-stream")
+    obtener_almacenamiento().guardar(clave, contenido, archivo.content_type or "application/octet-stream",
+                                     dueno=dueno_de(t, p))
     i = ImportacionCatalogo(tenant_id=t, prestador_id=p, catalogo=cat.clave, archivo_nombre=nombre[:255], archivo_key=clave,
                             total_filas=r.total, filas_ok=len(r.validas), filas_error=len(r.errores), errores_json=r.errores,
                             duplicados_json=r.duplicados, filas_validas_json=r.validas, ejecutada_por=actor.id)

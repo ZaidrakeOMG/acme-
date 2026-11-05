@@ -12,10 +12,13 @@ class LoginEntrada(BaseModel):
 
 
 class Tokens(BaseModel):
+    """P11a: el refresh token ya no viaja en el cuerpo, va en la cookie `httpOnly` `acma_refresh` (§6.9.5)."""
+
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     expira_en: int = Field(description="Segundos de vida del token de acceso")
+    sesion_expira_en: int = Field(default=0, description="Segundos que le quedan a la sesión (8 h, 2 h para administrativos)")
+    csrf: str = Field(default="", description="Mismo valor que la cookie `acma_csrf`; va en la cabecera X-ACMA-CSRF")
 
 
 class Perfil(BaseModel):
@@ -29,6 +32,7 @@ class Perfil(BaseModel):
     prestador_id: UUID | None = None
     mfa_habilitado: bool
     mfa_obligatorio: bool
+    contrasena_vencida: bool = False
 
 
 class Tema(BaseModel):
@@ -47,10 +51,7 @@ class LoginSalida(BaseModel):
     token_mfa: str | None = Field(default=None, description="Token temporal (5 min) para el paso de MFA")
     tokens: Tokens | None = None
     usuario: Perfil | None = None
-
-
-class RefreshEntrada(BaseModel):
-    refresh_token: str = Field(min_length=20, max_length=200)
+    cambio_contrasena_requerido: bool = Field(default=False, description="§6.9.5: contraseña vencida (90 días)")
 
 
 class MfaTokenOpcional(BaseModel):
@@ -75,6 +76,7 @@ class MfaVerificarSalida(BaseModel):
     tokens: Tokens | None = None
     usuario: Perfil | None = None
     codigos_recuperacion: list[str] | None = Field(default=None, description="Se muestran una sola vez")
+    cambio_contrasena_requerido: bool = False
 
 
 class CodigosRecuperacion(BaseModel):
@@ -83,4 +85,13 @@ class CodigosRecuperacion(BaseModel):
 
 class CambioContrasena(BaseModel):
     actual: str = Field(min_length=1, max_length=200)
+    nueva: str = Field(min_length=10, max_length=200)
+
+
+class RestablecerSolicitud(BaseModel):
+    email: EmailStr
+
+
+class RestablecerConfirmacion(BaseModel):
+    token: str = Field(min_length=20, max_length=400)
     nueva: str = Field(min_length=10, max_length=200)

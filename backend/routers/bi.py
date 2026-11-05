@@ -11,7 +11,7 @@ from models.base import FormatoReporte, Rol
 from models.reportes import ReporteGenerado, ReporteProgramado
 from schemas.comun import RESPUESTAS_ERROR
 from schemas.sla import GeneradoSalida, ProgramadoCambios, ProgramadoEntrada, ProgramadoSalida, ReporteEntrada
-from services import bi_service, reportes_service
+from services import auditoria, bi_service, reportes_service
 from services.almacenamiento import obtener_almacenamiento
 
 router = APIRouter(prefix="/api/bi", tags=["Inteligencia de negocio"], responses=RESPUESTAS_ERROR)
@@ -72,6 +72,11 @@ async def generar(datos: ReporteEntrada, request: Request, db: DB, actor: ActorA
     f = await bi_service.filtro_de(db, actor, datos.desde, datos.hasta, datos.grupo_id, datos.un_id)
     registro, archivo = await reportes_service.generar(db, actor, tipo=datos.tipo_reporte, formato=datos.formato,
                                                       filtro=f, request=request)
+    # §6.9.5 «Acceso a datos sensibles»: descarga de reportes.
+    await auditoria.registrar_acceso_datos(db, actor, request, tabla="reportes_generados", recurso_id=registro.id,
+                                           registros=registro.filas,
+                                           detalle={"tipo": datos.tipo_reporte, "formato": datos.formato.value,
+                                                    "desde": str(f.desde), "hasta": str(f.hasta)})
     await db.commit()
     nombre = f"{datos.tipo_reporte}-{f.desde}-{f.hasta}.{EXT[datos.formato]}"
     return Response(content=archivo, media_type=MIME[datos.formato],
@@ -91,13 +96,16 @@ async def generados(db: DB, actor: ActorActual, limite: int = Query(50, ge=1, le
 
 
 @router.get("/reportes/generados/{reporte_id}/archivo", summary="Descargar un reporte ya generado")
-async def archivo(reporte_id: UUID, db: DB, actor: ActorActual):
+async def archivo(reporte_id: UUID, request: Request, db: DB, actor: ActorActual):
     r = await db.get(ReporteGenerado, reporte_id)
     if r is None:
         raise no_encontrado("Reporte")
     if actor.rol != Rol.superadmin and r.tenant_id != actor.tenant_id and r.prestador_id != actor.prestador_id:
         raise no_encontrado("Reporte")
     datos = obtener_almacenamiento().leer(r.archivo_key)
+    await auditoria.registrar_acceso_datos(db, actor, request, tabla="reportes_generados", recurso_id=r.id,
+                                           registros=r.filas, detalle={"descarga": r.archivo_key})
+    await db.commit()
     nombre = r.archivo_key.rsplit("/", 1)[-1]
     return Response(content=datos, media_type=MIME[r.formato],
                     headers={"Content-Disposition": f'attachment; filename="{nombre}"'})

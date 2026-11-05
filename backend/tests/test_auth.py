@@ -3,7 +3,7 @@ import uuid
 
 import pyotp
 
-from tests.conftest import iniciar_sesion
+from tests.conftest import csrf, iniciar_sesion, olvidar_paso_totp, refrescar
 
 
 async def _crear_usuario(cliente, auth, rol: str, tenant_id=None, prestador_id=None) -> str:
@@ -65,6 +65,7 @@ async def test_flujo_completo_mfa_enrolamiento_verificacion_y_recuperacion(clien
         # 2. Login posterior: verificación TOTP normal (sin códigos nuevos).
         r = (await c.post("/api/auth/login", json={"email": email, "contrasena": "Prueba#Segura2026"})).json()
         assert r["mfa_requerido"] and not r["mfa_enrolamiento_requerido"]
+        await olvidar_paso_totp(email)
         v = (await c.post("/api/auth/mfa/verify", json={"token_mfa": r["token_mfa"], "codigo": totp.now()})).json()
         assert v["tokens"] and v["codigos_recuperacion"] is None
 
@@ -77,6 +78,7 @@ async def test_flujo_completo_mfa_enrolamiento_verificacion_y_recuperacion(clien
         # 4. Rol con MFA obligatorio no puede deshabilitarlo; sí regenerar códigos.
         h = {"Authorization": f"Bearer {v['tokens']['access_token']}"}
         assert (await c.post("/api/auth/mfa/disable", headers=h, json={"codigo": totp.now()})).json()["codigo"] == "MFA_OBLIGATORIO"
+        await olvidar_paso_totp(email)
         nuevos = await c.post("/api/auth/mfa/codigos-recuperacion", headers=h, json={"codigo": totp.now()})
         assert nuevos.status_code == 200 and len(set(nuevos.json()["codigos_recuperacion"]) - set(codigos)) == 10
 
@@ -92,23 +94,43 @@ async def test_mfa_voluntario_rol_no_obligatorio(cliente_factory, auth, datos):
         # Desde ahora su login pide MFA; y puede deshabilitarlo porque su rol no lo exige.
         r = (await c.post("/api/auth/login", json={"email": email, "contrasena": "Prueba#Segura2026"})).json()
         assert r["mfa_requerido"] and not r["mfa_enrolamiento_requerido"]
+        await olvidar_paso_totp(email)
         assert (await c.post("/api/auth/mfa/disable", headers=h, json={"codigo": pyotp.TOTP(secreto).now()})).status_code == 200
         r = (await c.post("/api/auth/login", json={"email": email, "contrasena": "Prueba#Segura2026"})).json()
         assert r["mfa_requerido"] is False
 
 
+async def test_sesion_en_cookie_httponly_y_csrf(cliente, datos):
+    """§6.9.5: el refresh viaja en cookie httpOnly con ruta limitada y el refresh exige la cabecera CSRF. P11a."""
+    tokens = await iniciar_sesion(cliente, "tecnico1@acma.dev", datos["contrasena"])
+    assert "refresh_token" not in tokens          # ya no viaja en el cuerpo
+    assert tokens["csrf"] and tokens["sesion_expira_en"] > 0
+    galleta = next(c for c in cliente.cookies.jar if c.name == "acma_refresh")
+    assert galleta.path == "/api/auth" and galleta.has_nonstandard_attr("HttpOnly")
+    assert cliente.cookies.get("acma_csrf") == tokens["csrf"]
+    # Sin la cabecera CSRF el refresh se rechaza; con ella, rota.
+    sin_csrf = await cliente.post("/api/auth/refresh")
+    assert sin_csrf.status_code == 403 and sin_csrf.json()["codigo"] == "CSRF_INVALIDO"
+    malo = await cliente.post("/api/auth/refresh", headers={"X-ACMA-CSRF": "otro-valor"})
+    assert malo.status_code == 403
+    r1 = await refrescar(cliente)
+    assert r1.status_code == 200 and r1.json()["access_token"] != tokens["access_token"]
+    assert (await cliente.get("/api/auth/yo", headers={"Authorization": f"Bearer {r1.json()['access_token']}"})).status_code == 200
+
+
 async def test_refresh_rotativo_y_reuso_invalida_familia(cliente, datos):
     tokens = await iniciar_sesion(cliente, "tecnico1@acma.dev", datos["contrasena"])
-    r1 = await cliente.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    viejo = cliente.cookies.get("acma_refresh")
+    r1 = await refrescar(cliente)
     assert r1.status_code == 200
     nuevos = r1.json()
-    assert nuevos["refresh_token"] != tokens["refresh_token"]
+    assert cliente.cookies.get("acma_refresh") != viejo
     assert (await cliente.get("/api/auth/yo", headers={"Authorization": f"Bearer {nuevos['access_token']}"})).status_code == 200
 
     # Reúso del refresh anterior: se detecta y se revoca toda la familia.
-    reuso = await cliente.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    cliente.cookies.set("acma_refresh", viejo, path="/api/auth")
+    reuso = await cliente.post("/api/auth/refresh", headers=csrf(cliente))
     assert reuso.status_code == 401 and reuso.json()["codigo"] == "TOKEN_REUTILIZADO"
-    assert (await cliente.post("/api/auth/refresh", json={"refresh_token": nuevos["refresh_token"]})).status_code == 401
     # El token de acceso de esa familia también deja de valer.
     assert (await cliente.get("/api/auth/yo", headers={"Authorization": f"Bearer {nuevos['access_token']}"})).status_code == 401
     # Una sesión nueva funciona normalmente.
@@ -116,16 +138,24 @@ async def test_refresh_rotativo_y_reuso_invalida_familia(cliente, datos):
 
 
 async def test_refresh_invalido(cliente, datos):
-    r = await cliente.post("/api/auth/refresh", json={"refresh_token": "x" * 64})
+    sin_cookie = await cliente.post("/api/auth/refresh", headers={"X-ACMA-CSRF": "x"})
+    assert sin_cookie.status_code in (401, 403)
+    cliente.cookies.set("acma_refresh", "x" * 64, path="/api/auth")
+    cliente.cookies.set("acma_csrf", "token-csrf", path="/")
+    r = await cliente.post("/api/auth/refresh", headers={"X-ACMA-CSRF": "token-csrf"})
     assert r.status_code == 401
 
 
 async def test_logout_revoca_sesion(cliente, datos):
     tokens = await iniciar_sesion(cliente, "tecnico2@acma.dev", datos["contrasena"])
-    h = {"Authorization": f"Bearer {tokens['access_token']}"}
+    h = {"Authorization": f"Bearer {tokens['access_token']}", **csrf(cliente)}
     assert (await cliente.post("/api/auth/logout", headers=h)).status_code == 200
     assert (await cliente.get("/api/auth/yo", headers=h)).status_code == 401
-    assert (await cliente.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})).status_code == 401
+    # La cookie de sesión se borra y el refresh ya no sirve.
+    assert not cliente.cookies.get("acma_refresh")
+    cliente.cookies.set("acma_refresh", "x" * 64, path="/api/auth")
+    cliente.cookies.set("acma_csrf", "t", path="/")
+    assert (await cliente.post("/api/auth/refresh", headers={"X-ACMA-CSRF": "t"})).status_code == 401
 
 
 async def test_bloqueo_temporal_por_usuario(cliente_factory, auth, datos):
@@ -170,7 +200,8 @@ async def test_cabeceras_de_seguridad_y_error_estandar(cliente):
     assert r.json()["codigo"] == "NO_ENCONTRADO"
     assert r.headers["x-frame-options"] == "DENY"
     assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
-    assert r.headers["strict-transport-security"].startswith("max-age=")
+    # HSTS solo se manda en produccion: cacheado desde un localhost sin TLS dejaria el navegador exigiendo https (P11a).
+    assert "strict-transport-security" not in r.headers
     sin_token = await cliente.get("/api/usuarios")
     assert sin_token.status_code == 401 and sin_token.json()["codigo"] == "NO_AUTENTICADO"
     validacion = await cliente.post("/api/auth/login", json={"email": "no-es-correo"})

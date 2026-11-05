@@ -200,8 +200,15 @@ async def crear(datos: FolioEntrada, request: Request, db: DB, actor: Actor = De
 @router.get("/{folio_id}", response_model=FolioDetalle, summary="Archivo completo del folio (§6.8.6)",
             description="Captura, formulario de captura, asignación, historial, evidencias, atención, refacciones, SLA, encuesta, triggers de "
                         "revisión, flujo y decisiones de aprobación. Chat (P05), reasignaciones (P06) y financiero (P09) vienen vacíos.")
-async def detalle(folio_id: UUID, db: DB, actor: Actor = Depends(TODOS)):
+async def detalle(folio_id: UUID, request: Request, db: DB, actor: Actor = Depends(TODOS)):
     folio = await svc.obtener(db, actor, folio_id)
+    if folio.estado in (EstadoFolio.cerrado, EstadoFolio.cancelado):
+        # §6.9.5: el historial de un folio cerrado es dato sensible.
+        await auditoria.registrar_acceso_datos(db, actor, request, tabla="folios",
+                                               recurso_id=folio.id, registros=1,
+                                               detalle={"numero_folio": folio.numero_folio,
+                                                         "estado": folio.estado.value})
+        await db.commit()
     return FolioDetalle(**await svc.detalle(db, actor, folio))
 
 
@@ -395,12 +402,21 @@ async def validar_costo(folio_id: UUID, datos: ValidarCostoEntrada, request: Req
     return FinancieroSalida(**await costos_service.detalle_financiero(db, actor, folio))
 
 
-@router.get("/{folio_id}/costos", response_model=FinancieroSalida, summary="Datos financieros del folio (§6.8.6)")
-async def costos(folio_id: UUID, db: DB, actor: Actor = Depends(TODOS)):
+@router.get("/{folio_id}/costos", response_model=FinancieroSalida, summary="Datos financieros del folio (§6.8.6)",
+            description="Consultar los costos queda en la auditoría de acceso a datos sensibles (§6.9.5).")
+async def costos(folio_id: UUID, request: Request, db: DB, actor: Actor = Depends(TODOS)):
     from services import costos_service
 
     folio = await svc.obtener(db, actor, folio_id)
-    return FinancieroSalida(**await costos_service.detalle_financiero(db, actor, folio))
+    datos = await costos_service.detalle_financiero(db, actor, folio)
+    if datos.get("visible"):
+        await auditoria.registrar_acceso_datos(
+            db, actor, request, tabla="folio_costos", recurso_id=folio.id,
+            registros=1 if datos.get("costo") else 0,
+            detalle={"numero_folio": folio.numero_folio, "refacciones": len(datos.get("refacciones") or []),
+                     "gastos_caja_chica": len(datos.get("gastos_caja_chica") or [])})
+        await db.commit()
+    return FinancieroSalida(**datos)
 
 
 # --------------------------------------------------------------- aprobación

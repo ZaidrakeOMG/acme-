@@ -28,7 +28,7 @@ const vacias = Object.fromEntries(['/api/catalogos/tecnicos', '/api/catalogos/ha
   .map((r) => [`GET ${r}`, () => ({ json: [] })]))
 
 async function entrar(rol: Rol, extra: Partial<PerfilConTema> = {}, rutas = {}) {
-  localStorage.setItem('acma.refresh', TOKENS.refresh_token)
+  localStorage.setItem('acma.sesion', '1')  // P11a: solo la marca; el refresh va en cookie httpOnly
   const llamadas = simularApi({
     'POST /api/auth/refresh': () => ({ json: TOKENS }),
     'GET /api/auth/yo': () => ({ json: perfil(rol, { tenant_id: rol === 'admin_empresa' ? T : null, ...extra }) }),
@@ -55,7 +55,7 @@ describe('Catálogos', () => {
   })
 
   it('un rol sin el módulo no entra a /catalogos', async () => {
-    localStorage.setItem('acma.refresh', TOKENS.refresh_token)
+    localStorage.setItem('acma.sesion', '1')  // P11a: solo la marca; el refresh va en cookie httpOnly
     simularApi({ 'POST /api/auth/refresh': () => ({ json: TOKENS }), 'GET /api/auth/yo': () => ({ json: perfil('operador') }) })
     renderApp('/catalogos')
     expect(await screen.findByText('Tu rol no tiene acceso a este módulo.')).toBeInTheDocument()

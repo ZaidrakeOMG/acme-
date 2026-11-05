@@ -15,6 +15,9 @@ from models.usuarios import Sesion, Usuario
 
 DB = Annotated[AsyncSession, Depends(obtener_db)]
 
+# Lo único que puede hacer alguien con la contraseña vencida: verla, cambiarla y salir (§6.9.5). P11a.
+RUTAS_SIN_CONTRASENA_VIGENTE = {"/api/auth/yo", "/api/auth/cambiar-contrasena", "/api/auth/logout", "/api/salud"}
+
 
 @dataclass(frozen=True)
 class Actor:
@@ -49,6 +52,15 @@ async def usuario_actual(request: Request, db: DB) -> Actor:
         sesion = (await db.execute(select(Sesion).where(Sesion.id == sesion_id))).scalar_one_or_none()
         if sesion is None or sesion.revocada_at is not None or sesion.expira_at <= datetime.now(UTC):
             raise no_autenticado("Sesión revocada o expirada")
+    # §6.9.5: con la contraseña vencida (90 días en roles administrativos) solo se puede cambiarla o cerrar sesión. P11a.
+    # La ruta se lee con tolerancia: el canal SSE del chat autentica con un objeto mínimo que no es un Request real;
+    # cuando no hay ruta la puerta se cierra (ninguna ruta anónima llega aquí con un usuario de contraseña vencida).
+    if getattr(getattr(request, "url", None), "path", "") not in RUTAS_SIN_CONTRASENA_VIGENTE:
+        from services.auth_service import contrasena_vencida
+
+        if contrasena_vencida(usuario):
+            raise ErrorAPI(403, "CONTRASENA_VENCIDA",
+                           "Tu contraseña venció; cámbiala para seguir usando ACMA (§6.9.5)")
     return Actor(
         id=usuario.id, email=usuario.email, nombre=usuario.nombre, rol=usuario.rol, dominio=usuario.dominio,
         tenant_id=usuario.tenant_id, prestador_id=usuario.prestador_id, sesion_id=sesion_id,

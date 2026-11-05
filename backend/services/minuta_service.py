@@ -29,7 +29,7 @@ from models.seguimiento import (
 from models.unidades import UnidadNegocio, UsuarioUN
 from models.usuarios import Usuario
 from services import alertas_service, auditoria, correo, notificaciones_service, pdf
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 from services.folio_estados import ACTOR_SISTEMA
 from services.preventivos_service import _unidades_visibles, texto_desvio
 from services.seguimiento import entradas, presupuesto
@@ -374,7 +374,7 @@ async def generar_pdf(db: AsyncSession, m: Minuta) -> bytes:
     datos = pdf.html_a_pdf(html)
     m.pdf_key = f"minutas/{m.tenant_id}/{m.fecha.isoformat()}/{m.tipo.value}-{m.un_id or 'global'}.pdf"
     m.hash_pdf = pdf.sha256(datos)
-    obtener_almacenamiento().guardar(m.pdf_key, datos, "application/pdf")
+    obtener_almacenamiento().guardar(m.pdf_key, datos, "application/pdf", dueno=dueno_de(m.tenant_id, m.prestador_id))
     await db.flush()
     return datos
 

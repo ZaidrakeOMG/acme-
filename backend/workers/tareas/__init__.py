@@ -71,6 +71,19 @@ async def crear_particiones_async(url: str | None = None) -> int:
         return creadas
 
 
+async def purgar_accesos_api_async(url: str | None = None) -> list[dict]:
+    """§6.9.5: 90 días de llamadas normales y 1 año de errores 4xx/5xx. Copia los errores de cada partición vieja a
+    `audit_accesos_api_errores` y suelta la partición con DETACH + DROP (la bitácora es append-only). P11a."""
+    async with sesion_tarea(url=url) as db:
+        await db.execute(text("SELECT acma_crear_particiones_errores_api(3)"))
+        filas = (await db.execute(
+            text("SELECT particion, accion, errores_conservados FROM acma_purgar_accesos_api(:n, :e)"),
+            {"n": config.retencion_accesos_dias, "e": config.retencion_accesos_errores_dias},
+        )).all()
+        await db.commit()
+        return [{"particion": f.particion, "accion": f.accion, "errores_conservados": int(f.errores_conservados)} for f in filas]
+
+
 async def purgar_sesiones_async(url: str | None = None) -> int:
     limite = datetime.now(UTC) - timedelta(days=30)
     async with sesion_tarea(url=url) as db:
@@ -111,6 +124,11 @@ def crear_particiones_auditoria() -> int:
 @celery_app.task(name="acma.purgar_sesiones_expiradas")
 def purgar_sesiones_expiradas() -> int:
     return asyncio.run(purgar_sesiones_async())
+
+
+@celery_app.task(name="acma.purgar_accesos_api")
+def purgar_accesos_api() -> list[dict]:
+    return asyncio.run(purgar_accesos_api_async())
 
 
 # Evaluadores de alertas por módulo y tareas de otros módulos (se registran al importar).

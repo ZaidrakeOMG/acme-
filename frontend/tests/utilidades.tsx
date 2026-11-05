@@ -25,7 +25,8 @@ export function simularApi(rutas: Record<string, Manejador>) {
   return llamadas
 }
 
-export const TOKENS = { access_token: 'acceso', refresh_token: 'refresh-de-prueba-suficientemente-largo', token_type: 'bearer', expira_en: 900 }
+// P11a: el refresh ya no viaja en el cuerpo, vive en la cookie httpOnly `acma_refresh`.
+export const TOKENS = { access_token: 'acceso', token_type: 'bearer', expira_en: 900, csrf: 'csrf-de-prueba' }
 
 const ROLES_TENANT: Rol[] = ['admin_empresa', 'admin_un', 'supervisor_operadores', 'operador']
 
@@ -41,6 +42,7 @@ export function perfil(rol: Rol, extra: Partial<PerfilConTema> = {}): PerfilConT
     prestador_id: null,
     mfa_habilitado: false,
     mfa_obligatorio: false,
+    contrasena_vencida: false,
     tema: { color_primario: '#1C3D8F', color_acento: '#A2C62B', prestador: 'Prestador Demo' },
     ...extra,
   }

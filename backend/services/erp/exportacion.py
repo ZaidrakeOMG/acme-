@@ -19,7 +19,7 @@ from models.costos import ErpEventoPendiente, ErpExportacion, EstadoEventoERP, O
 from models.inventario import FormatoPoliza
 from models.organizaciones import Prestador
 from services import auditoria
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 from services.erp import eventos as erp_eventos
 
 EXPORTAN = {Rol.superadmin, Rol.admin_prestador}
@@ -108,9 +108,10 @@ async def exportar(db: AsyncSession, actor: Actor, *, desde: date, hasta: date, 
     almacen = obtener_almacenamiento()
     titulo = f"Exportación ERP {prestador.razon_social if prestador else ''} · {desde} a {hasta}"
     exp.archivo_key = f"erp/{pid}/{exp.id}.xlsx"
-    almacen.guardar(exp.archivo_key, excel_eventos(columnas, filas, titulo), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    almacen.guardar(exp.archivo_key, excel_eventos(columnas, filas, titulo), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    dueno=dueno_de(None, pid))
     exp.archivo_xml_key = f"erp/{pid}/{exp.id}.xml"
-    almacen.guardar(exp.archivo_xml_key, xml_polizas(prestador, desde, hasta, filas), "application/xml")
+    almacen.guardar(exp.archivo_xml_key, xml_polizas(prestador, desde, hasta, filas), "application/xml", dueno=dueno_de(None, pid))
     for e in pendientes:
         e.exportacion_id = exp.id
         if e.estado == EstadoEventoERP.pendiente:

@@ -24,7 +24,7 @@ from models.trabajos_especiales import DecisionTECliente, EstadoTrabajoEspecial,
 from models.unidades import UnidadNegocio
 from models.usuarios import Usuario
 from services import alertas_service, auditoria, folio_estados, notificaciones_service, permisos_service
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 from services.folio_estados import ACTOR_SISTEMA, ActorFolio
 from services.formularios import servicio as formularios
 from services.preventivos_service import _actor_prestador, _unidades_visibles, _usuario_capturador
@@ -537,7 +537,8 @@ async def agregar_evidencia(db: AsyncSession, actor: Actor, te: TrabajoEspecial,
     elif contenido_base64:
         datos = base64.b64decode(contenido_base64)
         archivo_key = f"trabajos_especiales/{te.tenant_id}/{te.numero}/{uuid.uuid4().hex}-{(nombre or 'evidencia.jpg')[:80]}"
-        obtener_almacenamiento().guardar(archivo_key, datos, mime or "image/jpeg")
+        obtener_almacenamiento().guardar(archivo_key, datos, mime or "image/jpeg",
+                                         dueno=dueno_de(te.tenant_id, te.prestador_id))
     else:
         raise ErrorAPI(422, "EVIDENCIA_REQUERIDA", "Indica evidencia_id (formulario) o contenido_base64")
     e = TEEvidencia(trabajo_especial_id=te.id, tenant_id=te.tenant_id, prestador_id=te.prestador_id, tipo=tipo, evidencia_id=evidencia_id, archivo_key=archivo_key, geolat=geolat, geolng=geolng,

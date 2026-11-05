@@ -62,7 +62,7 @@ function penalizacion(extra: Partial<Penalizacion> = {}): Penalizacion {
 }
 
 async function entrar(rol: Rol, ruta: string, rutas: Parameters<typeof simularApi>[0] = {}, extra: Partial<PerfilConTema> = {}) {
-  localStorage.setItem('acma.refresh', TOKENS.refresh_token)
+  localStorage.setItem('acma.sesion', '1')  // P11a: solo la marca; el refresh va en cookie httpOnly
   const esTenant = ['admin_empresa', 'admin_un', 'supervisor_operadores', 'operador'].includes(rol)
   const llamadas = simularApi({
     'POST /api/auth/refresh': () => ({ json: TOKENS }),

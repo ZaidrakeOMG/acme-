@@ -141,6 +141,9 @@ ROLES_PRESTADOR = {
     Rol.despachador, Rol.supervisor_prestador, Rol.tecnico,
 }
 ROLES_MFA_OBLIGATORIO = {Rol.superadmin, Rol.admin_prestador, Rol.admin_empresa, Rol.direccion_prestador}
+# §6.9.5: la sesión de los roles administrativos dura 2 h y su contraseña vence a los 90 días. P11a.
+ROLES_ADMINISTRATIVOS = {Rol.superadmin, Rol.admin_prestador, Rol.admin_empresa, Rol.admin_un,
+                         Rol.direccion_prestador, Rol.mesa_control}
 
 
 def dominio_de_rol(rol: Rol) -> Dominio:

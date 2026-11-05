@@ -26,7 +26,7 @@ from schemas.formularios import (
     FormularioEntrada, FuenteCatalogo, RespuestaEntrada,
 )
 from services import alertas_service, auditoria, catalogos_service
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 from services.formularios import evidencias as ev
 from services.formularios.validacion import Contexto, validar
 from services.transcripcion import transcriptor
@@ -711,11 +711,11 @@ async def subir_evidencia(db: AsyncSession, actor: Actor, r: FormularioRespuesta
     extension = ev.extension_de(mime, nombre)
     clave = ev.clave_archivo(duenio, r.id, campo_clave, extension)
     almacen = obtener_almacenamiento()
-    almacen.guardar(clave, contenido, mime)
+    almacen.guardar(clave, contenido, mime, dueno=dueno_de(r.tenant_id, r.prestador_id))
     anotada_key = None
     if anotada and campo.tipo in ("fotografia", "archivo") and cfg.get("permitir_anotacion", cfg.get("permitir_anotacion_imagen", True)):
         anotada_key = ev.clave_archivo(duenio, r.id, campo_clave, "png", "-anotada")
-        almacen.guardar(anotada_key, anotada, "image/png")  # la imagen compuesta se guarda aparte; el original no se toca
+        almacen.guardar(anotada_key, anotada, "image/png", dueno=dueno_de(r.tenant_id, r.prestador_id))  # la imagen compuesta se guarda aparte; el original no se toca
     anot = dict(anotaciones or {})
     if campo.tipo == "audio" and cfg["transcripcion"]:
         anot["transcripcion"] = transcriptor.transcribir(clave, mime)

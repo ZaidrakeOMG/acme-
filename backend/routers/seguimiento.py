@@ -350,6 +350,10 @@ async def listar(modulo: str, db: DB, actor: Actor = Depends(TODOS), tenant_id: 
 @router.get("/api/seguimiento/por-un/{un_id}", response_model=PorUNSalida, summary="Vista por UN: los cuatro módulos consolidados")
 async def por_un(un_id: UUID, db: DB, actor: Actor = Depends(TODOS)):
     base.exigir_rol(actor, base.PRESTADOR | {Rol.admin_un, Rol.admin_empresa, Rol.supervisor_operadores}, "Vista por UN")
+    # P11a (ACT-1.6): la UN se valida en el servicio además de la RLS. Sin esto la vista respondía 200 con listas
+    # vacías para una UN de otro cliente, lo que confirma que la UN existe.
+    if await db.get(UnidadNegocio, un_id) is None:
+        raise no_encontrado("Unidad de negocio no encontrada")
     salida: dict[str, Any] = {"un_id": un_id}
     for ruta, m in (("cotizaciones", ModuloDestino.cotizaciones), ("por_presupuesto", ModuloDestino.por_presupuesto), ("seguimiento_interno", ModuloDestino.seguimiento_interno),
                     ("reprogramacion", ModuloDestino.reprogramacion)):

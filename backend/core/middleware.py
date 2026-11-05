@@ -57,13 +57,18 @@ def instalar_middleware(app: FastAPI) -> None:
         respuesta = await call_next(request)
 
         ruta = request.url.path
-        es_docs = ruta.startswith(("/docs", "/redoc"))
+        # `unsafe-inline` solo existe para Swagger/ReDoc, que no se publican en produccion (main.py los apaga);
+        # aun asi la politica estricta se fuerza por entorno y no por ruta. P11a.
+        es_docs = ruta.startswith(("/docs", "/redoc")) and not config.es_produccion
         respuesta.headers["Content-Security-Policy"] = _CSP_DOCS if es_docs else _CSP_API
-        respuesta.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+        if config.es_produccion:  # en HTTP local un HSTS cacheado dejaria el navegador exigiendo TLS
+            respuesta.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         respuesta.headers["X-Frame-Options"] = "DENY"
         respuesta.headers["X-Content-Type-Options"] = "nosniff"
         respuesta.headers["Referrer-Policy"] = "no-referrer"
         respuesta.headers["Permissions-Policy"] = "camera=(self), geolocation=(self), microphone=()"
+        respuesta.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        respuesta.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         if ruta.startswith("/api/"):
             respuesta.headers.setdefault("Cache-Control", "no-store")
             await _registrar_acceso(request, respuesta.status_code, inicio)
@@ -106,6 +111,7 @@ def configurar_cors(app: FastAPI) -> None:
         allow_origins=config.lista_cors,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type"],
+        # CABECERA_CSRF (P11a): sin ella el navegador no podria mandar el doble envio desde otro origen.
+        allow_headers=["Authorization", "Content-Type", "X-ACMA-CSRF"],
         max_age=600,
     )

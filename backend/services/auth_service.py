@@ -1,4 +1,10 @@
-"""Autenticación: login, MFA TOTP, sesiones con refresh rotativo y detección de reúso."""
+"""Autenticación: login, MFA TOTP, sesiones con refresh rotativo y detección de reúso.
+
+P11a: la sesión vive en una cookie `httpOnly` con vida máxima de §6.9.5 y cierre por inactividad, el TOTP no se puede
+reutilizar dentro de su ventana, la contraseña de los roles administrativos vence a los 90 días y hay restablecimiento
+por correo con token de un solo uso.
+"""
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -8,16 +14,17 @@ from fastapi import Request
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core import security
+from core import cookies, security
 from core.config import config
 from core.errors import ErrorAPI, no_autenticado
 from core.middleware import ip_cliente
 from core.rls import ContextoRLS, fijar_contexto
-from models.base import ROLES_MFA_OBLIGATORIO, EstadoRegistro
+from models.base import ROLES_ADMINISTRATIVOS, ROLES_MFA_OBLIGATORIO, EstadoRegistro
 from models.organizaciones import Prestador, TenantPrestador
 from models.usuarios import HistorialContrasena, Sesion, Usuario
-from services import auditoria
+from services import auditoria, geoip
 
+log = logging.getLogger("acma.auth")
 CREDENCIALES_INVALIDAS = ErrorAPI(401, "CREDENCIALES_INVALIDAS", "Correo o contraseña incorrectos")
 
 
@@ -50,11 +57,20 @@ async def cargar_como_usuario(db: AsyncSession, usuario_id: uuid.UUID) -> Usuari
     return await db.get(Usuario, fila.id)
 
 
+def vida_sesion(usuario: Usuario) -> timedelta:
+    """§6.9.5: 8 h de sesión, 2 h para los roles administrativos."""
+    horas = config.sesion_horas_admin if usuario.rol in ROLES_ADMINISTRATIVOS else config.sesion_horas
+    return timedelta(hours=horas)
+
+
 def requiere_mfa(usuario: Usuario) -> bool:
     return usuario.mfa_habilitado or (config.mfa_obligatorio and usuario.rol in ROLES_MFA_OBLIGATORIO)
 
 
 async def _auditar(db: AsyncSession, evento: str, request: Request, usuario: Usuario | None = None, **datos) -> None:
+    # §6.9.5 «Autenticación»: IP, user agent, geolocalización aproximada y timestamp.
+    if evento.startswith("auth."):
+        datos = {**datos, "ip": ip_cliente(request), "geo": geoip.aproximada(ip_cliente(request))}
     await auditoria.registrar(
         db, evento,
         actor_id=usuario.id if usuario else None,
@@ -88,6 +104,7 @@ async def _verificar_limite_ip(db: AsyncSession, request: Request) -> None:
     )).scalar_one()
     if fallos >= config.login_max_intentos:
         await _auditar(db, "auth.limite_ip", request, None, ip=ip_cliente(request), fallos=fallos)
+        await _avisar_bloqueo_ip(db, request, fallos)
         await db.commit()
         raise ErrorAPI(429, "DEMASIADOS_INTENTOS",
                        f"Demasiados intentos fallidos desde esta IP. Intenta en {config.login_ventana_minutos} minutos.",
@@ -99,6 +116,35 @@ def _verificar_bloqueo(usuario: Usuario) -> None:
         restantes = int((usuario.bloqueado_hasta - datetime.now(UTC)).total_seconds() // 60) + 1
         raise ErrorAPI(423, "USUARIO_BLOQUEADO",
                        f"Usuario bloqueado temporalmente por intentos fallidos. Intenta en {restantes} minutos.")
+
+
+async def _avisar_bloqueo_ip(db: AsyncSession, request: Request, fallos: int) -> None:
+    """§6.9.5 «Notificación al admin» al bloquear una IP por intentos fallidos. P11a (pendiente de P01).
+
+    Va en su propia sesión con el rol `sistema`: la petición que provoca el bloqueo no tiene contexto RLS (nadie llegó
+    a autenticarse) y la bandeja de notificaciones sí lo exige.
+    """
+    from core.db import nueva_sesion
+    from core.rls import CONTEXTO_SISTEMA
+    from models.base import Rol
+    from services import notificaciones_service
+
+    ip = ip_cliente(request)
+    try:
+        async with nueva_sesion(CONTEXTO_SISTEMA) as sistema:
+            destinos = await notificaciones_service.destinatarios_por_rol(sistema, [Rol.superadmin])
+            if not destinos:
+                return
+            await notificaciones_service.notificar(
+                sistema, "seguridad.bloqueo_ip", destinos,
+                {"ip": ip, "fallos": fallos, "ventana_minutos": config.login_ventana_minutos},
+                asunto=f"Bloqueo por intentos fallidos desde {ip}",
+                cuerpo=(f"Se registraron {fallos} intentos de inicio de sesión fallidos desde {ip} en "
+                        f"{config.login_ventana_minutos} minutos. La IP quedó bloqueada temporalmente."),
+                url="/auditoria", canales=["app", "email"])
+            await sistema.commit()
+    except Exception:  # un aviso que falla no debe tapar el 429 del límite
+        log.warning("No se pudo notificar el bloqueo de la IP %s", ip, exc_info=True)
 
 
 async def login(db: AsyncSession, request: Request, email: str, contrasena: str, dispositivo: str | None) -> ResultadoLogin:
@@ -158,8 +204,11 @@ def _token_acceso(usuario: Usuario, sesion_id: uuid.UUID) -> str:
 
 
 async def crear_sesion(db: AsyncSession, request: Request, usuario: Usuario, dispositivo: str | None,
-                       familia_id: uuid.UUID | None = None, padre_id: uuid.UUID | None = None) -> dict:
+                       familia_id: uuid.UUID | None = None, padre_id: uuid.UUID | None = None,
+                       expira_at: datetime | None = None) -> dict:
+    """Crea (o rota) la sesión. `expira_at` se hereda de la familia: la rotación no alarga la vida de la sesión."""
     refresh = security.nuevo_token_opaco()
+    fin = expira_at or (datetime.now(UTC) + vida_sesion(usuario))
     sesion = Sesion(
         id=uuid.uuid4(),
         usuario_id=usuario.id,
@@ -169,7 +218,7 @@ async def crear_sesion(db: AsyncSession, request: Request, usuario: Usuario, dis
         dispositivo=(dispositivo or "")[:200] or None,
         user_agent=(request.headers.get("user-agent") or "")[:500],
         ip_origen=ip_cliente(request),
-        expira_at=datetime.now(UTC) + timedelta(days=config.refresh_dias),
+        expira_at=fin,
     )
     db.add(sesion)
     usuario.ultimo_acceso_at = datetime.now(UTC)
@@ -177,8 +226,10 @@ async def crear_sesion(db: AsyncSession, request: Request, usuario: Usuario, dis
     return {
         "access_token": _token_acceso(usuario, sesion.id),
         "refresh_token": refresh,
+        "csrf": cookies.nuevo_csrf(),
         "token_type": "bearer",
         "expira_en": config.jwt_acceso_minutos * 60,
+        "sesion_expira_en": max(0, int((fin - datetime.now(UTC)).total_seconds())),
     }
 
 
@@ -207,7 +258,16 @@ async def refrescar(db: AsyncSession, request: Request, refresh_token: str) -> t
         await db.commit()
         raise ErrorAPI(401, "TOKEN_REUTILIZADO", "Se detectó reúso del token de sesión; todas las sesiones de este acceso fueron cerradas")
     if sesion.expira_at <= datetime.now(UTC):
+        await _revocar_familia(db, sesion.familia_id, "expirada")
+        await db.commit()
         raise no_autenticado("La sesión expiró; inicia sesión de nuevo")
+    inactivo = datetime.now(UTC) - (sesion.ultimo_acceso_at or sesion.created_at)
+    if inactivo > timedelta(minutes=config.sesion_inactividad_minutos):
+        await _revocar_familia(db, sesion.familia_id, "inactividad")
+        await _auditar(db, "auth.sesion_cerrada_por_inactividad", request, usuario,
+                       minutos=int(inactivo.total_seconds() // 60))
+        await db.commit()
+        raise no_autenticado("La sesión se cerró por inactividad; inicia sesión de nuevo")
     if usuario.estado != EstadoRegistro.activo:
         await _revocar_familia(db, sesion.familia_id, "usuario_inactivo")
         await db.commit()
@@ -215,7 +275,8 @@ async def refrescar(db: AsyncSession, request: Request, refresh_token: str) -> t
 
     sesion.rotada_at = datetime.now(UTC)
     sesion.ultimo_acceso_at = datetime.now(UTC)
-    tokens = await crear_sesion(db, request, usuario, sesion.dispositivo, familia_id=sesion.familia_id, padre_id=sesion.id)
+    tokens = await crear_sesion(db, request, usuario, sesion.dispositivo, familia_id=sesion.familia_id,
+                                padre_id=sesion.id, expira_at=sesion.expira_at)
     await db.commit()
     return usuario, tokens
 
@@ -254,9 +315,16 @@ async def configurar_mfa(db: AsyncSession, request: Request, usuario: Usuario) -
 
 
 def _codigo_totp_valido(usuario: Usuario, codigo: str) -> bool:
+    """Valida el TOTP y bloquea la reutilización del mismo paso de 30 s (§6.9.5). P11a."""
     if not usuario.mfa_secreto_cifrado:
         return False
-    return security.verificar_totp(security.descifrar(usuario.mfa_secreto_cifrado), codigo)
+    paso = security.paso_totp_valido(security.descifrar(usuario.mfa_secreto_cifrado), codigo)
+    if paso is None:
+        return False
+    if usuario.mfa_ultimo_paso is not None and paso <= usuario.mfa_ultimo_paso:
+        return False
+    usuario.mfa_ultimo_paso = paso
+    return True
 
 
 def _consumir_codigo_recuperacion(usuario: Usuario, codigo: str) -> bool:
@@ -346,6 +414,16 @@ async def regenerar_codigos(db: AsyncSession, request: Request, usuario: Usuario
 HISTORIAL_CONTRASENAS = 10
 
 
+def contrasena_vencida(usuario: Usuario | None) -> bool:
+    """§6.9.5: la contraseña de los roles administrativos vence a los 90 días. P11a (pendiente n.º 11)."""
+    if usuario is None or usuario.rol not in ROLES_ADMINISTRATIVOS or config.contrasena_dias_admin <= 0:
+        return False
+    desde = usuario.password_actualizado_at
+    if desde is None:
+        return True
+    return datetime.now(UTC) - desde > timedelta(days=config.contrasena_dias_admin)
+
+
 async def cambiar_contrasena(db: AsyncSession, request: Request, usuario: Usuario, actual: str, nueva: str) -> None:
     if not security.verificar_contrasena(usuario.password_hash, actual):
         raise ErrorAPI(400, "CONTRASENA_ACTUAL_INCORRECTA", "La contraseña actual es incorrecta")
@@ -362,6 +440,70 @@ async def cambiar_contrasena(db: AsyncSession, request: Request, usuario: Usuari
     usuario.password_hash = security.hashear_contrasena(nueva)
     usuario.password_actualizado_at = datetime.now(UTC)
     await _auditar(db, "auth.contrasena_cambiada", request, usuario)
+    await db.commit()
+
+
+# ------------------------------------------- restablecimiento por correo (P11a)
+
+TIPO_RESET = "reset"
+RESET_MINUTOS = 30
+
+
+async def solicitar_restablecimiento(db: AsyncSession, request: Request, email: str) -> None:
+    """Emite un token de un solo uso y lo manda por correo. No revela si el correo existe (§6.9.5)."""
+    from services import notificaciones_service
+
+    fila = await _identidad(db, email=email)
+    if fila is None:
+        await _auditar(db, "auth.reset_solicitado_desconocido", request, None, email=email[:254])
+        await db.commit()
+        return
+    usuario = await cargar_como_usuario(db, fila.id)
+    if usuario is None or usuario.estado != EstadoRegistro.activo:
+        await db.commit()
+        return
+    token = security.crear_jwt({"sub": str(usuario.id), "pwd": security.hash_token(usuario.password_hash)},
+                               TIPO_RESET, RESET_MINUTOS)
+    enlace = f"{config.app_url_publica}/restablecer?token={token}"
+    await notificaciones_service.notificar(
+        db, "auth.restablecer_contrasena", [usuario.id],
+        {"minutos": RESET_MINUTOS},
+        asunto="Restablece tu contraseña de ACMA",
+        cuerpo=(f"Pediste restablecer tu contraseña. El enlace sirve una sola vez y vence en {RESET_MINUTOS} minutos. "
+                "Si no fuiste tú, ignora este correo y tu contraseña seguirá igual."),
+        url=enlace, tenant_id=usuario.tenant_id, prestador_id=usuario.prestador_id, canales=["email"])
+    await _auditar(db, "auth.reset_solicitado", request, usuario)
+    await db.commit()
+
+
+async def confirmar_restablecimiento(db: AsyncSession, request: Request, token: str, nueva: str) -> None:
+    """Un token por contraseña: al cambiarla, su huella deja de coincidir y el token no sirve de nuevo."""
+    try:
+        claims = security.decodificar_jwt(token, TIPO_RESET)
+    except jwt.PyJWTError:
+        raise ErrorAPI(400, "TOKEN_RESET_INVALIDO", "El enlace es inválido o ya venció; solicita uno nuevo")
+    usuario = await cargar_como_usuario(db, uuid.UUID(claims["sub"]))
+    if usuario is None or usuario.estado != EstadoRegistro.activo:
+        raise ErrorAPI(400, "TOKEN_RESET_INVALIDO", "El enlace es inválido o ya venció; solicita uno nuevo")
+    if claims.get("pwd") != security.hash_token(usuario.password_hash):
+        raise ErrorAPI(400, "TOKEN_RESET_USADO", "Ese enlace ya se usó; solicita uno nuevo")
+    errores = security.errores_politica_contrasena(nueva)
+    if errores:
+        raise ErrorAPI(422, "POLITICA_CONTRASENA", "La contraseña no cumple la política", errores)
+    previas = (await db.execute(
+        select(HistorialContrasena.password_hash).where(HistorialContrasena.usuario_id == usuario.id)
+        .order_by(HistorialContrasena.created_at.desc()).limit(HISTORIAL_CONTRASENAS - 1)
+    )).scalars().all()
+    if any(security.verificar_contrasena(h, nueva) for h in [usuario.password_hash, *previas]):
+        raise ErrorAPI(422, "CONTRASENA_REPETIDA", f"No puedes reutilizar ninguna de tus últimas {HISTORIAL_CONTRASENAS} contraseñas")
+    db.add(HistorialContrasena(usuario_id=usuario.id, password_hash=usuario.password_hash))
+    usuario.password_hash = security.hashear_contrasena(nueva)
+    usuario.password_actualizado_at = datetime.now(UTC)
+    usuario.intentos_fallidos = 0
+    usuario.bloqueado_hasta = None
+    await db.execute(update(Sesion).where(Sesion.usuario_id == usuario.id, Sesion.revocada_at.is_(None))
+                     .values(revocada_at=func.now(), motivo_revocacion="contrasena_restablecida"))
+    await _auditar(db, "auth.contrasena_restablecida", request, usuario)
     await db.commit()
 
 
@@ -389,5 +531,8 @@ def perfil(usuario: Usuario) -> dict:
         "rol": usuario.rol, "dominio": usuario.dominio, "tenant_id": usuario.tenant_id,
         "prestador_id": usuario.prestador_id, "mfa_habilitado": usuario.mfa_habilitado,
         "mfa_obligatorio": config.mfa_obligatorio and usuario.rol in ROLES_MFA_OBLIGATORIO,
+        # §6.9.5: /auth/yo sigue respondiendo con la contraseña vencida (es una de las rutas permitidas), y de ahí
+        # la app sabe que debe mostrar el cambio obligatorio aunque la sesión se haya restaurado al recargar. P11a.
+        "contrasena_vencida": contrasena_vencida(usuario),
     }
 

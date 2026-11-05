@@ -34,7 +34,8 @@ describe('Login', () => {
     await userEvent.type(screen.getByLabelText('Contraseña'), 'Demo#Acma2026')
     await userEvent.click(screen.getByRole('button', { name: 'Entrar' }))
     expect(await screen.findByRole('heading', { name: 'Hola, Olga' })).toBeInTheDocument()
-    expect(localStorage.getItem('acma.refresh')).toBe(TOKENS.refresh_token)
+    // P11a: el refresh no se guarda aqui (cookie httpOnly); en localStorage solo queda la marca de sesion.
+    expect(localStorage.getItem('acma.sesion')).toBe('1')
   })
 
   it('pide el código en el segundo paso y acepta un código de recuperación', async () => {

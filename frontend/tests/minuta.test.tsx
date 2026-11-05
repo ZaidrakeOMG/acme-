@@ -39,7 +39,7 @@ const hallazgoPendiente = (id: string, descripcion: string): MinutaDetalle['secc
   ({ hallazgo_id: id, descripcion, equipo: 'EQ-0001 · Refrigerador', un: 'SUC-001 · Sucursal Centro', urgencia: 'alta', foto_url: null, tipo: 'correctivo', numero_folio: 'CD-000001', estado_respuesta: 'pendiente', opcion_respuesta: null, pendiente_de_dias_anteriores: false, timestamp: '2026-10-28T16:00:00Z' })
 
 async function entrar(rol: Rol, ruta: string, rutas: Parameters<typeof simularApi>[0] = {}, extra: Partial<PerfilConTema> = {}) {
-  localStorage.setItem('acma.refresh', TOKENS.refresh_token)
+  localStorage.setItem('acma.sesion', '1')  // P11a: solo la marca; el refresh va en cookie httpOnly
   const llamadas = simularApi({
     'POST /api/auth/refresh': () => ({ json: TOKENS }),
     'GET /api/auth/yo': () => ({ json: perfil(rol, { tenant_id: ['operador', 'admin_un', 'admin_empresa', 'supervisor_operadores'].includes(rol) ? T : null, prestador_id: ['despachador', 'admin_prestador', 'mesa_control'].includes(rol) ? 'p1' : null, ...extra }) }),

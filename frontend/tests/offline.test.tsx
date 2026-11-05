@@ -127,7 +127,7 @@ describe('Indicador de conectividad', () => {
 
 describe('App del operador', () => {
   async function entrar(ruta: string, rutas: Parameters<typeof simularApi>[0] = {}) {
-    localStorage.setItem('acma.refresh', TOKENS.refresh_token)
+    localStorage.setItem('acma.sesion', '1')  // P11a: solo la marca; el refresh va en cookie httpOnly
     const llamadas = simularApi({
       'POST /api/auth/refresh': () => ({ json: TOKENS }),
       'GET /api/auth/yo': () => ({ json: perfil('operador', { tenant_id: T }) }),

@@ -24,7 +24,7 @@ from models.inventario import (
 from models.organizaciones import Prestador
 from models.usuarios import Usuario
 from services import alertas_service, auditoria, inventario_service, notificaciones_service, permisos_service, sat_validator
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 from services.folio_estados import ActorFolio
 
 ADMINISTRAN = {Rol.superadmin, Rol.admin_prestador}
@@ -132,7 +132,8 @@ async def capturar_gasto(db: AsyncSession, actor: ActorFolio, *, folio_id: UUID 
     if imagen_base64:
         datos = base64.b64decode(imagen_base64)
         imagen_key = f"caja_chica/{prestador_id}/{datetime.now(UTC):%Y/%m}/{(nombre_imagen or 'factura.jpg')[:60]}-{int(datetime.now(UTC).timestamp() * 1000)}"
-        obtener_almacenamiento().guardar(imagen_key, datos, mime or "image/jpeg")
+        obtener_almacenamiento().guardar(imagen_key, datos, mime or "image/jpeg",
+                                         dueno=dueno_de(folio.tenant_id if folio else None, prestador_id))
     g = GastoCajaChica(prestador_id=prestador_id, tenant_id=folio.tenant_id if folio else None, fondo_id=fondo.id, folio_id=folio.id if folio else None,
                        tecnico_id=tecnico_id, proveedor=proveedor.strip()[:200], rfc_proveedor=(rfc_proveedor or "").strip().upper() or None,
                        uuid_cfdi=(uuid_cfdi or "").strip() or None, descripcion=descripcion.strip()[:300], numero_parte=(numero_parte or "").strip() or None,
@@ -365,9 +366,10 @@ async def generar_poliza(db: AsyncSession, actor: ActorFolio, *, prestador_id: U
     await db.flush()
     almacen = obtener_almacenamiento()
     p.archivo_key = f"caja_chica/polizas/{prestador_id}/{fecha.isoformat()}-{p.id}.xlsx"
-    almacen.guardar(p.archivo_key, excel_poliza(filas, fecha, prestador, total), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    almacen.guardar(p.archivo_key, excel_poliza(filas, fecha, prestador, total), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    dueno=dueno_de(None, prestador_id))
     p.archivo_xml_key = f"caja_chica/polizas/{prestador_id}/{fecha.isoformat()}-{p.id}.xml"
-    almacen.guardar(p.archivo_xml_key, xml_poliza(filas, fecha, prestador, total), "application/xml")
+    almacen.guardar(p.archivo_xml_key, xml_poliza(filas, fecha, prestador, total), "application/xml", dueno=dueno_de(None, prestador_id))
     for g in gastos:
         g.poliza_id = p.id
     await db.flush()

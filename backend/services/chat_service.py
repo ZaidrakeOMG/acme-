@@ -17,7 +17,7 @@ from models.folios import EstadoFolio, Folio, FolioEstadoHistorial
 from models.unidades import UsuarioUN
 from models.usuarios import Usuario
 from services import auditoria, folio_estados
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 from services.folio_estados import ACTOR_SISTEMA, ActorFolio
 from services.formularios.evidencias import extension_de
 from services.ws_manager import gestor
@@ -266,7 +266,7 @@ async def enviar_mensaje(db: AsyncSession, actor: Actor, chat: Chat, *, contenid
         if not contenido_bin:
             raise ErrorAPI(422, "ARCHIVO_VACIO", "El archivo está vacío")
         clave = f"chats/{chat.id}/{m.id}.{extension_de(mime, nombre)}"
-        obtener_almacenamiento().guardar(clave, contenido_bin, mime)
+        obtener_almacenamiento().guardar(clave, contenido_bin, mime, dueno=dueno_de(chat.tenant_id, chat.prestador_id))
         a = ChatArchivo(mensaje_id=m.id, chat_id=chat.id, tenant_id=chat.tenant_id, prestador_id=chat.prestador_id, archivo_key=clave,
                         nombre_original=nombre[:255], tipo_mime=mime, tamano_bytes=len(contenido_bin))
         db.add(a)

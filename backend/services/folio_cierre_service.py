@@ -15,7 +15,7 @@ from models.folios import EstadoFolio, Folio, FolioEncuesta, FolioEvidencia, Tip
 from models.unidades import UsuarioUN
 from schemas.formularios import RespuestaEntrada
 from services import aprobacion_service, auditoria, folio_estados, push_service
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 from services.folio_estados import ACTOR_SISTEMA
 from services.formularios import servicio as formularios
 
@@ -43,7 +43,8 @@ async def firmar(db: AsyncSession, actor: Actor, folio: Folio, imagen: bytes, mi
     if existente is not None:
         raise ErrorAPI(409, "FIRMA_DUPLICADA", "El folio ya tiene la firma del operador")
     clave = f"folios/{folio.id}/firma-{uuid.uuid4().hex[:10]}.png"
-    obtener_almacenamiento().guardar(clave, imagen, mime or "image/png")
+    obtener_almacenamiento().guardar(clave, imagen, mime or "image/png",
+                                     dueno=dueno_de(folio.tenant_id, folio.prestador_id))
     momento = timestamp_dispositivo or datetime.now(UTC)
     e = FolioEvidencia(folio_id=folio.id, tenant_id=folio.tenant_id, prestador_id=folio.prestador_id, tipo=TipoEvidenciaFolio.firma, archivo_key=clave,
                        geolat=geolat, geolng=geolng, timestamp_captura=momento, subido_por=actor.id)

@@ -6,6 +6,7 @@ import { Aviso, Boton, Campo } from '../components/ui'
 import { useAuth } from '../contexts/AuthContext'
 import { api, mensajeDeError } from '../services/api'
 import type { LoginSalida, MfaSetupSalida, MfaVerificarSalida, Tokens } from '../types/api'
+import { MarcoAuth } from './auth/Marco'
 
 const esquemaCredenciales = z.object({
   email: z.string().trim().email('Ingresa un correo válido'),
@@ -20,6 +21,7 @@ type Codigo = z.infer<typeof esquemaCodigo>
 
 type Paso =
   | { tipo: 'credenciales' }
+  | { tipo: 'olvide' }
   | { tipo: 'mfa'; tokenMfa: string }
   | { tipo: 'enrolar'; tokenMfa: string; setup: MfaSetupSalida }
   | { tipo: 'codigos'; codigos: string[]; tokens: Tokens }
@@ -30,28 +32,13 @@ export function Login() {
   const [error, setError] = useState<string | null>(null)
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-fondo px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="mb-8 flex items-center justify-center gap-3">
-          <img src="/icono.svg" alt="" className="h-12 w-12" />
-          <div>
-            <p className="text-2xl font-semibold text-primario">ACMA</p>
-            <p className="text-sm text-slate-500">Gestión de mantenimiento</p>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          {error && (
-            <div className="mb-4">
-              <Aviso>{error}</Aviso>
-            </div>
-          )}
-          {paso.tipo === 'credenciales' && <PasoCredenciales setPaso={setPaso} setError={setError} iniciar={iniciarSesionCon} />}
-          {paso.tipo === 'mfa' && <PasoVerificar tokenMfa={paso.tokenMfa} setPaso={setPaso} setError={setError} iniciar={iniciarSesionCon} />}
-          {paso.tipo === 'enrolar' && <PasoEnrolar paso={paso} setPaso={setPaso} setError={setError} />}
-          {paso.tipo === 'codigos' && <PasoCodigos codigos={paso.codigos} alContinuar={() => iniciarSesionCon(paso.tokens)} />}
-        </div>
-      </div>
-    </div>
+    <MarcoAuth error={error}>
+      {paso.tipo === 'credenciales' && <PasoCredenciales setPaso={setPaso} setError={setError} iniciar={iniciarSesionCon} />}
+      {paso.tipo === 'olvide' && <PasoOlvide setPaso={setPaso} setError={setError} />}
+      {paso.tipo === 'mfa' && <PasoVerificar tokenMfa={paso.tokenMfa} setPaso={setPaso} setError={setError} iniciar={iniciarSesionCon} />}
+      {paso.tipo === 'enrolar' && <PasoEnrolar paso={paso} setPaso={setPaso} setError={setError} />}
+      {paso.tipo === 'codigos' && <PasoCodigos codigos={paso.codigos} alContinuar={() => iniciarSesionCon(paso.tokens)} />}
+    </MarcoAuth>
   )
 }
 
@@ -86,6 +73,56 @@ function PasoCredenciales({ setPaso, setError, iniciar }: PropsPaso & { iniciar:
       <Boton type="submit" className="w-full" disabled={formState.isSubmitting}>
         {formState.isSubmitting ? 'Verificando…' : 'Entrar'}
       </Boton>
+      <button type="button" className="w-full text-sm text-primario hover:underline" onClick={() => { setError(null); setPaso({ tipo: 'olvide' }) }}>
+        ¿Olvidaste tu contraseña?
+      </button>
+    </form>
+  )
+}
+
+/** §6.9.5 · P11a: pide el enlace de restablecimiento. La respuesta es la misma exista o no la cuenta. */
+function PasoOlvide({ setPaso, setError }: PropsPaso) {
+  const { register, handleSubmit, formState } = useForm<{ email: string }>({
+    resolver: zodResolver(z.object({ email: z.string().trim().email('Ingresa un correo válido') })),
+  })
+  const [enviado, setEnviado] = useState(false)
+
+  const enviar = handleSubmit(async ({ email }) => {
+    setError(null)
+    try {
+      await api('/auth/restablecer/solicitar', { metodo: 'POST', cuerpo: { email }, sinAuth: true })
+      setEnviado(true)
+    } catch (e) {
+      setError(mensajeDeError(e))
+    }
+  })
+
+  if (enviado) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl font-semibold text-slate-900">Revisa tu correo</h1>
+        <Aviso tipo="info">
+          Si el correo corresponde a una cuenta activa, te enviamos un enlace para elegir una contraseña nueva. Sirve
+          una sola vez y vence en 30 minutos.
+        </Aviso>
+        <button type="button" className="w-full text-sm text-primario hover:underline" onClick={() => setPaso({ tipo: 'credenciales' })}>
+          Volver a iniciar sesión
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <form onSubmit={enviar} className="space-y-4" noValidate>
+      <h1 className="text-xl font-semibold text-slate-900">Restablecer contraseña</h1>
+      <p className="text-sm text-slate-600">Escribe tu correo y te mandamos un enlace para elegir una nueva.</p>
+      <Campo etiqueta="Correo electrónico" type="email" autoComplete="username" autoFocus error={formState.errors.email?.message} {...register('email')} />
+      <Boton type="submit" className="w-full" disabled={formState.isSubmitting}>
+        {formState.isSubmitting ? 'Enviando…' : 'Enviarme el enlace'}
+      </Boton>
+      <button type="button" className="w-full text-sm text-slate-500 hover:underline" onClick={() => setPaso({ tipo: 'credenciales' })}>
+        Volver
+      </button>
     </form>
   )
 }

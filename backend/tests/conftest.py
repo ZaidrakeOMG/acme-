@@ -123,8 +123,40 @@ SECRETOS_MFA: dict[str, str] = {}
 _TOKENS: dict[str, dict] = {}
 
 
+async def olvidar_paso_totp(email: str) -> None:
+    """Olvida el último paso TOTP consumido por ese usuario.
+
+    P11a: el servidor no acepta dos veces el mismo paso de 30 s (§6.9.5). Varias pruebas necesitan usar más de un
+    código dentro de la misma ventana, así que limpian la marca en lugar de esperar medio minuto.
+    `test_totp_no_se_reutiliza` es la que verifica la regla.
+    """
+    from sqlalchemy import update
+
+    from core.db import nueva_sesion
+    from core.rls import CONTEXTO_SISTEMA
+    from models.usuarios import Usuario
+
+    async with nueva_sesion(CONTEXTO_SISTEMA) as db:
+        await db.execute(update(Usuario).where(Usuario.email == email).values(mfa_ultimo_paso=None))
+        await db.commit()
+
+
+def csrf(cliente: AsyncClient) -> dict[str, str]:
+    """Cabecera de doble envío que exigen /auth/refresh y /auth/logout (P11a)."""
+    valor = cliente.cookies.get("acma_csrf")
+    return {"X-ACMA-CSRF": valor} if valor else {}
+
+
+async def refrescar(cliente: AsyncClient):
+    """Renueva la sesión como lo hace el navegador: cookie httpOnly + cabecera CSRF."""
+    return await cliente.post("/api/auth/refresh", headers=csrf(cliente))
+
+
 async def iniciar_sesion(cliente: AsyncClient, email: str, contrasena: str) -> dict:
-    """Login completo, resolviendo MFA (enrolamiento o verificación) cuando el rol lo exige. Devuelve los tokens."""
+    """Login completo, resolviendo MFA (enrolamiento o verificación) cuando el rol lo exige. Devuelve los tokens.
+
+    P11a: el refresh queda en la cookie `acma_refresh` del cliente; `tokens` solo trae el token de acceso.
+    """
     r = await cliente.post("/api/auth/login", json={"email": email, "contrasena": contrasena})
     assert r.status_code == 200, r.text
     cuerpo = r.json()
@@ -135,6 +167,7 @@ async def iniciar_sesion(cliente: AsyncClient, email: str, contrasena: str) -> d
         setup = await cliente.post("/api/auth/mfa/setup", json={"token_mfa": token_mfa})
         assert setup.status_code == 200, setup.text
         SECRETOS_MFA[email] = setup.json()["secreto"]
+    await olvidar_paso_totp(email)
     v = await cliente.post("/api/auth/mfa/verify",
                            json={"token_mfa": token_mfa, "codigo": pyotp.TOTP(SECRETOS_MFA[email]).now()})
     assert v.status_code == 200, v.text

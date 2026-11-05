@@ -21,7 +21,7 @@ from models.seguimiento import Cotizacion, CotizacionEnvioExterno, EstadoCotizac
 from models.unidades import UnidadNegocio
 from models.usuarios import Usuario
 from services import auditoria, correo, notificaciones_service, pdf
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 from services.folio_estados import ACTOR_SISTEMA, ActorFolio
 from services.seguimiento import base
 
@@ -210,7 +210,7 @@ async def generar_pdf(db: AsyncSession, c: Cotizacion) -> bytes:
     datos = pdf.html_a_pdf(await html_cotizacion(db, c))
     c.pdf_key = f"cotizaciones/{c.tenant_id}/{c.numero}.pdf"
     c.hash_pdf = pdf.sha256(datos)
-    obtener_almacenamiento().guardar(c.pdf_key, datos, "application/pdf")
+    obtener_almacenamiento().guardar(c.pdf_key, datos, "application/pdf", dueno=dueno_de(c.tenant_id, c.prestador_id))
     await db.flush()
     return datos
 

@@ -7,6 +7,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 RAIZ_REPO = Path(__file__).resolve().parents[2]
 
+# Campos que llevan secretos: en produccion ninguno puede quedarse con el valor de ejemplo del .env. P11a.
+SECRETOS = ("jwt_secreto", "clave_cifrado", "minio_root_password", "smtp_password", "vapid_clave_privada",
+            "database_url", "database_migrations_url", "redis_url", "celery_broker_url", "celery_result_backend")
+MARCAS_DE_EJEMPLO = ("cambiar", "ejemplo", "changeme", "password", "secreto_dev", "acma_dev")
+# La CLAVE_CIFRADO del .env.example es base64 valido, asi que no la delata ninguna marca de texto.
+CLAVE_CIFRADO_EJEMPLO = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+
 
 class Configuracion(BaseSettings):
     model_config = SettingsConfigDict(
@@ -38,7 +45,19 @@ class Configuracion(BaseSettings):
     jwt_algoritmo: str = "HS256"
     jwt_acceso_minutos: int = 15
     jwt_mfa_minutos: int = 5
-    refresh_dias: int = 7
+    # §6.9.5: la sesión vive 8 h (2 h para roles administrativos) y se cierra por inactividad; el token de acceso
+    # sigue siendo corto y se renueva con el refresh rotativo mientras la sesión esté viva.
+    # P11a cierra así la decisión pendiente n.º 1 (P01 pedía 15 min + 7 días; §6.9.5 pide 8 h / 2 h).
+    sesion_horas: int = 8
+    sesion_horas_admin: int = 2
+    sesion_inactividad_minutos: int = 30
+    # §6.9.5: vencimiento de la contraseña de los roles administrativos (0 = sin vencimiento).
+    contrasena_dias_admin: int = 90
+    # §6.9.5: retención de la bitácora de API (90 días normales, 1 año los errores 4xx/5xx).
+    retencion_accesos_dias: int = 90
+    retencion_accesos_errores_dias: int = 365
+    # §6.9.5: geolocalización aproximada del login. Vacío = sin base (la auditoría anota geo: null). P11a.
+    geoip_base: str = ""
     clave_cifrado: str
     mfa_obligatorio: bool = True
     cors_origenes: str = ""
@@ -82,10 +101,23 @@ class Configuracion(BaseSettings):
         if self.acma_entorno == "produccion":
             if not self.mfa_obligatorio:
                 raise ValueError("En produccion MFA_OBLIGATORIO debe ser true")
-            if "cambiar" in self.jwt_secreto:
-                raise ValueError("JWT_SECRETO de ejemplo no permitido en produccion")
             if "*" in self.cors_origenes:
                 raise ValueError("CORS comodín no permitido en produccion")
+            if not self.lista_cors:
+                raise ValueError("CORS_ORIGENES debe listar el dominio del frontend en produccion")
+            # §6.9.5: arrancar con un secreto de ejemplo equivale a no tener secreto. P11a.
+            for campo in SECRETOS:
+                valor = (getattr(self, campo) or "").lower()
+                if valor and any(marca in valor for marca in MARCAS_DE_EJEMPLO):
+                    raise ValueError(f"{campo.upper()} tiene un valor de ejemplo; genera uno real "
+                                     f"(scripts/generar_secretos.py) antes de arrancar en produccion")
+            if len(self.clave_cifrado) < 32 or self.clave_cifrado == CLAVE_CIFRADO_EJEMPLO:
+                raise ValueError("CLAVE_CIFRADO debe ser una clave nueva de 32 bytes "
+                                 "(scripts/generar_secretos.py), no la del .env.example")
+            if self.almacenamiento_modo == "minio" and not (self.minio_root_user and self.minio_root_password):
+                raise ValueError("MinIO en produccion exige MINIO_ROOT_USER y MINIO_ROOT_PASSWORD")
+            if not self.app_url_publica.startswith("https://"):
+                raise ValueError("APP_URL_PUBLICA debe ser https en produccion (las cookies de sesion son Secure)")
         return self
 
     @property

@@ -29,6 +29,8 @@ import { Calendario } from './pages/preventivos/Calendario'
 import { Planes } from './pages/preventivos/Planes'
 import { Reporte as ReporteReasignaciones } from './pages/reasignaciones/Reporte'
 import { Login } from './pages/Login'
+import { CambioObligatorio } from './pages/auth/CambioObligatorio'
+import { Restablecer } from './pages/auth/Restablecer'
 import { Clasificacion } from './pages/clasificacion/Clasificacion'
 import { Minutas } from './pages/minutas/Minutas'
 import { ResponderMinuta } from './pages/minutas/ResponderMinuta'
@@ -96,7 +98,18 @@ export function App() {
   if (!usuario) {
     return (
       <Routes>
+        {/* El enlace del correo llega sin sesión: su pantalla va antes del login. P11a. */}
+        <Route path="restablecer" element={<Restablecer />} />
         <Route path="*" element={<Login />} />
+      </Routes>
+    )
+  }
+  // §6.9.5: con la contraseña vencida el servidor rechaza todo menos el cambio, así que la app entera se reemplaza
+  // por esa pantalla en lugar de dejar al usuario chocar con un 403 en cada módulo. P11a.
+  if (usuario.contrasena_vencida) {
+    return (
+      <Routes>
+        <Route path="*" element={<CambioObligatorio />} />
       </Routes>
     )
   }

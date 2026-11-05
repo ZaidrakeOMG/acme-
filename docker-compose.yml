@@ -1,10 +1,13 @@
 # ACMA — infraestructura de desarrollo (PostgreSQL + PostGIS, Redis, MinIO).
 # Puertos de host distintos a los de acma-proyecto para que ambos convivan.
+# P11a (cierra la decision pendiente n.o 12): las imagenes van fijadas por version exacta o digest para que un `docker compose pull`
+# no cambie la version por debajo. Para subir una: actualizar el valor aqui, probar y commitear el cambio.
 name: acma
 
 services:
   postgres:
-    image: postgis/postgis:16-3.4
+    # PostgreSQL 16.4 + PostGIS 3.4 (la etiqueta 16-3.4 flota sobre los parches, el digest no).
+    image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
     container_name: acma_nuevo_postgres
     restart: unless-stopped
     environment:
@@ -26,7 +29,7 @@ services:
       retries: 20
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.9-alpine
     container_name: acma_nuevo_redis
     restart: unless-stopped
     command: redis-server --appendonly no
@@ -39,7 +42,8 @@ services:
       retries: 20
 
   minio:
-    image: minio/minio:latest
+    # RELEASE.2025-09-07T16-13-09Z. MinIO no publica etiquetas estables fuera de RELEASE.*: va por digest.
+    image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     container_name: acma_nuevo_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"

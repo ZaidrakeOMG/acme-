@@ -1,12 +1,17 @@
 /**
  * Cliente HTTP de ACMA.
- * - Token de acceso en memoria; refresh token en localStorage (decisión pendiente: cookie httpOnly).
+ * - Token de acceso en memoria; el refresh vive en la cookie `httpOnly` `acma_refresh` que emite el servidor (§6.9.5),
+ *   así que este código nunca lo ve ni lo guarda. En `localStorage` solo queda una marca sin valor («hay sesión en este
+ *   navegador») para saber si vale la pena intentar renovar al abrir la app, incluso sin red.
+ * - Contra CSRF: el servidor emite también la cookie legible `acma_csrf` y `/auth/refresh` y `/auth/logout` exigen el
+ *   mismo valor en la cabecera `X-ACMA-CSRF` (doble envío).
  * - Refresh automático single-flight: varias peticiones con 401 comparten una sola renovación.
  * - Toda respuesta de error se convierte en ErrorAPI con el formato estándar {codigo, mensaje, detalles}.
  */
 import type { ErrorEstandar, Tokens } from '../types/api'
 
-const CLAVE_REFRESH = 'acma.refresh'
+const CLAVE_SESION = 'acma.sesion'
+const COOKIE_CSRF = 'acma_csrf'
 const BASE = '/api'
 
 export class ErrorAPI extends Error implements ErrorEstandar {
@@ -28,12 +33,24 @@ let tokenAcceso: string | null = null
 let refrescoEnCurso: Promise<boolean> | null = null
 let alExpirarSesion: (() => void) | null = null
 
-function leerRefresh(): string | null {
+/** Marca local: no es un secreto, solo dice que este navegador tuvo sesión (para intentar renovar al abrir). */
+function hayMarca(): boolean {
   try {
-    return localStorage.getItem(CLAVE_REFRESH)
+    return localStorage.getItem(CLAVE_SESION) === '1'
   } catch {
-    return null
+    return false
   }
+}
+
+/** CSRF: el servidor lo emite en una cookie legible y lo exige en la cabecera de refresh y logout. */
+export function csrfActual(): string | null {
+  const par = document.cookie.split('; ').find((c) => c.startsWith(`${COOKIE_CSRF}=`))
+  return par ? decodeURIComponent(par.slice(COOKIE_CSRF.length + 1)) : null
+}
+
+function cabecerasCsrf(): Record<string, string> {
+  const valor = csrfActual()
+  return valor ? { 'X-ACMA-CSRF': valor } : {}
 }
 
 /** Token de acceso vigente (lo usan WebSocket/SSE, que no envían cabeceras). */
@@ -45,7 +62,7 @@ export const sesion = {
   guardar(tokens: Tokens) {
     tokenAcceso = tokens.access_token
     try {
-      localStorage.setItem(CLAVE_REFRESH, tokens.refresh_token)
+      localStorage.setItem(CLAVE_SESION, '1')
     } catch {
       /* almacenamiento no disponible: la sesión dura lo que la pestaña */
     }
@@ -53,12 +70,13 @@ export const sesion = {
   limpiar() {
     tokenAcceso = null
     try {
-      localStorage.removeItem(CLAVE_REFRESH)
+      localStorage.removeItem(CLAVE_SESION)
     } catch {
       /* sin almacenamiento */
     }
   },
-  tieneRefresh: () => leerRefresh() !== null,
+  /** ¿Conviene intentar renovar? La cookie no se puede leer, así que basta la marca o el CSRF visible. */
+  tieneRefresh: () => hayMarca() || csrfActual() !== null,
   alExpirar(fn: () => void) {
     alExpirarSesion = fn
   },
@@ -77,16 +95,16 @@ async function aErrorAPI(respuesta: Response): Promise<ErrorAPI> {
 export function refrescar(): Promise<boolean> {
   if (!refrescoEnCurso) {
     refrescoEnCurso = (async () => {
-      const refresh = leerRefresh()
-      if (!refresh) return false
+      if (!sesion.tieneRefresh()) return false
       try {
         const r = await fetch(`${BASE}/auth/refresh`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: refresh }),
+          headers: cabecerasCsrf(),
+          credentials: 'same-origin',
         })
         if (!r.ok) {
-          sesion.limpiar()
+          // 0 y 5xx pueden ser falta de red: no se borra la marca para no perder la sesión al recargar sin señal.
+          if (r.status >= 400 && r.status < 500) sesion.limpiar()
           return false
         }
         sesion.guardar((await r.json()) as Tokens)
@@ -127,7 +145,8 @@ export async function api<T>(ruta: string, opciones: Opciones = {}, reintento = 
   try {
     respuesta = await fetch(`${BASE}${ruta}${consulta}`, {
       method: metodo,
-      headers,
+      headers: { ...headers, ...(ruta.startsWith('/auth/') ? cabecerasCsrf() : {}) },
+      credentials: 'same-origin',
       body: formulario ?? (cuerpo !== undefined ? JSON.stringify(cuerpo) : undefined),
     })
   } catch {

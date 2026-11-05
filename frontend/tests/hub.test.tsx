@@ -5,7 +5,7 @@ import type { PerfilConTema, Rol } from '../src/types/api'
 import { perfil, renderApp, simularApi, TOKENS } from './utilidades'
 
 async function entrarComo(rol: Rol, extra: Partial<PerfilConTema> = {}, ruta = '/') {
-  localStorage.setItem('acma.refresh', TOKENS.refresh_token)
+  localStorage.setItem('acma.sesion', '1')  // P11a: solo la marca; el refresh va en cookie httpOnly
   simularApi({
     'POST /api/auth/refresh': () => ({ json: TOKENS }),
     'GET /api/auth/yo': () => ({ json: perfil(rol, extra) }),

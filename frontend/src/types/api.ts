@@ -22,10 +22,12 @@ export interface ErrorEstandar {
 }
 
 export interface Tokens {
+  /** P11a: el refresh vive en la cookie httpOnly `acma_refresh`; aquí solo viaja el token de acceso. */
   access_token: string
-  refresh_token: string
   token_type: string
   expira_en: number
+  sesion_expira_en?: number
+  csrf?: string
 }
 
 export interface Perfil {
@@ -39,6 +41,8 @@ export interface Perfil {
   prestador_id: string | null
   mfa_habilitado: boolean
   mfa_obligatorio: boolean
+  /** §6.9.5: la contraseña de los roles administrativos vence a los 90 días (P11a). */
+  contrasena_vencida: boolean
 }
 
 export interface Tema {

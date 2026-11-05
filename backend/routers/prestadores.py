@@ -14,7 +14,7 @@ from models.organizaciones import Prestador
 from schemas.comun import RESPUESTAS_ERROR
 from schemas.organizaciones import DatosFiscales, PrestadorCambios, PrestadorEntrada, PrestadorSalida
 from services import auditoria, catalogos_service, permisos_service
-from services.almacenamiento import obtener_almacenamiento
+from services.almacenamiento import dueno_de, obtener_almacenamiento
 
 router = APIRouter(prefix="/api/prestadores", tags=["Prestadores"], responses=RESPUESTAS_ERROR)
 
@@ -109,7 +109,8 @@ async def subir_logo(prestador_id: UUID, request: Request, db: DB, archivo: Uplo
     if len(datos) > MAX_LOGO:
         raise ErrorAPI(413, "ARCHIVO_DEMASIADO_GRANDE", "El logo no puede exceder 1 MB")
     clave = f"prestadores/{p.id}/logo-{uuid.uuid4().hex[:8]}.{extension}"
-    obtener_almacenamiento().guardar(clave, datos, archivo.content_type or "application/octet-stream")
+    obtener_almacenamiento().guardar(clave, datos, archivo.content_type or "application/octet-stream",
+                                     dueno=dueno_de(None, p.id))
     p.logo_key = clave
     await db.flush()
     await auditoria.registrar_actor(db, actor, "prestadores.logo", request, prestador_id=p.id, recurso_tipo="prestador",

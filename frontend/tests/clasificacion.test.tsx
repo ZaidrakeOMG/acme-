@@ -19,7 +19,7 @@ const folio: FolioResumen = {
 const pendiente: PendienteClasificacion = { folio, pendiente_desde: '2026-10-28T10:00:00Z', plazo_at: '2026-10-29T10:00:00Z', horas_restantes: 20.5, vencido: false, opciones: [] }
 
 async function entrar(rol: Rol, ruta: string, rutas: Parameters<typeof simularApi>[0] = {}, extra: Partial<PerfilConTema> = {}) {
-  localStorage.setItem('acma.refresh', TOKENS.refresh_token)
+  localStorage.setItem('acma.sesion', '1')  // P11a: solo la marca; el refresh va en cookie httpOnly
   const llamadas = simularApi({
     'POST /api/auth/refresh': () => ({ json: TOKENS }),
     'GET /api/auth/yo': () => ({ json: perfil(rol, { tenant_id: T, ...extra }) }),

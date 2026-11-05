@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func, text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +24,7 @@ class Usuario(ConVersion, Base):
     mfa_secreto_cifrado: Mapped[str | None] = mapped_column(Text)
     mfa_habilitado: Mapped[bool] = mapped_column(Boolean, default=False)
     mfa_codigos_recuperacion: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    mfa_ultimo_paso: Mapped[int | None] = mapped_column(BigInteger)  # P11a: §6.9.5 sin reutilizar el mismo TOTP
     intentos_fallidos: Mapped[int] = mapped_column(Integer, default=0)
     bloqueado_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     password_actualizado_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

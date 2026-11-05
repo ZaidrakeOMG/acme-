@@ -117,6 +117,7 @@ async def _actor_desde_token(token: str | None) -> Actor:
 
     class _Req:  # mínimo que usuario_actual() necesita
         state = type("S", (), {"claims": claims})()
+        url = type("U", (), {"path": "/api/chats/sse"})()  # P11a: la puerta de contraseña vencida lee la ruta
 
     async with nueva_sesion(contexto_desde_claims(claims)) as db:
         return await usuario_actual(_Req(), db)  # type: ignore[arg-type]
