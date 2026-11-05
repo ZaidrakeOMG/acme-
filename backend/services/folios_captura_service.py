@@ -597,7 +597,9 @@ async def resumen(db: AsyncSession, folios: list[Folio], ahora: datetime | None 
         fl = flujos.get(f.id)
         flujo = None
         if fl is not None:
-            niveles = niveles_cache.setdefault(f.tenant_id, await aprobacion_service.niveles_de(db, f.tenant_id))
+            if f.tenant_id not in niveles_cache:  # con setdefault el await corre por cada folio con flujo (P11a)
+                niveles_cache[f.tenant_id] = await aprobacion_service.niveles_de(db, f.tenant_id)
+            niveles = niveles_cache[f.tenant_id]
             cfg = niveles.get(fl.nivel_actual)
             flujo = {"id": fl.id, "nivel_actual": fl.nivel_actual, "nivel_maximo_requerido": fl.nivel_maximo_requerido, "estado": fl.estado,
                      "iniciado_at": fl.iniciado_at, "resuelto_at": fl.resuelto_at, "rol_aprobador_actual": cfg.rol_aprobador if cfg else None,

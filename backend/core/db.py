@@ -16,9 +16,13 @@ from core.rls import ContextoRLS, SesionRLS
 
 
 def crear_engine(url: str) -> AsyncEngine:
+    """Pool configurable. P11a: con 10+10 conexiones, 70 usuarios concurrentes agotaban el pool y la API devolvia
+    500 por `QueuePool limit ... connection timed out`. El tamaño se calcula junto con los workers de uvicorn y el
+    `max_connections` de PostgreSQL; ver docs/rendimiento/resultados.md."""
     if config.db_pool_nulo:
         return create_async_engine(url, poolclass=NullPool)
-    return create_async_engine(url, pool_size=10, max_overflow=10, pool_pre_ping=True)
+    return create_async_engine(url, pool_size=config.db_pool_size, max_overflow=config.db_pool_overflow,
+                               pool_timeout=config.db_pool_timeout, pool_recycle=1800, pool_pre_ping=True)
 
 
 engine = crear_engine(config.database_url)

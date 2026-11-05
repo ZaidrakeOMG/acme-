@@ -10,3 +10,6 @@ frontend/dist/
 frontend/dev-dist/
 coverage/
 *.log
+# P11a: datos y resultados que genera la prueba de carga en cada corrida
+backend/pruebas_carga/datos_carga.json
+backend/pruebas_carga/informe.html

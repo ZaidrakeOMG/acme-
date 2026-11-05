@@ -254,7 +254,9 @@ async def pendientes_para(db: AsyncSession, actor: Actor) -> list[tuple[Folio, A
     salida = []
     cache: dict[UUID, dict[int, AprobacionNivelConfig]] = {}
     for folio, flujo in (await db.execute(consulta)).all():
-        niveles = cache.setdefault(folio.tenant_id, await niveles_de(db, folio.tenant_id))
+        if folio.tenant_id not in cache:  # el await de un setdefault se evalua siempre: seria una consulta por folio
+            cache[folio.tenant_id] = await niveles_de(db, folio.tenant_id)
+        niveles = cache[folio.tenant_id]
         config = niveles.get(flujo.nivel_actual)
         if actor.es_superadmin or (config and config.rol_aprobador == actor.rol and await un_visible_para(db, actor, folio.un_id)):
             salida.append((folio, flujo, config))

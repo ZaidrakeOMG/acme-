@@ -151,7 +151,7 @@ async def login(db: AsyncSession, request: Request, email: str, contrasena: str,
     await _verificar_limite_ip(db, request)
     fila = await _identidad(db, email=email)
     if fila is None:
-        security.verificar_contrasena(security.HASH_FICTICIO, contrasena)
+        await security.verificar_contrasena_async(security.HASH_FICTICIO, contrasena)
         await _registrar_fallo(db, request, email, None, "email_inexistente")
         raise CREDENCIALES_INVALIDAS
 
@@ -160,7 +160,7 @@ async def login(db: AsyncSession, request: Request, email: str, contrasena: str,
     assert usuario is not None
     _verificar_bloqueo(usuario)
 
-    if not security.verificar_contrasena(usuario.password_hash, contrasena):
+    if not await security.verificar_contrasena_async(usuario.password_hash, contrasena):
         await _registrar_fallo(db, request, email, usuario, "contrasena_incorrecta")
         raise CREDENCIALES_INVALIDAS
     if usuario.estado != EstadoRegistro.activo:
@@ -424,8 +424,17 @@ def contrasena_vencida(usuario: Usuario | None) -> bool:
     return datetime.now(UTC) - desde > timedelta(days=config.contrasena_dias_admin)
 
 
+async def _alguna_coincide(hashes: list[str], nueva: str) -> bool:
+    """¿La contraseña nueva repite alguna del historial? Corta en la primera coincidencia: cada comparación argon2
+    cuesta cientos de milisegundos y el historial tiene diez. P11a."""
+    for h in hashes:
+        if h and await security.verificar_contrasena_async(h, nueva):
+            return True
+    return False
+
+
 async def cambiar_contrasena(db: AsyncSession, request: Request, usuario: Usuario, actual: str, nueva: str) -> None:
-    if not security.verificar_contrasena(usuario.password_hash, actual):
+    if not await security.verificar_contrasena_async(usuario.password_hash, actual):
         raise ErrorAPI(400, "CONTRASENA_ACTUAL_INCORRECTA", "La contraseña actual es incorrecta")
     errores = security.errores_politica_contrasena(nueva)
     if errores:
@@ -434,10 +443,10 @@ async def cambiar_contrasena(db: AsyncSession, request: Request, usuario: Usuari
         select(HistorialContrasena.password_hash).where(HistorialContrasena.usuario_id == usuario.id)
         .order_by(HistorialContrasena.created_at.desc()).limit(HISTORIAL_CONTRASENAS - 1)
     )).scalars().all()
-    if any(security.verificar_contrasena(h, nueva) for h in [usuario.password_hash, *previas]):
+    if await _alguna_coincide([usuario.password_hash, *previas], nueva):
         raise ErrorAPI(422, "CONTRASENA_REPETIDA", f"No puedes reutilizar ninguna de tus últimas {HISTORIAL_CONTRASENAS} contraseñas")
     db.add(HistorialContrasena(usuario_id=usuario.id, password_hash=usuario.password_hash))
-    usuario.password_hash = security.hashear_contrasena(nueva)
+    usuario.password_hash = await security.hashear_contrasena_async(nueva)
     usuario.password_actualizado_at = datetime.now(UTC)
     await _auditar(db, "auth.contrasena_cambiada", request, usuario)
     await db.commit()
@@ -494,10 +503,10 @@ async def confirmar_restablecimiento(db: AsyncSession, request: Request, token: 
         select(HistorialContrasena.password_hash).where(HistorialContrasena.usuario_id == usuario.id)
         .order_by(HistorialContrasena.created_at.desc()).limit(HISTORIAL_CONTRASENAS - 1)
     )).scalars().all()
-    if any(security.verificar_contrasena(h, nueva) for h in [usuario.password_hash, *previas]):
+    if await _alguna_coincide([usuario.password_hash, *previas], nueva):
         raise ErrorAPI(422, "CONTRASENA_REPETIDA", f"No puedes reutilizar ninguna de tus últimas {HISTORIAL_CONTRASENAS} contraseñas")
     db.add(HistorialContrasena(usuario_id=usuario.id, password_hash=usuario.password_hash))
-    usuario.password_hash = security.hashear_contrasena(nueva)
+    usuario.password_hash = await security.hashear_contrasena_async(nueva)
     usuario.password_actualizado_at = datetime.now(UTC)
     usuario.intentos_fallidos = 0
     usuario.bloqueado_hasta = None

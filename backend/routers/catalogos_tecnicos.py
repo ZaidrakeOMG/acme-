@@ -7,7 +7,7 @@ from sqlalchemy import func, or_, select, text
 
 from core.dependencias import DB, Actor, requiere_rol
 from core.errors import ErrorAPI, no_encontrado
-from core.security import errores_politica_contrasena, hashear_contrasena
+from core.security import errores_politica_contrasena, hashear_contrasena_async
 from models.base import Dominio, Rol
 from models.catalogos import Habilidad, NivelSeveridadCatalogo, Tecnico, TecnicoHabilidad, TecnicoTenantHabilitado
 from models.organizaciones import TenantPrestador
@@ -156,7 +156,7 @@ async def crear_tecnico(datos: TecnicoEntrada, request: Request, db: DB, actor: 
         if (await db.execute(_EMAIL_EXISTE, {"e": datos.email})).scalar():
             raise ErrorAPI(409, "EMAIL_DUPLICADO", "Ya existe un usuario con ese correo")
         usuario = Usuario(email=str(datos.email).lower(), nombre=datos.nombre, telefono=datos.telefono, rol=Rol.tecnico,
-                          dominio=Dominio.prestador, prestador_id=p, password_hash=hashear_contrasena(datos.contrasena))
+                          dominio=Dominio.prestador, prestador_id=p, password_hash=await hashear_contrasena_async(datos.contrasena))
         db.add(usuario)
         await db.flush()
         await auditoria.registrar_actor(db, actor, "usuarios.alta", request, prestador_id=p, recurso_tipo="usuario",

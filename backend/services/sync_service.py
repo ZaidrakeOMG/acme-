@@ -120,7 +120,8 @@ async def catalogos(db: AsyncSession, actor: Actor, desde: datetime | None, disp
                 salida.setdefault("formulario_por_folio", {})[str(f.id)] = str(formulario.id)
         preventivos = await formularios.listar(db, actor, "preventivo", None, "publicado", None, None)
         for f in preventivos:
-            atencion.setdefault(str(f.id), await formularios.salida(db, actor, f))
+            if str(f.id) not in atencion:  # armar la salida cuesta consultas: no se rehace si ya esta (P11a)
+                atencion[str(f.id)] = await formularios.salida(db, actor, f)
         salida["formularios"] = [v for v in atencion.values() if not desde or datetime.fromisoformat(str(v["updated_at"])) > desde]
         salida["formularios_ids"] = list(atencion)
         salida["refacciones"] = []       # catálogo de inventario: P09

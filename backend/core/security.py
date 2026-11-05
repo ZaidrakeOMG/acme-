@@ -1,4 +1,5 @@
 """Primitivas de seguridad: contraseñas (argon2), JWT, cifrado AES-256-GCM, TOTP y tokens opacos."""
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -40,6 +41,30 @@ def errores_politica_contrasena(contrasena: str) -> list[str]:
 
 def hashear_contrasena(contrasena: str) -> str:
     return _hasher.hash(contrasena)
+
+
+# argon2 es memory-hard a propósito: cada hash o verificación cuesta ~110 ms de CPU con 4 hilos. Dentro del event loop
+# eso bloquea TODAS las peticiones del proceso (medido en P11a: con 70 usuarios el login tardaba segundos y arrastraba
+# al resto), así que va en un hilo aparte y con tope de concurrencia para que una tanda de logins no se coma la CPU.
+# Los parámetros se dejan en el default de argon2-cffi (t=3, m=64 MiB, p=4), más fuertes que el mínimo de OWASP.
+_turnos_hash: asyncio.Semaphore | None = None
+
+
+def _turno() -> asyncio.Semaphore:
+    global _turnos_hash
+    if _turnos_hash is None:  # se crea en el loop que lo usa
+        _turnos_hash = asyncio.Semaphore(max(1, config.hash_concurrencia))
+    return _turnos_hash
+
+
+async def hashear_contrasena_async(contrasena: str) -> str:
+    async with _turno():
+        return await asyncio.to_thread(hashear_contrasena, contrasena)
+
+
+async def verificar_contrasena_async(hash_: str, contrasena: str) -> bool:
+    async with _turno():
+        return await asyncio.to_thread(verificar_contrasena, hash_, contrasena)
 
 
 def verificar_contrasena(hash_: str, contrasena: str) -> bool:

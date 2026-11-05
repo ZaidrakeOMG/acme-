@@ -6,7 +6,7 @@ from sqlalchemy import func, select, text, update
 
 from core.dependencias import DB, Actor, requiere_rol
 from core.errors import ErrorAPI, no_encontrado, prohibido
-from core.security import errores_politica_contrasena, hashear_contrasena
+from core.security import errores_politica_contrasena, hashear_contrasena_async
 from models.base import ROLES_PRESTADOR, ROLES_TENANT, Dominio, EstadoRegistro, Rol, dominio_de_rol
 from models.usuarios import Sesion, Usuario
 from schemas.comun import RESPUESTAS_ERROR
@@ -102,7 +102,7 @@ async def crear(datos: UsuarioEntrada, request: Request, db: DB, actor: Actor = 
 
     usuario = Usuario(
         email=datos.email.lower(), nombre=datos.nombre, telefono=datos.telefono, rol=datos.rol, dominio=dominio,
-        tenant_id=tenant_id, prestador_id=prestador_id, password_hash=hashear_contrasena(datos.contrasena),
+        tenant_id=tenant_id, prestador_id=prestador_id, password_hash=await hashear_contrasena_async(datos.contrasena),
     )
     db.add(usuario)
     await db.flush()

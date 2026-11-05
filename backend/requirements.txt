@@ -29,3 +29,4 @@ weasyprint>=62
 aiosmtpd>=1.4  # pruebas: servidor SMTP local
 # P11a: auditoria de dependencias (solo herramienta local/CI, no se instala en la imagen de produccion)
 pip-audit>=2.10
+locust>=2.47  # P11a: pruebas de carga (backend/pruebas_carga), solo local/CI

@@ -69,6 +69,16 @@ class Configuracion(BaseSettings):
 
     # Pool de conexiones. NullPool en pruebas para no atar conexiones a un event loop.
     db_pool_nulo: bool = False
+    # P11a: medido con 50 tecnicos + 20 de oficina. Por proceso: pool_size + overflow conexiones como maximo, asi que
+    # workers x (db_pool_size + db_pool_overflow) debe caber en el max_connections de PostgreSQL.
+    db_pool_size: int = 15
+    db_pool_overflow: int = 10
+    db_pool_timeout: int = 10
+    # argon2 cuesta ~110 ms de CPU con 4 hilos cada vez. Sin tope, una tanda de inicios de sesion ocupa todos los
+    # nucleos y deja sin aire al resto de la API; con tope, los logins se forman y lo demas sigue respondiendo. P11a.
+    hash_concurrencia: int = 2
+    # P11a: logs de una linea en JSON para produccion (la rotacion la hace Docker, no la aplicacion).
+    log_json: bool = False
 
     # P05: tiempo real del chat ("redis" = pub/sub entre procesos; "local" = solo este proceso, pruebas).
     tiempo_real_modo: str = "redis"
