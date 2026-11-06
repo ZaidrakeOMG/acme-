@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-11-05 · P11a Endurecimiento: seguridad, rendimiento, respaldos y paquete de producción**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-11-06 · Paso 0 Estabilidad del entorno (límites de WSL) antes de la segunda etapa**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -838,6 +838,16 @@ respaldos fuera del servidor y el RPO real.
 (medidores de activos, OCR y validación del CFDI ante el SAT, adaptadores de ERP, WhatsApp y SMS, criticidad
 automática por FMEA, descuento de penalizaciones en el CFDI, ETA y ruta). No hay nada que decidir hasta entonces.
 
+## Reglas de trabajo de la segunda etapa (paso 0)
+
+- La segunda etapa (prompts `F2-xx`) se desarrolla con **todas las integraciones externas en modo simulado o con
+  cuentas de prueba gratuitas**: ninguna contratación ni publicación hasta el paso final.
+- **Cada prompt cierra con un commit local.** Los trabajos largos se dividen en commits parciales por sección, para
+  no perder avance si la sesión se corta.
+- **El repositorio remoto queda pendiente hasta que la usuaria lo autorice.** Nada de `git push`, `gh repo create`
+  ni configurar remotos; el repositorio vive solo en `C:\Users\lilia\Desktop\acma`. El proyecto anterior
+  `Liliana0315/ACMA` no se toca.
+
 ## Decisiones pendientes de validación (regla 1)
 
 1. **Vida del JWT:** P01 pide acceso de 15 min + refresh de 7 días; §6.9.5 dice 8 h (2 h admins). Se siguió P01.
@@ -1148,6 +1158,18 @@ automática por FMEA, descuento de penalizaciones en el CFDI, ETA y ruta). No ha
   `%LOCALAPPDATA%\docker-secrets-engine` (copias `*.viejo-20261019`, se pueden borrar).
 - 2026-10-27: mismo problema (`dockerInference`); copias `*.huerfano-20261027-*`, se pueden borrar.
 - 2026-11-02: tras reiniciar la maquina, Docker Desktop volvio a quedarse en el arranque del motor; misma correccion (cerrar Docker, `wsl --shutdown`, renombrar las carpetas); copias `*.huerfano-20261102-*`, se pueden borrar.
+- 2026-11-06: cuarta vez, al reiniciar Docker para aplicar el `.wslconfig`. El error exacto fue
+  `initializing Secrets Engine: ... rename engine.sock engine.sock.stale: The file cannot be accessed by the
+  system`, y Docker Desktop se queda en un cuadro de error esperando a una persona (solo ofrece «Quit» y «Reset
+  to factory defaults»: **no usar el reset**, borra los volumenes de todos los proyectos). Misma correccion;
+  copias `*.huerfano-20261106`, se pueden borrar. El error vive en
+  `%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log`, en la linea `GET /error`.
+- **2026-11-06 · limites de WSL (paso 0).** Docker se caia porque WSL2 tomaba toda la memoria con los
+  contenedores, pytest y los servidores de desarrollo a la vez. `%USERPROFILE%\.wslconfig` fija ahora
+  `memory=4GB`, `swap=4GB`, `processors=4` y `autoMemoryReclaim=gradual`. La maquina tiene 7.24 GB y 8 nucleos
+  logicos: la mitad de la RAM serian 3 GB, por debajo del minimo de 4 GB, asi que quedan ~3.2 GB para Windows,
+  Node y los compiladores del frontend. Comprobado: la VM de WSL ve 3.92 GiB y 4 nucleos (`docker info`).
+  Cambiar ese archivo exige cerrar Docker Desktop, `wsl --shutdown` y volver a abrirlo.
 - 2026-10-29: con pytest corriendo, `tsc` (typescript-go) se queda sin memoria en esta máquina (7 GB): cerrar los servidores de
   desarrollo viejos y correr `tsc`/vitest cuando pytest termina.
 - Zona horaria del horario de servicio: `zoneinfo` + paquete `tzdata` (ya en el venv) porque Windows no trae la base IANA.
