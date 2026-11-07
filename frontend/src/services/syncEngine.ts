@@ -310,6 +310,18 @@ class MotorSincronizacion {
       for (const f of await baseLocal.folios_cache.toArray()) if (!vigentes.has(f.id)) await baseLocal.folios_cache.delete(f.id)
     }
     if (paquete.formulario_por_folio) await baseLocal.metadatos.put({ clave: 'sync.formulario_por_folio', valor: paquete.formulario_por_folio, actualizado: new Date().toISOString() })
+    // F2-01: la biblioteca viaja como metadatos; el servicio sin conexión decide qué archivos guardar o retirar.
+    // Import dinámico a propósito: `bibliotecaOffline` usa `dispositivoId` de este módulo y así no hay ciclo.
+    if (paquete.biblioteca) {
+      try {
+        const { conciliar } = await import('./bibliotecaOffline')
+        const metadatos = paquete.biblioteca as Parameters<typeof conciliar>[0]
+        await conciliar(metadatos)
+        total += metadatos.length
+      } catch {
+        /* la biblioteca sin conexión es un extra: no debe tumbar el refresco de catálogos */
+      }
+    }
     await baseLocal.metadatos.put({ clave: 'sync.desde', valor: paquete.servidor_at, actualizado: new Date().toISOString() })
     return total
   }

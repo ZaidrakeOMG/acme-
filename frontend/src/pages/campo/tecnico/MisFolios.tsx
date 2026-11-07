@@ -58,6 +58,10 @@ export function MisFolios() {
       {error && <Aviso>{error}</Aviso>}
       <Lista titulo="Hoy" items={deHoy} />
       <Lista titulo="Próximos" items={proximos} />
+      <Link to="/campo/manuales" className="block rounded-xl border border-slate-200 bg-white p-4 text-sm active:bg-slate-50">
+        <span className="font-medium text-slate-800">Mis manuales sin conexión</span>
+        <span className="block text-xs text-slate-500">Guarda en el teléfono los manuales de tus equipos y consúltalos sin señal.</span>
+      </Link>
     </div>
   )
 }

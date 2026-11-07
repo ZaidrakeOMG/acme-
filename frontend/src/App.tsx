@@ -13,6 +13,9 @@ import { Campo } from './pages/campo/Campo'
 import { CierreOperador } from './pages/campo/operador/CierreOperador'
 import { DetalleOperador } from './pages/campo/operador/DetalleOperador'
 import { AtencionTecnico } from './pages/campo/tecnico/AtencionTecnico'
+import { MisManuales } from './pages/campo/tecnico/MisManuales'
+import { Biblioteca } from './pages/biblioteca/Biblioteca'
+import { Capacitacion } from './pages/capacitacion/Capacitacion'
 import { Catalogos } from './pages/catalogos/Catalogos'
 import { Aprobaciones } from './pages/folios/Aprobaciones'
 import { CapturaFolio } from './pages/folios/CapturaFolio'
@@ -59,6 +62,8 @@ const PAGINAS: Record<string, ReactNode> = {
   contratos: <Contratos />,
   alertas: <Alertas />,
   auditoria: <Auditoria />,
+  capacitacion: <Capacitacion />,
+  biblioteca: <Biblioteca />,
   catalogos: <Catalogos />,
   formularios: <Formularios />,
   mis_formularios: <MisFormularios />,
@@ -130,6 +135,7 @@ export function App() {
         <Route path="bi/reportes" element={<Reportes />} />
         <Route path="preventivos/planes" element={ROLES_PLANES.includes(usuario.rol) || ['admin_empresa', 'admin_un', 'mesa_control'].includes(usuario.rol) ? <Planes /> : <SinPermiso />} />
         <Route path="preventivos/autorizaciones" element={ROLES_CALENDARIO.includes(usuario.rol) ? <Autorizaciones /> : <SinPermiso />} />
+        <Route path="campo/manuales" element={usuario.rol === 'tecnico' ? <MisManuales /> : <SinPermiso />} />
         <Route path="campo/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio modoCampo /> : <SinPermiso />} />
         <Route path="campo/folio/:folioId/cierre" element={['operador', 'admin_un', 'superadmin'].includes(usuario.rol) ? <CierreOperador /> : <SinPermiso />} />
         <Route path="campo/folio/:folioId" element={usuario.rol === 'tecnico' ? <AtencionTecnico /> : <DetalleOperador />} />

@@ -25,6 +25,25 @@
 | P10 | Contratos con iguala y contador de SLA, penalizaciones, configuración central de alertas, tableros por rol y reportes ejecutivos | ✅ 2026-11-02 |
 | P11a | Endurecimiento: seguridad de §6.9.5, pruebas de carga, respaldos con restauración medida y paquete de producción | ✅ 2026-11-05 |
 | P11b | Publicación en `acma.unai.com.mx` con el servidor definitivo y los datos reales de UNAI | Pendiente |
+| F2-01 | Capacitación y certificaciones del personal, biblioteca de manuales con versiones y contenido de servicio contractual, con descarga para uso sin señal | ✅ 2026-11-07 |
+
+## Verificación al cierre de F2-01
+
+- Migración `0013_capacitacion_biblioteca.py` aplicada (subida, bajada y subida), con las siete tablas y la RLS
+  forzada en todas.
+- **433 pytest** en verde más 1 saltado a propósito (`tests/test_respaldo.py`, que levanta y borra bases: se activa
+  con `ACMA_PRUEBA_RESPALDO=1`). 39 pruebas nuevas de F2-01 repartidas en `test_capacitacion.py`,
+  `test_certificacion_habilidades.py`, `test_biblioteca.py`, `test_contenido_servicio.py` y
+  `test_biblioteca_offline.py`.
+- **116 vitest** (7 nuevos en `capacitacion.test.tsx` y `biblioteca.test.tsx`, con `fake-indexeddb`),
+  `tsc --noEmit` y `npm run build` en verde.
+- Cinco pruebas de prompts anteriores cambiaron porque F2-01 cambia lo que afirmaban: el catálogo de alertas pasó de
+  59 a 60 claves, el importador de 9 a 11 catálogos, la clave `biblioteca` del paquete de sincronización dejó de
+  venir vacía, el seed deja a un técnico con una certificación vencida (su habilidad ya no es vigente) y
+  `CERTIFICACION_VENCIDA` salió de la lista de alertas de Fase 2.
+- **La suite se corrió con la API de desarrollo y los workers de Celery encendidos** (la usuaria pidió dejarlos
+  corriendo y detenerlos quedó fuera de los permisos de esta sesión). Usan otra base de datos, así que el resultado
+  es válido; lo único que cambia es que tarda más (33 min).
 
 ## Verificación al cierre de P11a
 
@@ -802,6 +821,68 @@
   `seed_historico` tarda ~1 min por 1,000 folios; el reporte del cliente sobre 12 meses tarda ~0.9 s en PDF y ~1.3 s en
   Excel; y el panel de alertas resuelve los roles destinatarios clave por clave (cachear el catálogo).
 
+### Capacitación y biblioteca (F2-01)
+- **Tablas (0013)**: `cursos_catalogo` (prestador_id **nullable**: NULL = curso global de la plataforma; nombre, proveedor,
+  duración, `vigencia_meses` NULL = no caduca, `habilidad_id` que certifica, tipo curso/certificación,
+  `norma_referencia`), `tecnico_cursos` (técnico + curso, fechas, calificación, `aprobado`, folio de constancia,
+  `vigente_hasta` con su `razon_vigencia` cuando se fija a mano, `certificado_key` del archivo cifrado),
+  `capacitacion_alertas_config` (por prestador: `dias_anticipacion`, `notificar_cliente`, `activa`),
+  `biblioteca_manuales` (prestador + tipo de equipo, título, categoría, versión vigente, archivo, hash, bytes),
+  `biblioteca_versiones` (**append-only** con `acma_auditoria_inmutable()`: versión anterior, su archivo, quién la
+  reemplazó y las notas), `contenido_servicio` (tenant + tipo de equipo + contrato, `puntos_revision_json` ordenados,
+  periodicidad, correctivos y preventivos de la iguala, versión) y `tecnico_descargas_offline` (manual **o** contenido,
+  versión descargada, dispositivo, `en_dispositivo`). 3 ENUM nuevos. RLS forzada en las siete.
+- **Políticas que no son las de siempre**: el curso global (`prestador_id IS NULL`) lo lee cualquiera con contexto;
+  el cliente lee `tecnico_cursos` solo de certificaciones **aprobadas y vigentes** de quien está habilitado en sus
+  unidades o atendió un folio suyo en los últimos 90 días. Para que ese EXISTS funcione se agregaron políticas de
+  lectura de cliente en `tecnicos` y `tecnico_tenants_habilitados`: **la subconsulta de una política también pasa por
+  la RLS de la tabla que lee**, así que sin ellas la vista del cliente salía vacía.
+- **`services/capacitacion_service.py`**: `vigencia_de()` (suma meses respetando fin de mes), `estado_de()`
+  (vigente / por_vencer / vencido / sin_vigencia con los días de anticipación del prestador), catálogo (`listar_cursos`,
+  `crear_curso`, `editar_curso`), `registrar_curso()` con la constancia (PDF/JPG/PNG/WebP, 10 MB, cifrada con el sobre
+  de P11a), `_certificar_habilidad()` (un curso **aprobado** con habilidad la certifica; la declarada a mano gana y
+  nunca se le recorta la vigencia), `expediente()`, `proximos_vencimientos()`, `tecnicos_de_mis_unidades()` (vista del
+  cliente), `recalcular_estados()` (la tarea diaria que retira la habilidad vencida y avisa) y la exportación del
+  expediente en Excel y PDF.
+- **`services/biblioteca_service.py`**: manuales (`subir_manual`, `nueva_version` que conserva el historial,
+  `desactivar_manual`, `listar_manuales` con `solo_mis_folios`), contenido de servicio (`guardar_contenido` con
+  `_avisos_de_coherencia` contra la iguala del contrato de P10 —avisa, no bloquea—, `listar_contenido`),
+  `apoyo_de_folio()` (puntos de revisión + manuales del tipo de equipo del folio, en una sola llamada para la app del
+  técnico), descarga firmada (`firmar_descarga` / `archivo_firmado`, JWT de 5 minutos que **reconstruye el contexto RLS
+  desde su `sub`** porque el visor del navegador no manda cabecera de autorización), `registrar_descarga`,
+  `mis_descargas` y `paquete_del_tecnico()` para la sincronización.
+- **Habilidad certificada como restricción dura**: `folios_captura_service.tecnico_con_habilidad()` ahora exige
+  `tecnico_habilidades.certificada`, no solo que la fila exista. `estado_certificacion()` distingue «no declaró la
+  habilidad» de «la tiene pero su certificación venció», y la reasignación (P06) lo muestra candidato por candidato.
+- **Alertas**: `CERTIFICACION_VENCIDA` deja de ser de Fase 2 (fase 1, activa por defecto, evaluador en
+  `workers/evaluadores_capacitacion.py` con el umbral = min(configuración del prestador, catálogo)) y se agrega
+  `CERTIFICACION_VENCIDA_HABILIDAD_RETIRADA` (informativa, sin evaluador: la dispara la tarea al retirar la habilidad).
+  Tarea `acma.recalcular_capacitacion` en el beat a las 05:10.
+- **Sincronización (§6.2 capa 3)**: la clave `biblioteca` de `GET /api/sync/catalogos` ya no viene vacía: metadatos
+  (no archivos) incrementales por `updated_at`, con `activo: false` para las bajas y `de_mis_folios` para que el
+  dispositivo sepa qué le toca. El contenido de servicio solo viaja si es de un folio asignado.
+- **PWA**: Dexie **versión 3** con `biblioteca_offline` (blob + metadatos + versión + `desactualizado`).
+  `services/bibliotecaOffline.ts` concilia el paquete (marca lo desactualizado, retira las bajas y descarga sola los
+  manuales de los folios del día **solo con Wi-Fi**, configurable), respeta un tope propio en MB y la cuota del
+  navegador (`navigator.storage.estimate()`, avisando antes de pasarse), y registra cada guardado y cada borrado en el
+  servidor (sin señal queda local y se registra al volver la red).
+- **Endpoints**: `/api/capacitacion` (cursos: listar, crear, editar; `tecnicos/{id}/cursos` multipart,
+  `tecnicos/{id}/expediente`, `tecnicos/{id}/certificado/{tc}`, `tecnicos/{id}/expediente.xlsx|.pdf`, `vencimientos`,
+  `tecnicos-de-mis-unidades`, `alertas/configuracion` GET/PUT) y `/api/biblioteca` (`manuales` listar/subir,
+  `manuales/{id}/versiones` GET/POST, `manuales/{id}` DELETE, `manuales/{id}/enlace`, `contenido/{id}/enlace`,
+  `archivo?token=`, `contenido` listar/guardar, `contenido/{id}/documento`, `folios/{id}/apoyo`, `offline` GET/POST).
+- **Frontend**: módulos `capacitacion` (grupo **Administración**: es expediente de personal, vive junto a usuarios y
+  catálogos) y `biblioteca` (grupo **Operación**: se consulta mientras se atiende). `pages/capacitacion/Capacitacion.tsx`
+  (expedientes con semáforo en texto y color, catálogo, vencimientos, alertas, y vista separada del cliente),
+  `pages/biblioteca/Biblioteca.tsx` (manuales con versiones y visor en el navegador, editor de puntos de revisión
+  ordenados), y en la app del técnico `ApoyoDelFolio` (puntos de revisión y manual dentro de la atención, con lo
+  descargado cuando no hay señal) y `MisManuales` («Mis manuales sin conexión»: espacio usado, versión, aviso de
+  versión nueva, actualizar y borrar).
+- **Hoja «Dónde se ve en el sistema» (Excel, no se edita)**: quedan obsoletas las filas que marcan como «Fase 2» o
+  «sin pantalla» la **capacitación / certificaciones del personal**, la **biblioteca de manuales**, el **contenido de
+  servicio contractual** y la alerta **CERTIFICACION_VENCIDA**: los cuatro ya tienen pantalla y están activos. Sigue
+  vigente lo que la hoja diga de GPS, medidores, OCR y adaptadores de ERP.
+
 ### Frontend
 - `src/config/modulos.ts` define los 27 módulos de Fase 1, su prompt y los roles que los ven. Desde P10 **todos tienen
   `ruta`**: no queda ninguno con la etiqueta «Disponible en el prompt Pxx».
@@ -1148,6 +1229,36 @@ automática por FMEA, descuento de penalizaciones en el CFDI, ETA y ruta). No ha
 137. **La prueba del ciclo de respaldo y restauración no corre en la suite normal.** Levanta y borra bases y necesita
     `docker compose`: se activa con `ACMA_PRUEBA_RESPALDO=1` y es, en un comando, el ensayo trimestral que pide
     §6.9.5.
+
+138. **Grupo de los módulos nuevos en el menú (F2-01 pedía elegir y anotar):** `capacitacion` queda en
+    **Administración** (es expediente del personal, junto a usuarios y catálogos) y `biblioteca` en **Operación**
+    (se consulta mientras se atiende el folio). No se creó un grupo «Recursos» para no mover los 27 módulos ya
+    acomodados.
+139. **La habilidad declarada a mano le gana al curso.** Si el Admin prestador afirmó la habilidad, un curso no se la
+    quita ni le recorta la vigencia; si la certificó un curso, al vencer la certificación la habilidad se retira sola.
+    El diseño no dice qué pasa cuando las dos fuentes se contradicen.
+140. **Qué personal ve el cliente:** los técnicos habilitados en sus unidades y los que atendieron un folio suyo en los
+    **últimos 90 días**, con sus certificaciones **aprobadas y vigentes** (nombre, tipo, norma, proveedor y vigencia);
+    sin teléfono, sin número de empleado, sin calificaciones y sin constancias. Los 90 días son una elección.
+141. **La certificación vencida bloquea la asignación.** `tecnico_habilidades.certificada` pasó a ser requisito duro en
+    la captura y en la reasignación: hasta P11a bastaba con que la habilidad estuviera declarada. Se puede asignar
+    igual por la vía que ya existía en §6.8.2 (reasignación con razón registrada), y el candidato muestra si lo que
+    falta es la habilidad o solo su certificación.
+142. **Límites de archivo:** 10 MB la constancia del curso (PDF, JPG, PNG o WebP) y 50 MB el manual (lo anterior más
+    MP4 y WebM). El diseño no fija tamaños; estos caben en el sobre cifrado de P11a sin tocar la memoria del servidor.
+143. **Un solo contenido de servicio activo por cliente y tipo de equipo.** Si el contrato cambia, se guarda otra
+    versión del mismo registro (sube `version`), no un segundo contenido en paralelo.
+144. **Descarga automática de manuales: solo con Wi-Fi**, tope de 200 MB por dispositivo y aviso al 80 %. Cuando el
+    navegador no dice el tipo de conexión se asume que sí se puede descargar (la alternativa, no descargar nunca, deja
+    al técnico sin manuales en sitio); con `saveData` o 2G/3G no descarga.
+145. **El enlace del visor dura 5 minutos y reconstruye el contexto RLS desde su token.** Los archivos están cifrados,
+    así que los sirve la API y no MinIO; el visor del navegador no manda cabecera de autorización, de ahí el enlace
+    firmado.
+146. **La suite dependía de la hora del reloj.** El contrato del demo tiene horario de servicio (L-V 08:00-20:00,
+    sábado 09:00-14:00, domingo cerrado) y la causa 7 de §6.8.6 lo evalúa con la hora real del servidor: corrida fuera
+    de esa ventana, media suite fallaba porque cada folio capturado se iba a `en_revision`. En la base de pruebas
+    `conftest` deja los contratos abiertos los siete días; la causa 7 conserva su prueba, que estrecha la ventana y la
+    restaura.
 
 ## Notas de entorno (esta máquina)
 

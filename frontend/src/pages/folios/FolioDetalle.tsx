@@ -13,7 +13,7 @@ import { ROLES_AUTORIZAN, ROLES_REASIGNAN, ROLES_SOLICITAN } from '../../types/p
 import { PanelPreventivo, ReasignarModal } from './Reasignar'
 import { Financiero } from './Financiero'
 import { SeccionSLA } from './SeccionSLA'
-import { EstadoInsignia, SeveridadInsignia, fecha } from './comunes'
+import { EstadoInsignia, SeveridadInsignia, fecha, resumenCertificaciones } from './comunes'
 
 type Accion = (typeof ACCIONES)[number]
 
@@ -313,9 +313,9 @@ export function FolioDetalle() {
           <form onSubmit={(e) => { e.preventDefault(); void ejecutar(accion) }} className="space-y-3">
             {accion.campo === 'tecnico' && (
               <Selector etiqueta="Técnico" value={tecnicoId} onChange={(e) => setTecnicoId(e.target.value)}
-                        opciones={[{ valor: '', texto: 'Elegir técnico…' }, ...tecnicos.map((t) => ({ valor: t.usuario_id, texto: `${t.nombre} · ${t.habilidades.map((h) => h.clave).join(', ')}` }))]} />
+                        opciones={[{ valor: '', texto: 'Elegir técnico…' }, ...tecnicos.map((t) => ({ valor: t.usuario_id, texto: `${t.nombre} · ${resumenCertificaciones(t.habilidades)}` }))]} />
             )}
-            <Campo etiqueta={accion.campo === 'razon' ? 'Razón (obligatoria)' : accion.campo === 'tecnico' ? 'Razón (solo si no tiene la habilidad)' : 'Notas'} value={texto} onChange={(e) => setTexto(e.target.value)} />
+            <Campo etiqueta={accion.campo === 'razon' ? 'Razón (obligatoria)' : accion.campo === 'tecnico' ? 'Razón (solo si no tiene la habilidad certificada)' : 'Notas'} value={texto} onChange={(e) => setTexto(e.target.value)} />
             <div className="flex justify-end gap-2">
               <Boton type="button" variante="fantasma" onClick={() => setAccion(null)}>Cancelar</Boton>
               <Boton type="submit" disabled={(accion.campo === 'razon' && texto.trim().length < 3) || (accion.campo === 'tecnico' && !tecnicoId)}>{accion.etiqueta}</Boton>

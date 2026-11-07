@@ -1,6 +1,7 @@
 /**
  * Base local IndexedDB (Dexie) — §6.2 capa 3. Versión 2 (P05): caché de catálogos, folios y formularios, borradores de
  * respuestas, evidencias pendientes (blob + metadatos), cola FIFO de mutaciones con `id_cliente`, caché y pendientes del chat.
+ * Versión 3 (F2-01): biblioteca sin conexión, con el archivo y su versión para avisar cuando hay una más nueva.
  */
 import Dexie, { type EntityTable } from 'dexie'
 
@@ -99,6 +100,25 @@ export interface ChatPendiente {
   estado: 'pendiente' | 'enviado' | 'error'
 }
 
+/** Un manual o un contenido de servicio guardado en el dispositivo (§6.10.4, ACT-5.3). F2-01. */
+export interface BibliotecaOffline {
+  clave: string // `${clase}:${id}`
+  clase: 'manual' | 'contenido_servicio'
+  id: string
+  titulo: string
+  tipo_equipo_id: string | null
+  categoria: string | null
+  version: number
+  mime: string | null
+  bytes: number
+  /** El archivo; los contenidos de servicio sin documento guardan solo sus puntos. */
+  archivo: Blob | null
+  puntos_revision: unknown[] | null
+  descargado: string
+  /** Lo marca el paquete de sincronización cuando el servidor tiene una versión más nueva. */
+  desactualizado: boolean
+}
+
 export class BaseLocal extends Dexie {
   metadatos!: EntityTable<Metadato, 'clave'>
   catalogos_cache!: EntityTable<CatalogoCache, 'clave'>
@@ -109,6 +129,7 @@ export class BaseLocal extends Dexie {
   mutaciones_pendientes!: EntityTable<MutacionPendiente, 'id_cliente'>
   chat_mensajes_cache!: EntityTable<MensajeCache, 'id'>
   chat_pendientes!: EntityTable<ChatPendiente, 'id_cliente'>
+  biblioteca_offline!: EntityTable<BibliotecaOffline, 'clave'>
 
   constructor(nombre = 'acma') {
     super(nombre)
@@ -123,6 +144,18 @@ export class BaseLocal extends Dexie {
       mutaciones_pendientes: '&id_cliente, orden, estado, tipo',
       chat_mensajes_cache: '&id, chat_id, timestamp_servidor',
       chat_pendientes: '&id_cliente, chat_id, estado',
+    })
+    this.version(3).stores({
+      metadatos: '&clave',
+      catalogos_cache: '&clave, entidad, id, updated_at',
+      folios_cache: '&id, estado, un_id, tecnico_id, updated_at',
+      formularios_cache: '&id, tipo',
+      respuestas_borrador: '&id, formulario_id, referencia_id, estado',
+      evidencias_pendientes: '&id_cliente, respuesta_id, estado',
+      mutaciones_pendientes: '&id_cliente, orden, estado, tipo',
+      chat_mensajes_cache: '&id, chat_id, timestamp_servidor',
+      chat_pendientes: '&id_cliente, chat_id, estado',
+      biblioteca_offline: '&clave, clase, id, tipo_equipo_id, desactualizado',
     })
   }
 }

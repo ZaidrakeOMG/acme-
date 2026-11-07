@@ -51,7 +51,7 @@ export function ReasignarModal({ folio, alCerrar, alReasignar }: { folio: FolioR
   return (
     <Modal titulo={`Reasignar ${folio.numero_folio}`} abierto alCerrar={alCerrar}>
       {error && <div className="mb-3"><Aviso>{error}</Aviso></div>}
-      <p className="mb-3 text-sm text-slate-600">Técnico actual: <strong>{folio.tecnico_nombre ?? '—'}</strong>. La habilidad requerida es restricción dura; la refacción solo advierte.</p>
+      <p className="mb-3 text-sm text-slate-600">Técnico actual: <strong>{folio.tecnico_nombre ?? '—'}</strong>. La habilidad requerida es restricción dura y desde F2-01 tiene que estar certificada y vigente; la refacción solo advierte.</p>
       <div className="max-h-64 space-y-1 overflow-y-auto" role="radiogroup" aria-label="Técnicos candidatos">
         {candidatos.filter((c) => !c.es_actual).map((c) => (
           <label key={c.usuario_id} data-testid={`candidato-${c.usuario_id}`} className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2 text-sm ${destino === c.usuario_id ? 'border-primario bg-primario/5' : 'border-slate-200'}`}>
@@ -59,7 +59,11 @@ export function ReasignarModal({ folio, alCerrar, alReasignar }: { folio: FolioR
             <span className="flex-1">
               <span className="font-medium">{c.nombre}</span> <span className="text-xs text-slate-500">{c.vehiculo_placas ?? ''} · {c.carga_dia} folio(s) activos</span>
               <span className="mt-1 flex flex-wrap gap-1">
-                {c.habilidad_ok ? <Insignia tono="ok">Habilidad {c.habilidad_requerida ?? 'ok'}</Insignia> : <Insignia tono="alerta">Sin habilidad {c.habilidad_requerida}</Insignia>}
+                {c.habilidad_ok
+                  ? <Insignia tono="ok">Habilidad {c.habilidad_requerida ?? 'ok'} certificada{c.certificacion_vence ? ` hasta ${c.certificacion_vence}` : ''}</Insignia>
+                  : c.certificacion === 'vencida'
+                    ? <Insignia tono="alerta">Certificación de {c.habilidad_requerida} vencida</Insignia>
+                    : <Insignia tono="alerta">Sin habilidad {c.habilidad_requerida}</Insignia>}
                 {c.refaccion_ok === null && <Insignia>Refacción no verificada</Insignia>}
               </span>
             </span>

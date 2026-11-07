@@ -6,7 +6,7 @@ funciona hoy con la opción marcada.** Esta lista es para que alguien del negoci
 Cómo leerla: cada punto trae **la pregunta**, **lo que ACMA hace hoy** y **qué cambia si responde distinto**. No hace
 falta saber nada técnico. Lo que no se cambie se queda como está.
 
-Hay 28 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
+Hay 30 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
 y a lo que se le cobra o se le descuenta al prestador.
 
 ---
@@ -236,6 +236,26 @@ obligatorio**: una mala nota sin explicación no sirve para corregir nada.
 obligatorio hace la encuesta más rápida y menos útil.
 
 ---
+
+## Capacitación del personal y manuales
+
+### 29. Si a un técnico se le vence una certificación, ¿se le puede seguir asignando ese tipo de trabajo?
+
+**Hoy:** **no**. Al vencer, el sistema le retira la habilidad y deja de aparecer como candidato para esos folios; el
+despachador puede mandarlo igual solo por la vía de la reasignación con razón registrada, que queda en el historial.
+
+**Si responde distinto:** si el vencimiento solo debe avisar, el técnico seguiría recibiendo esos folios y la
+certificación pasaría a ser un dato informativo. Con la regla de hoy, la operación se detiene para ese técnico hasta
+que se registre el curso de refresco: conviene que capacitación lleve las fechas al día.
+
+### 30. ¿Qué puede ver el cliente del personal que lo atiende?
+
+**Hoy:** los técnicos habilitados en sus unidades y los que atendieron un folio suyo en los **últimos 90 días**, con
+sus certificaciones vigentes: nombre del curso, tipo, norma, proveedor y hasta cuándo vale. Nada más: ni teléfono, ni
+calificaciones, ni las constancias en archivo.
+
+**Si responde distinto:** se puede acortar o alargar la ventana de 90 días, mostrar también las certificaciones ya
+vencidas (para que el cliente vea el historial) o quitarle del todo esta vista.
 
 ## Dos cosas que no son preguntas de negocio pero hay que decidir antes de publicar
 

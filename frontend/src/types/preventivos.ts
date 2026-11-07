@@ -141,6 +141,9 @@ export interface Candidato {
   refaccion_ok: boolean | null
   es_actual: boolean
   advertencias: string[]
+  /** F2-01: estado de la certificación de la habilidad que el folio exige. */
+  certificacion: 'vigente' | 'vencida' | 'sin_habilidad' | 'sin_requisito'
+  certificacion_vence: string | null
 }
 
 export interface ReasignarEntrada { tecnico_destino_id: string; razon_id: string; comentario?: string; confirmar_advertencias?: boolean; razon_sin_habilidad?: string | null }

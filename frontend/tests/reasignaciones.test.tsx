@@ -10,6 +10,7 @@ const T = '11111111-1111-1111-1111-111111111111'
 const FOLIO = '0f000000-0000-0000-0000-000000000002'
 const TEC1 = 't0000000-0000-0000-0000-000000000001'
 const TEC2 = 't0000000-0000-0000-0000-000000000002'
+const TEC3 = 't0000000-0000-0000-0000-000000000003'
 const TEC4 = 't0000000-0000-0000-0000-000000000004'
 
 const folio: FolioResumen = {
@@ -32,9 +33,11 @@ function detalle(f: FolioResumen, extra: Partial<FolioDetalle> = {}): FolioDetal
 }
 
 const candidatos: Candidato[] = [
-  { usuario_id: TEC1, tecnico_id: 'x1', nombre: 'Tomás Técnico', vehiculo_placas: 'ACM-001', habilidad_ok: true, habilidad_requerida: 'refrigeracion', carga_dia: 2, refaccion_ok: null, es_actual: true, advertencias: [] },
-  { usuario_id: TEC2, tecnico_id: 'x2', nombre: 'Teresa Técnica', vehiculo_placas: 'ACM-002', habilidad_ok: false, habilidad_requerida: 'refrigeracion', carga_dia: 1, refaccion_ok: null, es_actual: false, advertencias: ['Sin la habilidad refrigeracion'] },
-  { usuario_id: TEC4, tecnico_id: 'x4', nombre: 'Tania Técnica', vehiculo_placas: 'ACM-004', habilidad_ok: true, habilidad_requerida: 'refrigeracion', carga_dia: 0, refaccion_ok: null, es_actual: false, advertencias: ['Refacción no verificada (inventario del vehículo en P09)'] },
+  { usuario_id: TEC1, tecnico_id: 'x1', nombre: 'Tomás Técnico', vehiculo_placas: 'ACM-001', habilidad_ok: true, habilidad_requerida: 'refrigeracion', carga_dia: 2, refaccion_ok: null, es_actual: true, advertencias: [], certificacion: 'vigente', certificacion_vence: '2027-06-01' },
+  { usuario_id: TEC2, tecnico_id: 'x2', nombre: 'Teresa Técnica', vehiculo_placas: 'ACM-002', habilidad_ok: false, habilidad_requerida: 'refrigeracion', carga_dia: 1, refaccion_ok: null, es_actual: false, advertencias: ['Sin la habilidad refrigeracion'], certificacion: 'sin_habilidad', certificacion_vence: null },
+  { usuario_id: TEC4, tecnico_id: 'x4', nombre: 'Tania Técnica', vehiculo_placas: 'ACM-004', habilidad_ok: true, habilidad_requerida: 'refrigeracion', carga_dia: 0, refaccion_ok: null, es_actual: false, advertencias: ['Refacción no verificada (inventario del vehículo en P09)'], certificacion: 'vigente', certificacion_vence: null },
+  // F2-01: declaró la habilidad, pero su certificación venció: no es lo mismo que no tenerla.
+  { usuario_id: TEC3, tecnico_id: 'x3', nombre: 'Teodoro Técnico', vehiculo_placas: 'ACM-003', habilidad_ok: false, habilidad_requerida: 'refrigeracion', carga_dia: 0, refaccion_ok: null, es_actual: false, advertencias: ['Certificación vencida de refrigeracion: registra el curso de refresco'], certificacion: 'vencida', certificacion_vence: '2026-01-01' },
 ]
 const razones: RazonReasignacion[] = [
   { id: 'r1', prestador_id: 'p1', descripcion: 'Incidencia del técnico', detalle: 'Accidente, descompostura…', activa: true, orden_display: 1 },
@@ -77,7 +80,9 @@ describe('Reasignación forzada', () => {
     // El técnico actual no aparece como destino; el que no tiene la habilidad se marca.
     expect(within(dialogo).queryByLabelText('Tomás Técnico')).not.toBeInTheDocument()
     expect(within(within(dialogo).getByTestId(`candidato-${TEC2}`)).getByText('Sin habilidad refrigeracion')).toBeInTheDocument()
-    expect(within(within(dialogo).getByTestId(`candidato-${TEC4}`)).getByText('Habilidad refrigeracion')).toBeInTheDocument()
+    expect(within(within(dialogo).getByTestId(`candidato-${TEC4}`)).getByText('Habilidad refrigeracion certificada')).toBeInTheDocument()
+    // F2-01: una certificación vencida no es lo mismo que no tener la habilidad, y se dice así.
+    expect(within(within(dialogo).getByTestId(`candidato-${TEC3}`)).getByText('Certificación de refrigeracion vencida')).toBeInTheDocument()
     const boton = within(dialogo).getByRole('button', { name: 'Reasignar' })
     expect(boton).toBeDisabled()
     await user.click(within(dialogo).getByLabelText('Tania Técnica'))

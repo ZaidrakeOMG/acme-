@@ -15,6 +15,7 @@ import { esSinConexion, syncEngine } from '../../../services/syncEngine'
 import type { Evidencia, Formulario, Respuesta } from '../../../types/formularios'
 import type { EstadoFolio, FolioDetalle } from '../../../types/folios'
 import { EstadoInsignia, SeveridadInsignia, fecha } from '../../folios/comunes'
+import { ApoyoDelFolio } from './ApoyoDelFolio'
 import { GastoCajaChica } from './GastoCajaChica'
 import { PlanDelTecnico } from './PlanDelTecnico'
 
@@ -211,6 +212,8 @@ export function AtencionTecnico() {
           )}
         </div>
       )}
+
+      <ApoyoDelFolio folioId={f.id} enLinea={enLinea} />
 
       {f.tipo_folio === 'preventivo' && <PlanDelTecnico folioId={f.id} alUsarMaterial={(m) => setRefaccion({ ...refaccion, descripcion: m.descripcion, cantidad: String(Number(m.cantidad_estandar) || 1) })} />}
 

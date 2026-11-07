@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Rol } from '../../types/api'
+import type { HabilidadDeTecnico, Rol } from '../../types/api'
 import type { EstadoFolio, FolioResumen, SeveridadResumen } from '../../types/folios'
 import { NOMBRE_ESTADO } from '../../types/folios'
 
@@ -50,4 +50,18 @@ export function TarjetaFolio({ folio, children }: { folio: FolioResumen; childre
       {children}
     </article>
   )
+}
+
+/**
+ * Resumen de habilidades de un técnico para elegirlo (§6.10.3, F2-01): desde F2-01 la asignación exige la habilidad
+ * **certificada y vigente**, así que la lista separa las que sirven de las que ya no.
+ */
+export function resumenCertificaciones(habilidades: HabilidadDeTecnico[]): string {
+  if (habilidades.length === 0) return 'sin habilidades'
+  const vigentes = habilidades.filter((h) => h.certificada && h.vigente !== false)
+  const caidas = habilidades.filter((h) => !h.certificada || h.vigente === false)
+  const partes: string[] = []
+  if (vigentes.length) partes.push(`certificadas: ${vigentes.map((h) => h.clave).join(', ')}`)
+  if (caidas.length) partes.push(`sin certificación vigente: ${caidas.map((h) => h.clave).join(', ')}`)
+  return partes.join(' · ')
 }

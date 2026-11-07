@@ -2,6 +2,87 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-07 · F2-01 — Capacitación del personal y biblioteca técnica
+
+Primer bloque de la segunda etapa. Dos commits locales: backend y frontend.
+
+### Capacitación y certificaciones (§6.10.3)
+
+- **Migración `0013_capacitacion_biblioteca.py`** con siete tablas: `cursos_catalogo` (el curso global de la
+  plataforma lleva `prestador_id` nulo), `tecnico_cursos`, `capacitacion_alertas_config`, `biblioteca_manuales`,
+  `biblioteca_versiones` (append-only), `contenido_servicio` y `tecnico_descargas_offline`; RLS forzada en las siete.
+- **Catálogo de cursos y certificaciones** con proveedor, duración, norma de referencia, vigencia en meses
+  (vacío = no caduca) y la habilidad que certifica. El Admin prestador mantiene los suyos; los globales son de la
+  plataforma.
+- **Expediente por técnico**: cursos con fechas, calificación, folio de constancia y el archivo de la constancia
+  (PDF o imagen, hasta 10 MB, cifrada con el sobre de P11a), más las habilidades derivadas con su semáforo de
+  vigencia. Se descarga en Excel y en PDF, y abrir una constancia queda registrado como acceso a datos sensibles.
+- **Un curso aprobado certifica la habilidad**; uno reprobado no. Al vencer la certificación, la tarea diaria
+  `acma.recalcular_capacitacion` (05:10) **retira la habilidad**, y desde ese momento el técnico ya no puede recibir
+  folios que la exijan: `tecnico_habilidades.certificada` pasó a ser requisito duro en la captura y en la
+  reasignación, donde hasta P11a bastaba con que la habilidad estuviera declarada. La habilidad que el Admin
+  prestador afirmó a mano no se toca.
+- **Alerta `CERTIFICACION_VENCIDA` activada**: deja de ser de Fase 2 (su fuente de datos ya existe), con evaluador
+  propio, umbral por prestador y aviso al cliente cuando `notificar_cliente` está activo. Se agregó
+  `CERTIFICACION_VENCIDA_HABILIDAD_RETIRADA`, informativa, para el momento en que la habilidad se retira.
+- **Vista del cliente**: las certificaciones vigentes de quien está habilitado en sus unidades o atendió un folio
+  suyo en los últimos 90 días; nombre del curso, tipo, norma, proveedor y vigencia, sin datos personales ni
+  calificaciones.
+
+### Biblioteca técnica y contenido de servicio (§6.10.4)
+
+- **Manuales por tipo de equipo** (ficha, procedimiento, diagrama, refacciones) en PDF, imagen o video corto hasta
+  50 MB, con **historial de versiones**: al subir una versión nueva la anterior queda en `biblioteca_versiones`, que
+  es inmutable por trigger. El técnico los consulta si su prestador le habilitó el permiso `acceder_manuales`.
+- **Visor en el navegador** con enlace firmado de 5 minutos. Los archivos están cifrados, así que los sirve la API y
+  el enlace reconstruye el contexto de seguridad desde su propio token: el visor del navegador no manda cabecera de
+  autorización.
+- **Contenido de servicio contractual**: el cliente define qué incluye el servicio de cada tipo de equipo con sus
+  puntos de revisión **ordenados**, y el sistema avisa (no bloquea) cuando lo declarado no cuadra con la iguala del
+  contrato de P10. Es contenido confidencial del cliente: el técnico solo ve el de los folios que tiene asignados.
+- **`GET /api/biblioteca/folios/{id}/apoyo`**: una sola llamada que la app del técnico hace al abrir el folio y
+  devuelve los puntos de revisión del contrato y los manuales del tipo de equipo.
+
+### Uso sin señal (§6.2 capa 3)
+
+- La clave `biblioteca` del paquete de sincronización ya no viene vacía: metadatos (no archivos) incrementales, con
+  las bajas lógicas y la marca de lo que corresponde a los folios del técnico.
+- **Dexie versión 3** con la tabla `biblioteca_offline` (archivo + metadatos + versión). Descarga **selectiva**, más
+  descarga automática de los manuales de los folios del día **solo con Wi-Fi** (configurable). Pantalla «Mis manuales
+  sin conexión» con el espacio usado, la versión, el aviso de «hay versión nueva» con su botón de actualizar y el
+  botón de borrar; el tope se configura en MB y se cruza con la cuota real del navegador, avisando antes de pasarse.
+- Cada guardado y cada borrado se registra en el servidor; sin señal se queda en el dispositivo y se registra al
+  volver la red.
+
+### Frontend
+
+- Módulos nuevos: **Capacitación y certificaciones** (grupo Administración) y **Biblioteca técnica** (grupo
+  Operación), con los roles que pide el prompt y la vista del cliente separada.
+- En la atención del folio, el técnico ve los puntos de revisión y el manual del equipo, y puede guardarlo para
+  trabajar sin señal. Al asignar o reasignar, cada candidato muestra si su certificación está vigente o si lo que
+  falta es la certificación y no la habilidad.
+- Se quitaron las etiquetas «Fase 2» de la alerta de certificaciones y de la biblioteca del técnico.
+
+### Lo que apareció en el camino
+
+- **La vista del cliente salía vacía** aunque los datos existieran: la subconsulta de una política de RLS **también
+  pasa por la RLS de la tabla que lee**, así que la política de `tecnico_cursos` no veía `tecnicos` ni
+  `tecnico_tenants_habilitados`. Se agregaron políticas de lectura de cliente en esas dos tablas.
+- **La suite dependía de la hora del reloj.** El contrato del demo tiene horario de servicio (L-V 08:00-20:00,
+  sábado 09:00-14:00, domingo cerrado) y la causa 7 de §6.8.6 lo evalúa con la hora real del servidor: corrida un
+  sábado a las 8 de la mañana, 15 pruebas de aprobación fallaban porque cada folio capturado se iba a `en_revision`.
+  Ahora `conftest` deja los contratos del tenant de pruebas abiertos los siete días, y la causa 7 conserva su prueba,
+  que estrecha la ventana y la restaura.
+- En esta versión de FastAPI un `bool = Form(default=True)` llega `False` cuando el campo no viene (la casilla sin
+  marcar del navegador): el campo «aprobado» se recibe como texto y se interpreta en el endpoint, donde ausente
+  significa aprobado, que es el caso normal.
+
+### Verificado
+
+433 pytest en verde (39 nuevas) más el de respaldo que se corre aparte, 116 vitest (7 nuevos, con
+`fake-indexeddb`), `tsc --noEmit` y `npm run build`. La suite se corrió con la API y los workers de desarrollo
+encendidos, que usan otra base de datos: el resultado vale, solo tarda más (33 min).
+
 ## 2026-11-05 · P11a — Endurecimiento: seguridad, rendimiento, respaldos y paquete de producción
 
 Sin funcionalidad nueva. Tres commits: `129e6e9` seguridad, `2fb5a71` rendimiento y respaldos, y el de documentación
