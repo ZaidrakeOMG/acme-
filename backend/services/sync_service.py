@@ -125,7 +125,11 @@ async def catalogos(db: AsyncSession, actor: Actor, desde: datetime | None, disp
         salida["formularios"] = [v for v in atencion.values() if not desde or datetime.fromisoformat(str(v["updated_at"])) > desde]
         salida["formularios_ids"] = list(atencion)
         salida["refacciones"] = []       # catálogo de inventario: P09
-        salida["biblioteca"] = []        # manuales técnicos: Fase 2
+        # F2-01: metadatos (no los archivos) de los manuales y del contenido de servicio que aplican al técnico.
+        # El dispositivo decide qué descargar; `activo` es la baja lógica para retirar lo que ya no aplica.
+        from services import biblioteca_service
+
+        salida["biblioteca"] = await biblioteca_service.paquete_del_tecnico(db, actor, desde)
     await _registrar_dispositivo(db, actor, dispositivo_id, version_app, plataforma)
     return salida
 

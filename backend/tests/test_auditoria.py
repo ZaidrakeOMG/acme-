@@ -96,7 +96,8 @@ async def test_evaluar_alertas_registra_en_historial(datos):
     finally:
         tareas.EVALUADORES.pop(clave)
     # 59 alertas − 51 evaluadores (50 reales + el falso). Los reales pueden disparar según la fecha (p. ej. CALENDARIO_MES_SIN_PUBLICAR a partir del día 25).
-    # Las de Fase 2 (GPS, medidores, certificaciones) y las informativas siguen sin evaluador.
+    # Las de Fase 2 (GPS y medidores) y las informativas siguen sin evaluador; CERTIFICACION_VENCIDA ya tiene
+    # el suyo desde F2-01, y la alerta informativa que agrego no lleva evaluador: la cuenta no cambia.
     assert resumen["disparadas"] >= 1 and resumen["sin_evaluador"] == 8
     async with nueva_sesion(CONTEXTO_SISTEMA) as db:
         h = (await db.execute(select(AlertaHistorial).where(AlertaHistorial.clave_alerta == clave))).scalars().all()

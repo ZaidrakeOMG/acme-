@@ -242,6 +242,9 @@ class CandidatoSalida(BaseModel):
     refaccion_ok: bool | None
     es_actual: bool
     advertencias: list[str]
+    # F2-01: «vigente», «vencida», «sin_habilidad» o «sin_requisito» para la habilidad que el folio exige.
+    certificacion: str = "sin_requisito"
+    certificacion_vence: date | None = None
 
 
 class ReasignarEntrada(BaseModel):

@@ -5,7 +5,8 @@ from datetime import UTC, datetime, timedelta
 from tests.folios_utiles import AE, AP, AUN, DES, MC, OP, SA, TEC
 from tests.sla_utiles import panel_alertas
 
-FASE_2 = {"TECNICO_TIEMPO_MUERTO", "TECNICO_DESVIO_RUTA", "TECNICO_SIN_SENAL", "MEDIDOR_PROXIMO_PM", "CERTIFICACION_VENCIDA"}
+# F2-01 saco CERTIFICACION_VENCIDA de esta lista: su fuente de datos (tecnico_cursos) ya existe.
+FASE_2 = {"TECNICO_TIEMPO_MUERTO", "TECNICO_DESVIO_RUTA", "TECNICO_SIN_SENAL", "MEDIDOR_PROXIMO_PM"}
 
 
 async def _catalogo(cliente, auth, email=AP) -> dict:
@@ -42,8 +43,9 @@ async def test_alertas_de_fase_2_visibles_inactivas_y_no_activables(cliente, aut
     cat = await _catalogo(cliente, auth)
     for clave in FASE_2:
         assert cat[clave]["fase"] == 2 and cat[clave]["activa_por_defecto"] is False
-    # Las de Fase 1 siguen en fase 1.
+    # Las de Fase 1 siguen en fase 1, y CERTIFICACION_VENCIDA dejo de ser de Fase 2 con F2-01.
     assert cat["SLA_INCUMPLIDO"]["fase"] == 1
+    assert cat["CERTIFICACION_VENCIDA"]["fase"] == 1 and cat["CERTIFICACION_VENCIDA"]["activa_por_defecto"] is True
     r = await cliente.put("/api/alertas/configuracion/TECNICO_TIEMPO_MUERTO", headers=await auth(AP),
                           json={"umbral_valor": "20", "parametros": {}, "canales": ["app"],
                                 "destinatarios_roles": ["despachador"], "activa": True})

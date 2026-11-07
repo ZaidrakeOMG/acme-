@@ -51,6 +51,9 @@ FUENTES: dict[str, str | None] = {
     "programado_id": "SELECT id FROM reportes_programados LIMIT 1",
     "importacion_id": "SELECT id FROM importaciones_catalogo LIMIT 1",
     "prestador_id": "SELECT id FROM prestadores WHERE rfc = 'PDE200101AB1'",
+    # F2-01: biblioteca del prestador demo y contenido de servicio del cliente demo.
+    "manual_id": "SELECT id FROM biblioteca_manuales WHERE activo ORDER BY created_at LIMIT 1",
+    "contenido_id": "SELECT id FROM contenido_servicio WHERE activo ORDER BY created_at LIMIT 1",
     # No son identificadores de recursos de un cliente: el valor no revela datos ajenos.
     "catalogo": None,
     "modulo": None,

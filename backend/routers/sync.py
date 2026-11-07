@@ -17,7 +17,8 @@ router = APIRouter(prefix="/api/sync", tags=["Sincronización offline"], respons
 @router.get("/catalogos", summary="Paquete incremental de catálogos (§6.2 capa 3)",
             description="Solo registros con `updated_at > desde`. Operador: UNs asignadas, equipos (con contrato activo), familias/tipos, tipos de falla, "
                         "severidades y formularios de captura. Técnico: folios asignados con su formulario de atención resuelto, formularios de "
-                        "preventivo, refacciones (P09) y biblioteca (Fase 2). Incluye bajas lógicas (`activo = false`).")
+                        "preventivo, refacciones (P09) y biblioteca técnica (F2-01). Incluye bajas lógicas "
+                        "(`activo = false`).")
 async def catalogos(db: DB, actor: ActorActual, desde: datetime | None = None, dispositivo_id: str | None = Query(default=None, max_length=120),
                     version_app: str | None = Query(default=None, max_length=40), plataforma: str | None = Query(default=None, max_length=60)):
     salida = await sync_service.catalogos(db, actor, desde, dispositivo_id, version_app, plataforma)

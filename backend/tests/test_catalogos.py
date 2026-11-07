@@ -46,7 +46,11 @@ async def test_tecnicos_listado_busqueda_y_filtro_por_habilidad(cliente, auth, d
     plomeria = next(x for x in (await cliente.get("/api/catalogos/habilidades", headers=h)).json() if x["clave"] == "plomeria")
     con = (await cliente.get("/api/catalogos/tecnicos", headers=h, params={"habilidad_id": plomeria["id"]})).json()
     assert [t["nombre"] for t in con] == ["Tadeo Técnico"]
-    assert con[0]["habilidades"][0]["vigente"] is True
+    # F2-01: el seed deja a este tecnico con la certificacion de electricidad **vencida**, asi que se mira la
+    # habilidad por la que se filtro y no la primera de la lista; la vencida sigue visible, marcada como no vigente.
+    fila = next(x for x in con[0]["habilidades"] if x["habilidad_id"] == plomeria["id"])
+    assert fila["vigente"] is True
+    assert any(x["vigente"] is False for x in con[0]["habilidades"])
     # Lectura para mesa de control y despachador; nada para el tenant ni para otro prestador.
     assert (await cliente.get("/api/catalogos/tecnicos", headers=await auth(MC))).status_code == 200
     assert (await cliente.get("/api/catalogos/tecnicos", headers=await auth(DES))).status_code == 200

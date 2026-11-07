@@ -179,7 +179,8 @@ async def test_7_fuera_de_horario_del_contrato_pasa_a_revision(cliente, auth, da
     h = await auth(AP)
     contratos = (await cliente.get("/api/contratos", headers=h, params={"tenant_id": str(datos["tenant"])})).json()
     vigente = next(c for c in contratos if "2026" in c["nombre"])
-    assert vigente["horario_servicio_json"]["lunes"] == [["08:00", "20:00"]]
+    # conftest deja el contrato abierto los siete dias para que la suite no dependa de la hora del reloj.
+    assert vigente["horario_servicio_json"]["lunes"] == [["00:00", "23:59"]]
     assert (await cliente.patch(f"/api/contratos/{vigente['id']}", headers=h, json={"horario_servicio_json": {"lunes": [["18:00", "08:00"]]}})).status_code == 422
     r = await cliente.patch(f"/api/contratos/{vigente['id']}", headers=h, json={"horario_servicio_json": {d: [["00:00", "00:01"]] for d in ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo")}})
     assert r.status_code == 200

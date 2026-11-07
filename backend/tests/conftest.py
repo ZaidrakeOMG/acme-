@@ -69,6 +69,17 @@ async def datos():
 
     async with nueva_sesion(CONTEXTO_SISTEMA) as db:
         await sembrar(db)
+        # La captura evalua el horario de servicio del contrato con la hora real del servidor (§6.8.6, causa 7). Con el
+        # horario del demo (L-V 08:00-20:00, sabado 09:00-14:00, domingo cerrado) el resultado de media suite cambiaba
+        # segun la hora a la que se corriera: fuera de esa ventana cada folio capturado se iba a `en_revision`. En la
+        # base de pruebas los contratos quedan abiertos los siete dias; la causa 7 tiene su propia prueba, que
+        # estrecha la ventana y la restaura (`test_folios_captura.py::test_7_fuera_de_horario_del_contrato...`).
+        from models.contratos import Contrato
+        abierto = {d: [["00:00", "23:59"]] for d in
+                   ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo")}
+        for contrato in (await db.execute(select(Contrato))).scalars():
+            contrato.horario_servicio_json = abierto
+        await db.flush()
         otro_prestador = Prestador(razon_social="Otro Prestador", rfc="OPR200101AA1")
         otro_tenant = Tenant(razon_social="Otro Cliente", rfc="OCL200101BB2")
         db.add_all([otro_prestador, otro_tenant])

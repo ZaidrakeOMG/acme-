@@ -131,6 +131,26 @@ def purgar_accesos_api() -> list[dict]:
     return asyncio.run(purgar_accesos_api_async())
 
 
+async def recalcular_capacitacion_async(url: str | None = None) -> dict:
+    """F2-01 (§6.10.3): recalcula el estado de los cursos y retira las habilidades cuya certificación venció."""
+    from services import capacitacion_service
+
+    async with sesion_tarea(url=url) as db:
+        resumen = await capacitacion_service.recalcular_estados(db)
+        await db.commit()
+    return resumen
+
+
+@celery_app.task(name="acma.recalcular_capacitacion")
+def recalcular_capacitacion() -> dict:
+    resumen = asyncio.run(recalcular_capacitacion_async())
+    log.info("recalcular_capacitacion: %s", resumen)
+    return resumen
+
+
 # Evaluadores de alertas por módulo y tareas de otros módulos (se registran al importar).
-from workers import evaluadores, evaluadores_inventario, evaluadores_seguimiento, evaluadores_sla, evaluadores_te  # noqa: E402,F401
+from workers import (  # noqa: E402,F401
+    evaluadores, evaluadores_capacitacion, evaluadores_inventario, evaluadores_seguimiento, evaluadores_sla,
+    evaluadores_te,
+)
 from workers.tareas import costos, minuta, notificaciones, preventivos  # noqa: E402,F401

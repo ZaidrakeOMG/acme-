@@ -58,7 +58,11 @@ async def test_catalogos_del_tecnico_con_formulario_de_atencion(cliente, auth, d
     assert f["id"] in paquete["folios_ids"] and all(x["tecnico_id"] == tec for x in paquete["folios"])
     fid = paquete["formulario_por_folio"][f["id"]]
     assert any(x["id"] == fid and x["tipo"] == "atencion_tecnico" and "Cliente Demo" in x["nombre"] for x in paquete["formularios"])  # el específico del tenant gana
-    assert paquete["refacciones"] == [] and paquete["biblioteca"] == [] and "unidades" not in paquete
+    assert paquete["refacciones"] == [] and "unidades" not in paquete
+    # F2-01: la biblioteca viaja como metadatos (sin archivos) y marca lo que es del tipo de equipo de sus folios.
+    assert paquete["biblioteca"] and all({"clase", "id", "version", "activo", "de_mis_folios"} <= set(b)
+                                         for b in paquete["biblioteca"])
+    assert all("archivo" not in b and "contenido" not in b for b in paquete["biblioteca"])
 
 
 async def test_lote_aplicadas_duplicadas_y_rechazadas_en_orden(cliente, auth, datos):

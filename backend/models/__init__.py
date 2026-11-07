@@ -64,6 +64,10 @@ from models.costos import (
 from models.activos import ActivoDepreciacion, ActivoDepreciacionHistorial, ActivoReemplazoAlerta, ActivoTCOSnapshot, DecisionReemplazo, MetodoDepreciacion
 from models.sla import FolioSLAExclusion, FolioSLAPausa, IgualaConsumoPeriodo, PenalizacionPeriodo
 from models.reportes import ReporteGenerado, ReporteProgramado
+from models.capacitacion import (  # F2-01
+    BibliotecaManual, BibliotecaVersion, CapacitacionAlertasConfig, CategoriaManual, ContenidoServicio,
+    CursoCatalogo, EstadoCursoTecnico, TecnicoCurso, TecnicoDescargaOffline, TipoCurso,
+)
 
 __all__ = [
     "Articulo", "EstadoCFDI", "EstadoGastoCajaChica", "EstadoOrdenCompra", "EstadoPoliza", "Existencia", "FondoCajaChica", "FormatoPoliza",
@@ -104,4 +108,6 @@ __all__ = [
     "PermisoCatalogo", "PermisoDespachador", "PermisoDespachadorLog", "PermisoTecnico", "Prestador", "Rol",
     "RolCatalogo", "Sesion", "TecnicoGrupo", "TecnicoPermisoOverride", "Tenant", "TenantPrestador",
     "UnidadNegocio", "Usuario", "UsuarioGrupo", "UsuarioUN",
+    "BibliotecaManual", "BibliotecaVersion", "CapacitacionAlertasConfig", "CategoriaManual", "ContenidoServicio",
+    "CursoCatalogo", "EstadoCursoTecnico", "TecnicoCurso", "TecnicoDescargaOffline", "TipoCurso",
 ]

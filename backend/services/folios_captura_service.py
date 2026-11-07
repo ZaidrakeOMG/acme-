@@ -13,7 +13,7 @@ Si todas pasan, el folio entra al punto de decisión del flujo multinivel (aprob
 """
 import re
 import unicodedata
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -391,6 +391,26 @@ async def autorizar_manual(db: AsyncSession, actor: Actor, folio: Folio, notas: 
                                             {"triggers_resueltos": [t.trigger_tipo.value for t in pendientes]}, request)
 
 
+async def estado_certificacion(db: AsyncSession, tecnico_id: UUID, requerida: str | None) -> tuple[str, date | None]:
+    """
+    F2-01 (§6.10.3): distingue «nunca declaró la habilidad» de «la tiene pero su certificación venció».
+
+    Las dos cosas impiden la asignación, pero no son el mismo problema: la segunda se arregla registrando el curso de
+    refresco, así que el despachador necesita verlas distintas al elegir a quién mandar.
+    """
+    if not requerida:
+        return "sin_requisito", None
+    filas = (await db.execute(
+        select(Habilidad.clave, Habilidad.nombre, TecnicoHabilidad.certificada, TecnicoHabilidad.vigencia_hasta)
+        .join(TecnicoHabilidad, TecnicoHabilidad.habilidad_id == Habilidad.id)
+        .where(TecnicoHabilidad.tecnico_id == tecnico_id, Habilidad.activa.is_(True)))).all()
+    req = _normalizar(requerida)
+    for clave, nombre, certificada, vigencia in filas:
+        if _normalizar(clave) == req or _normalizar(nombre).startswith(req) or req.startswith(_normalizar(clave)):
+            return ("vigente" if certificada else "vencida"), vigencia
+    return "sin_habilidad", None
+
+
 async def tecnico_con_habilidad(db: AsyncSession, tecnico_usuario_id: UUID, folio: Folio) -> tuple[Usuario, bool, str | None]:
     """El técnico debe tener la habilidad de la familia del equipo (clave de habilidad ≈ familia; §6.8.6 'habilidad requerida')."""
     usuario = await db.get(Usuario, tecnico_usuario_id)
@@ -406,8 +426,12 @@ async def tecnico_con_habilidad(db: AsyncSession, tecnico_usuario_id: UUID, foli
     requerida = familia.habilidad_clave or _normalizar(familia.nombre).replace(" ", "_")
     if tecnico is None:
         return usuario, False, requerida
+    # F2-01 (§6.10.3): la habilidad tiene que estar **certificada**, no solo declarada. Hasta P11a bastaba con que la
+    # fila existiera, y entonces una certificación vencida (que la tarea diaria marca como no certificada) no
+    # bloqueaba la asignación, que es justo lo que §6.10.3 y el alcance de Fase 2 piden garantizar.
     filas = (await db.execute(select(Habilidad.clave, Habilidad.nombre).join(TecnicoHabilidad, TecnicoHabilidad.habilidad_id == Habilidad.id)
-                              .where(TecnicoHabilidad.tecnico_id == tecnico.id, Habilidad.activa.is_(True)))).all()
+                              .where(TecnicoHabilidad.tecnico_id == tecnico.id, Habilidad.activa.is_(True),
+                                     TecnicoHabilidad.certificada.is_(True)))).all()
     req = _normalizar(requerida)
     tiene = any(_normalizar(clave) == req or _normalizar(nombre).startswith(req) or req.startswith(_normalizar(clave)) for clave, nombre in filas)
     if folio.plan_id:

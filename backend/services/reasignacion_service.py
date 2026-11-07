@@ -56,8 +56,11 @@ async def candidatos(db: AsyncSession, actor: Actor, folio: Folio) -> list[dict[
     for t, u in filas:
         _, tiene, requerida = await captura.tecnico_con_habilidad(db, u.id, folio)
         advertencias = []
+        # F2-01: la habilidad ya exige certificación vigente, así que se dice cuál de los dos casos es.
+        certificacion, vence = await captura.estado_certificacion(db, t.id, requerida)
         if not tiene:
-            advertencias.append(f"Sin la habilidad requerida ({requerida})")
+            advertencias.append(f"Certificación vencida de {requerida}: registra el curso de refresco"
+                                if certificacion == "vencida" else f"Sin la habilidad requerida ({requerida})")
         from services import inventario_service  # P09: existencia en el vehículo del candidato
 
         refaccion_ok, faltantes = await inventario_service.tiene_materiales(db, u.id, folio)
@@ -67,7 +70,9 @@ async def candidatos(db: AsyncSession, actor: Actor, folio: Folio) -> list[dict[
             advertencias.append("Refacción no verificada: el folio no tiene materiales con artículo de inventario")
         salida.append({"usuario_id": u.id, "tecnico_id": t.id, "nombre": u.nombre, "vehiculo_placas": t.vehiculo_placas, "habilidad_ok": tiene,
                        "habilidad_requerida": requerida, "carga_dia": cargas.get(u.id, 0), "refaccion_ok": refaccion_ok, "es_actual": u.id == folio.tecnico_id,
-                       "advertencias": advertencias, "fecha": hoy.isoformat()})
+                       "advertencias": advertencias, "fecha": hoy.isoformat(),
+                       "certificacion": certificacion,
+                       "certificacion_vence": vence.isoformat() if vence else None})
     return salida
 
 

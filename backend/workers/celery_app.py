@@ -41,6 +41,8 @@ celery_app.conf.update(
         "cierre-jornada": {"task": "acma.reporte_cierre_jornada", "schedule": crontab(hour=22, minute=30)},
         # P11a: retención de la bitácora de accesos a la API (§6.9.5).
         "purgar-accesos-api": {"task": "acma.purgar_accesos_api", "schedule": crontab(hour=3, minute=50)},
+        # F2-01: antes de que empiece la jornada, para que el despachador ya vea retiradas las habilidades vencidas.
+        "recalcular-capacitacion": {"task": "acma.recalcular_capacitacion", "schedule": crontab(hour=5, minute=10)},
     },
 )
 

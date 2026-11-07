@@ -24,6 +24,7 @@ from models.catalogos import (
     Equipo, FamiliaEquipo, Habilidad, NivelSeveridadCatalogo, Tecnico, TecnicoHabilidad, TipoEquipo, TipoFalla,
     TipoFallaSeveridad,
 )
+from models.capacitacion import CursoCatalogo, TecnicoCurso, TipoCurso
 from models.organizaciones import Tenant, TenantPrestador
 from models.preventivos import OrigenPreventivo, PlanMantenimiento, PreventivoCalendario
 from models.unidades import GrupoUN, GrupoUNMiembro, UnidadNegocio
@@ -117,6 +118,28 @@ CATALOGOS: dict[str, Catalogo] = {
         Columna("tecnico_email", False, "Correo del técnico asignado", "tecnico1@acma.dev"),
         Columna("descripcion", False, "Descripción", "Limpieza de condensadores"),
     ], ("cliente", "un_codigo", "equipo_codigo", "fecha")),
+    # F2-01 (§6.10.3): catalogo de cursos y certificaciones del prestador.
+    "cursos": Catalogo("cursos", "Cursos y certificaciones", Dominio.prestador, [
+        Columna("nombre", True, "Nombre del curso o la certificacion", "Manejo de refrigerantes R-410A"),
+        Columna("tipo", False, "curso o certificacion", "certificacion"),
+        Columna("proveedor", False, "Quien lo imparte", "Instituto Nacional de Refrigeracion"),
+        Columna("duracion_horas", False, "Duracion en horas", "16"),
+        Columna("vigencia_meses", False, "Meses de vigencia (vacio = no vence)", "24"),
+        Columna("habilidad", False, "Clave de la habilidad que certifica (debe existir)", "refrigeracion"),
+        Columna("norma_referencia", False, "Norma o formato de referencia", "NOM-STPS / DC-3"),
+        Columna("descripcion", False, "Descripcion", "Buenas practicas de manejo de refrigerantes"),
+    ], ("nombre",)),
+    # F2-01: historial de cursos por tecnico, para cargar lo que hoy se lleva fuera del sistema.
+    "tecnico_cursos": Catalogo("tecnico_cursos", "Historial de cursos por tecnico", Dominio.prestador, [
+        Columna("tecnico_email", True, "Correo del tecnico", "tecnico1@acma.dev"),
+        Columna("curso", True, "Nombre del curso (debe existir en el catalogo)", "Manejo de refrigerantes R-410A"),
+        Columna("fecha_fin", True, "Fecha de termino (AAAA-MM-DD)", "2026-03-15"),
+        Columna("fecha_inicio", False, "Fecha de inicio (AAAA-MM-DD)", "2026-03-13"),
+        Columna("calificacion", False, "Calificacion de 0 a 100", "92"),
+        Columna("aprobado", False, "si o no (vacio = si)", "si"),
+        Columna("folio_constancia", False, "Folio de la constancia", "DC3-2026-0145"),
+        Columna("vigente_hasta", False, "Vigencia (vacio = se calcula del curso)", "2028-03-15"),
+    ], ("tecnico_email", "curso", "fecha_fin")),
 }
 
 
@@ -216,6 +239,18 @@ def _fecha(v: str) -> date | None:
     raise ValueError("Fecha inválida; usa AAAA-MM-DD")
 
 
+def _si_no(v: str | None, default: bool = True) -> bool:
+    """«si» / «no» del archivo (vacío = default). F2-01."""
+    texto = (v or "").strip().lower()
+    if not texto:
+        return default
+    if texto in ("si", "sí", "s", "true", "1", "x"):
+        return True
+    if texto in ("no", "n", "false", "0"):
+        return False
+    raise ValueError("Escribe si o no")
+
+
 def _decimal(v: str) -> Decimal | None:
     if not v:
         return None
@@ -308,6 +343,22 @@ class Contexto:
                 select(PlanMantenimiento).where(PlanMantenimiento.prestador_id == p))).scalars()}
             self.d["calendario"] = {(c.tenant_id, c.un_id, c.equipo_id, c.fecha_programada) for c in (await db.execute(
                 select(PreventivoCalendario).where(PreventivoCalendario.prestador_id == p))).scalars()}
+        if catalogo == "cursos":
+            self.d["cursos_nombre"] = {c.nombre.lower() for c in (await db.execute(
+                select(CursoCatalogo).where(CursoCatalogo.prestador_id == p))).scalars()}
+            self.d["habilidades"] = {h.clave: h.id for h in (await db.execute(
+                select(Habilidad).where(Habilidad.prestador_id == p))).scalars()}
+        if catalogo == "tecnico_cursos":
+            # El tecnico se identifica por el correo de su usuario; la ficha de tecnico es la que lleva el curso.
+            self.d["tecnico_por_email"] = {u.email.lower(): t for t, u in (await db.execute(
+                select(Tecnico, Usuario).join(Usuario, Usuario.id == Tecnico.usuario_id)
+                .where(Tecnico.prestador_id == p))).all()}
+            # Los cursos globales (sin prestador) tambien se pueden registrar.
+            self.d["curso_por_nombre"] = {c.nombre.lower(): c for c in (await db.execute(
+                select(CursoCatalogo).where(or_(CursoCatalogo.prestador_id == p,
+                                                CursoCatalogo.prestador_id.is_(None))))).scalars()}
+            self.d["registros"] = {(r.tecnico_id, r.curso_id, r.fecha_fin) for r in (await db.execute(
+                select(TecnicoCurso).where(TecnicoCurso.prestador_id == p))).scalars()}
         if catalogo == "matriz_severidad":
             from services.catalogos_service import prestadores_del_tenant
             prestadores = await prestadores_del_tenant(db, t)
@@ -426,6 +477,62 @@ def _validar_fila(catalogo: str, f: dict[str, str], ctx: Contexto) -> tuple[dict
                 n[col] = str(n[col])
         return (n, n["codigo"].lower() in d["codigos_equipo"], errores)
 
+    if catalogo == "cursos":
+        nombre = (f.get("nombre") or "").strip()
+        n["nombre"] = nombre
+        if len(nombre) < 3:
+            errores.append(("nombre", "El nombre necesita al menos 3 caracteres"))
+        elif nombre.lower() in d["cursos_nombre"]:
+            return n, True, errores            # ya existe en ACMA: se omite
+        tipo = (f.get("tipo") or "curso").strip().lower()
+        if tipo not in ("curso", "certificacion"):
+            errores.append(("tipo", "Debe ser curso o certificacion"))
+        n["tipo"] = tipo
+        n["proveedor"] = (f.get("proveedor") or "").strip() or None
+        n["norma_referencia"] = (f.get("norma_referencia") or "").strip() or None
+        n["descripcion"] = (f.get("descripcion") or "").strip()
+        campo("duracion_horas", _decimal)
+        if n.get("duracion_horas") is not None and not Decimal("0.5") <= n["duracion_horas"] <= Decimal("9999"):
+            errores.append(("duracion_horas", "La duracion va de 0.5 a 9999 horas"))
+        campo("vigencia_meses", _entero, minimo=1, maximo=600)
+        clave = (f.get("habilidad") or "").strip().lower()
+        n["habilidad_id"] = None
+        if clave:
+            if clave not in d["habilidades"]:
+                errores.append(("habilidad", f"No existe la habilidad «{clave}» en tu prestador"))
+            else:
+                n["habilidad_id"] = d["habilidades"][clave]
+
+    if catalogo == "tecnico_cursos":
+        email = (f.get("tecnico_email") or "").strip().lower()
+        tecnico = d["tecnico_por_email"].get(email)
+        if tecnico is None:
+            errores.append(("tecnico_email", "No existe un tecnico de tu prestador con ese correo"))
+        n["tecnico_id"] = tecnico.id if tecnico else None
+        nombre_curso = (f.get("curso") or "").strip().lower()
+        curso = d["curso_por_nombre"].get(nombre_curso)
+        if curso is None:
+            errores.append(("curso", "No existe ese curso en el catalogo (cargalo primero)"))
+        n["curso_id"] = curso.id if curso else None
+        campo("fecha_fin", _fecha)
+        campo("fecha_inicio", _fecha)
+        campo("calificacion", _decimal)
+        if n.get("calificacion") is not None and n["calificacion"] > 100:
+            errores.append(("calificacion", "La calificacion va de 0 a 100"))
+        campo("vigente_hasta", _fecha)
+        n["aprobado"] = _si_no(f.get("aprobado"))
+        n["folio_constancia"] = (f.get("folio_constancia") or "").strip() or None
+        if n.get("fecha_fin") and n.get("fecha_inicio") and n["fecha_inicio"] > n["fecha_fin"]:
+            errores.append(("fecha_inicio", "La fecha de inicio es posterior a la de termino"))
+        if n.get("fecha_fin") and n["fecha_fin"] > date.today():
+            errores.append(("fecha_fin", "La fecha de termino no puede estar en el futuro"))
+        if not errores and (n["tecnico_id"], n["curso_id"], n["fecha_fin"]) in d["registros"]:
+            return n, True, errores            # ese curso ya esta registrado para ese tecnico y esa fecha
+        # La vigencia se calcula del curso si el archivo no la trae.
+        if not errores and not n.get("vigente_hasta") and curso is not None:
+            from services.capacitacion_service import vigencia_de
+            n["vigente_hasta"] = vigencia_de(n["fecha_fin"], curso.vigencia_meses)
+
     if catalogo == "matriz_severidad":
         candidatas = d["fallas_por_desc"].get(f.get("tipo_falla", "").lower(), [])
         tipo = d["tipos_por_nombre"].get(f.get("tipo_equipo", "").lower())
@@ -515,6 +622,14 @@ async def validar(db: AsyncSession, catalogo: Catalogo, columnas: list[str], fil
     return r
 
 
+class _ActorImportacion:
+    """Lo que `capacitacion_service` necesita del actor para auditar la certificacion automatica."""
+
+    def __init__(self, usuario_id, prestador_id):
+        self.id, self.prestador_id, self.tenant_id = usuario_id, prestador_id, None
+        self.rol = Rol.admin_prestador
+
+
 # --------------------------------------------------------------- aplicación
 
 async def aplicar(db: AsyncSession, catalogo: str, filas: list[dict[str, Any]], tenant_id: UUID | None,
@@ -599,5 +714,38 @@ async def aplicar(db: AsyncSession, catalogo: str, filas: list[dict[str, Any]], 
                                         cargado_por=actor_id))
             creados += 1
     await db.flush()
+    if catalogo == "cursos":
+        for f in filas:
+            db.add(CursoCatalogo(prestador_id=prestador_id, nombre=f["nombre"], tipo=TipoCurso(f["tipo"]),
+                                 proveedor=f.get("proveedor"), duracion_horas=f.get("duracion_horas"),
+                                 vigencia_meses=f.get("vigencia_meses"), habilidad_id=f.get("habilidad_id"),
+                                 norma_referencia=f.get("norma_referencia"), descripcion=f.get("descripcion") or ""))
+            creados += 1
+        await db.flush()
+
+    if catalogo == "tecnico_cursos":
+        # Se reutiliza el servicio para que la habilidad quede certificada igual que en el registro manual (§6.10.3).
+        from services import capacitacion_service
+
+        cursos = {c.id: c for c in (await db.execute(select(CursoCatalogo))).scalars()}
+        tecnicos = {t.id: t for t in (await db.execute(
+            select(Tecnico).where(Tecnico.prestador_id == prestador_id))).scalars()}
+        cfg = await capacitacion_service.configuracion(db, prestador_id)
+        for f in filas:
+            registro = TecnicoCurso(
+                prestador_id=prestador_id, tecnico_id=f["tecnico_id"], curso_id=f["curso_id"],
+                fecha_inicio=f.get("fecha_inicio"), fecha_fin=f["fecha_fin"], calificacion=f.get("calificacion"),
+                aprobado=f["aprobado"], folio_constancia=f.get("folio_constancia"),
+                vigente_hasta=f.get("vigente_hasta"), registrado_por=actor_id,
+                estado=capacitacion_service.estado_de(f.get("vigente_hasta"), cfg.dias_anticipacion))
+            db.add(registro)
+            await db.flush()
+            curso, tecnico = cursos.get(f["curso_id"]), tecnicos.get(f["tecnico_id"])
+            if curso is not None and tecnico is not None:
+                await capacitacion_service._certificar_habilidad(db, _ActorImportacion(actor_id, prestador_id),
+                                                                 None, registro, curso, tecnico)
+            creados += 1
+        await db.flush()
+
     return {"creados": creados, "actualizados": actualizados}
 
