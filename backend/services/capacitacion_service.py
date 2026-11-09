@@ -298,8 +298,12 @@ async def expediente(db: AsyncSession, actor: Actor, tecnico_id: UUID) -> dict[s
     tecnico = await _tecnico(db, tecnico_id, prestador_id)
     usuario = await db.get(Usuario, tecnico.usuario_id)
     cursos = await listar_cursos_de_tecnico(db, actor, tecnico_id)
-    catalogo = {c.id: c for c in (await db.execute(select(CursoCatalogo).where(
-        CursoCatalogo.id.in_({c.curso_id for c in cursos}) if cursos else select(CursoCatalogo.id).where(False)))).scalars()}
+    # Sin cursos no se consulta el catalogo: un IN vacio aqui generaba SQL invalido y el expediente de un tecnico
+    # recien dado de alta devolvia 500.
+    catalogo: dict[UUID, CursoCatalogo] = {}
+    if cursos:
+        catalogo = {c.id: c for c in (await db.execute(select(CursoCatalogo).where(
+            CursoCatalogo.id.in_({c.curso_id for c in cursos})))).scalars()}
     habilidades = {h.id: h for h in (await db.execute(select(Habilidad).where(
         Habilidad.prestador_id == prestador_id))).scalars()}
     filas = list((await db.execute(select(TecnicoHabilidad).where(
@@ -394,7 +398,10 @@ async def tecnicos_de_mis_unidades(db: AsyncSession, actor: Actor) -> list[dict[
         entrada["certificaciones"].append({
             "nombre": curso.nombre, "tipo": curso.tipo.value, "norma_referencia": curso.norma_referencia,
             "proveedor": curso.proveedor, "vigente_hasta": tc.vigente_hasta,
-            "vigencia": "permanente" if tc.vigente_hasta is None else str(tc.vigente_hasta),
+            # Texto listo para mostrarle al cliente: la pantalla no vuelve a formatear la fecha (es un DATE, y
+            # pasarlo por un formateador de fecha y hora lo corria un dia hacia atras).
+            "vigencia": ("permanente" if tc.vigente_hasta is None
+                         else f"vigente hasta el {tc.vigente_hasta.strftime('%d/%m/%Y')}"),
         })
     return list(por_tecnico.values())
 

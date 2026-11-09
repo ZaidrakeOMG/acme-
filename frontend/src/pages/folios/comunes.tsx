@@ -65,3 +65,10 @@ export function resumenCertificaciones(habilidades: HabilidadDeTecnico[]): strin
   if (caidas.length) partes.push(`sin certificación vigente: ${caidas.map((h) => h.clave).join(', ')}`)
   return partes.join(' · ')
 }
+
+/** Tamaño de archivo en texto corto. F2-01: con 0 bytes dice «0 KB», no «1 KB». */
+export function tamanoArchivo(bytes: number | null | undefined): string {
+  if (bytes == null) return '—'
+  if (bytes === 0) return '0 KB'
+  return bytes >= 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1000))} KB`
+}

@@ -132,6 +132,8 @@ async def test_la_vista_del_cliente_no_expone_datos_internos(cliente, auth, dato
         assert "calificacion" not in plano and "certificado" not in plano
         for c in mio["certificaciones"]:
             assert set(c) == {"nombre", "tipo", "norma_referencia", "proveedor", "vigente_hasta", "vigencia"}
+            # La vigencia viaja lista para mostrar: la pantalla del cliente no vuelve a formatear la fecha.
+            assert c["vigencia"] == "permanente" or c["vigencia"].startswith("vigente hasta el ")
 
     # El prestador no usa esa vista y el cliente no ve el expediente interno.
     assert (await cliente.get("/api/capacitacion/tecnicos-de-mis-unidades",
@@ -164,3 +166,20 @@ async def test_no_se_registra_un_curso_a_un_tecnico_de_otro_prestador(cliente_fa
         r = await c.post(f"/api/capacitacion/tecnicos/{tecnico['id']}/cursos", headers=await auth(OTRO_AP),
                          data={"curso_id": curso["id"], "fecha_fin": str(HOY - timedelta(days=2))})
         assert r.status_code in (403, 404, 422), r.text
+
+
+async def test_expediente_de_un_tecnico_sin_cursos(cliente, auth, datos):
+    """Un tecnico recien dado de alta no tiene cursos: el expediente responde vacio, no 500."""
+    import uuid
+
+    # El correo empieza con «tecnico» a proposito: test_catalogos corre despues y afirma que todos los tecnicos del
+    # prestador demo se llaman asi.
+    email = f"tecnico.sin.cursos.{uuid.uuid4().hex[:6]}@acma.dev"
+    alta = await cliente.post("/api/catalogos/tecnicos", headers=await auth(AP),
+                              json={"email": email, "nombre": "Tecnico Sin Cursos",
+                                    "contrasena": datos["contrasena"], "numero_empleado": "SIN-001"})
+    assert alta.status_code == 201, alta.text
+
+    exp = await expediente(cliente, auth, alta.json()["id"])
+    assert exp["cursos"] == [] and exp["habilidades"] == []
+    assert exp["tecnico_nombre"] == "Tecnico Sin Cursos" and exp["dias_anticipacion"] >= 1

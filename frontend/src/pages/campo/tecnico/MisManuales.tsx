@@ -11,11 +11,7 @@ import {
 import { baseLocal, type BibliotecaOffline } from '../../../services/db'
 import type { Manual } from '../../../types/capacitacion'
 import { NOMBRE_CATEGORIA } from '../../../types/capacitacion'
-
-function tamano(bytes: number | null | undefined) {
-  if (bytes == null) return '—'
-  return bytes >= 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1000))} KB`
-}
+import { tamanoArchivo as tamano } from '../../folios/comunes'
 
 /**
  * «Mis manuales sin conexión» (§6.2 capa 3, ACT-5.3): lo guardado en el teléfono con su tamaño y versión, el aviso de
@@ -179,7 +175,13 @@ export function MisManuales() {
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
             De mis folios · {porDescargar.length}
           </h2>
-          {porDescargar.length === 0 && <p className="text-sm text-slate-400">Ya tienes todos los de tus folios.</p>}
+          {porDescargar.length === 0 && (
+            <p className="text-sm text-slate-400">
+              {disponibles.length === 0
+                ? 'Hoy no tienes folios con manual para descargar.'
+                : 'Ya tienes todos los de tus folios.'}
+            </p>
+          )}
           <ul className="space-y-2" data-testid="manuales-por-descargar">
             {porDescargar.map((m) => (
               <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">

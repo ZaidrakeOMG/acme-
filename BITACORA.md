@@ -77,11 +77,32 @@ Primer bloque de la segunda etapa. Dos commits locales: backend y frontend.
   marcar del navegador): el campo «aprobado» se recibe como texto y se interpreta en el endpoint, donde ausente
   significa aprobado, que es el caso normal.
 
+### Revisión en el navegador (con la base de desarrollo)
+
+Además de las pruebas, se recorrieron las pantallas nuevas con los datos de desarrollo, como Admin prestador,
+técnico y Admin empresa. Seis cosas que solo se ven así:
+
+- **El expediente de un técnico sin cursos respondía 500.** Un `IN` vacío generaba SQL inválido; ahora no se
+  consulta el catálogo cuando no hay cursos, y hay prueba.
+- **El visor de manuales no abría:** la API manda `frame-ancestors 'none'` desde P11a, así que un `iframe` apuntado
+  al enlace firmado lo bloquea el navegador. El visor recibe ahora el archivo como `blob:` y el enlace firmado se
+  queda para «abrir en otra pestaña».
+- **El historial de cursos del seed caía en los técnicos de las pruebas de carga**, no en los cuatro del demo: se
+  elegían por posición en una lista ordenada por correo. Ahora se eligen por correo.
+- **La vigencia que ve el cliente se corría un día** (una fecha sin hora formateada como fecha y hora): el servidor
+  manda el texto ya listo («vigente hasta el 20/04/2028») y la pantalla no lo vuelve a formatear.
+- **La lista de técnicos no cabía en la pantalla** con los 54 de la base de desarrollo: se agregó buscador y la
+  lista rueda.
+- **El técnico solo podía guardar sin señal los manuales de sus folios del día:** ahora puede guardar cualquiera
+  que consulte en la biblioteca, que es lo que pide «descarga selectiva».
+
+Probado de punta a punta en la app: guardar un manual deja el archivo en el teléfono y lo registra en
+`tecnico_descargas_offline`; borrarlo deja el registro en `en_dispositivo = false`.
+
 ### Verificado
 
-433 pytest en verde (39 nuevas) más el de respaldo que se corre aparte, 116 vitest (7 nuevos, con
-`fake-indexeddb`), `tsc --noEmit` y `npm run build`. La suite se corrió con la API y los workers de desarrollo
-encendidos, que usan otra base de datos: el resultado vale, solo tarda más (33 min).
+434 pytest en verde (41 nuevas) con los servidores de desarrollo apagados, más el de respaldo que se corre
+aparte; 116 vitest (7 nuevos, con `fake-indexeddb`), `tsc --noEmit` y `npm run build`.
 
 ## 2026-11-05 · P11a — Endurecimiento: seguridad, rendimiento, respaldos y paquete de producción
 

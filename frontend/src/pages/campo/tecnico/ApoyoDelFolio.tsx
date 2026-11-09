@@ -6,11 +6,7 @@ import { SinEspacio, guardarManual } from '../../../services/bibliotecaOffline'
 import { baseLocal, type BibliotecaOffline } from '../../../services/db'
 import type { ApoyoDeFolio, Manual, PuntoRevision } from '../../../types/capacitacion'
 import { NOMBRE_CATEGORIA } from '../../../types/capacitacion'
-
-function tamano(bytes: number | null | undefined) {
-  if (bytes == null) return '—'
-  return bytes >= 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1000))} KB`
-}
+import { tamanoArchivo as tamano } from '../../folios/comunes'
 
 /**
  * Apoyo documental durante la atención (§6.10.4): los puntos de revisión que el contrato exige para ese tipo de
@@ -86,7 +82,8 @@ export function ApoyoDelFolio({ folioId, enLinea }: { folioId: string; enLinea: 
     }
   }
 
-  if (!apoyo && puntos.length === 0 && manualesLocales.length === 0) return null
+  // Sin puntos de revisión ni manuales no hay nada que mostrar: el equipo no tiene documentación cargada todavía.
+  if (puntos.length === 0 && manuales.length === 0 && manualesLocales.length === 0) return null
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4" data-testid="apoyo-del-folio">

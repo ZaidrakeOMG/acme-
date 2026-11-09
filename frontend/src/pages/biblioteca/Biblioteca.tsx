@@ -8,19 +8,16 @@ import {
   desactivarManual, enlaceManual, guardarContenido, listarContenido, listarManuales, subirManual, subirVersion,
   versionesDeManual,
 } from '../../services/capacitacion'
+import { SinEspacio, guardarManual } from '../../services/bibliotecaOffline'
+import { baseLocal, type BibliotecaOffline } from '../../services/db'
 import type { Contrato, TipoEquipo } from '../../types/api'
 import type { CategoriaManual, ContenidoServicio, Manual, PuntoRevision, VersionManual } from '../../types/capacitacion'
 import {
   NOMBRE_CATEGORIA, ROLES_GESTIONAN_CONTENIDO, ROLES_GESTIONAN_MANUALES,
 } from '../../types/capacitacion'
-import { fecha as fmtFecha } from '../folios/comunes'
+import { fecha as fmtFecha, tamanoArchivo as tamano } from '../folios/comunes'
 
 type Vista = 'manuales' | 'contenido'
-
-function tamano(bytes: number | null | undefined) {
-  if (bytes == null) return '—'
-  return bytes >= 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1000))} KB`
-}
 
 /**
  * Biblioteca técnica (§6.10.4): manuales y fichas por tipo de equipo con historial de versiones, y el contenido de
@@ -64,7 +61,10 @@ export function Biblioteca() {
       {error && <div className="mb-3"><Aviso>{error}</Aviso></div>}
       {aviso && <div className="mb-3"><Aviso tipo="exito">{aviso}</Aviso></div>}
 
-      {vista === 'manuales' && <Manuales gestiona={gestionaManuales} alError={setError} alAviso={setAviso} />}
+      {vista === 'manuales' && (
+        <Manuales gestiona={gestionaManuales} guardaSinConexion={usuario.rol === 'tecnico'}
+          alError={setError} alAviso={setAviso} />
+      )}
       {vista === 'contenido' && (
         <Contenido gestiona={gestionaContenido} esCliente={esCliente} alError={setError} alAviso={setAviso} />
       )}
@@ -73,18 +73,25 @@ export function Biblioteca() {
 }
 
 // ------------------------------------------------------------------ manuales
-export function Manuales({ gestiona, alError, alAviso, soloMisFolios = false }: {
+export function Manuales({ gestiona, alError, alAviso, soloMisFolios = false, guardaSinConexion = false }: {
   gestiona: boolean; alError: (m: string | null) => void; alAviso: (m: string | null) => void
   soloMisFolios?: boolean
+  /** El técnico puede llevarse a su teléfono cualquier manual que consulte, no solo los de sus folios del día. */
+  guardaSinConexion?: boolean
 }) {
   const tipos = useRecurso<TipoEquipo[]>('/catalogos/tipos-equipo')
   const [tipoId, setTipoId] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [manuales, setManuales] = useState<Manual[]>([])
-  const [viendo, setViendo] = useState<{ manual: Manual; url: string } | null>(null)
+  const [viendo, setViendo] = useState<{ manual: Manual; url: string; enlace: string } | null>(null)
   const [historial, setHistorial] = useState<{ manual: Manual; versiones: VersionManual[] } | null>(null)
   const [subiendo, setSubiendo] = useState(false)
   const [nuevaVersionDe, setNuevaVersionDe] = useState<Manual | null>(null)
+  const [guardados, setGuardados] = useState<BibliotecaOffline[]>([])
+
+  useEffect(() => {
+    if (guardaSinConexion) void baseLocal.biblioteca_offline.toArray().then(setGuardados)
+  }, [guardaSinConexion])
 
   const cargar = useCallback(async () => {
     try {
@@ -96,16 +103,50 @@ export function Manuales({ gestiona, alError, alAviso, soloMisFolios = false }: 
   }, [tipoId, busqueda, soloMisFolios, alError])
   useEffect(() => { void cargar() }, [cargar])
 
+  /**
+   * El visor recibe el archivo como `blob:` y no el enlace firmado: la API manda `frame-ancestors 'none'` (P11a), así
+   * que un iframe apuntado a `/api/biblioteca/archivo` lo bloquea el navegador. El enlace firmado se conserva para
+   * abrirlo en otra pestaña, donde no hay marco que valga.
+   */
   async function ver(m: Manual) {
     alError(null)
     try {
       const enlace = await enlaceManual(m.id)
-      setViendo({ manual: m, url: enlace.url })
+      const respuesta = await fetch(enlace.url)
+      if (!respuesta.ok) throw new Error('No se pudo abrir el manual')
+      const blob = await respuesta.blob()
+      setViendo((previo) => {
+        if (previo) URL.revokeObjectURL(previo.url)
+        return { manual: m, url: URL.createObjectURL(blob), enlace: enlace.url }
+      })
     } catch (e) { alError(mensajeDeError(e)) }
+  }
+
+  function cerrarVisor() {
+    setViendo((previo) => {
+      if (previo) URL.revokeObjectURL(previo.url)
+      return null
+    })
   }
 
   async function verHistorial(m: Manual) {
     try { setHistorial({ manual: m, versiones: await versionesDeManual(m.id) }) } catch (e) { alError(mensajeDeError(e)) }
+  }
+
+  async function guardarSinConexion(m: Manual) {
+    alError(null)
+    try {
+      await guardarManual({
+        clase: 'manual', id: m.id, tipo_equipo_id: m.tipo_equipo_id, titulo: m.titulo, categoria: m.categoria,
+        version: m.version, mime: m.mime, bytes: m.bytes, activo: true, de_mis_folios: false,
+      })
+      setGuardados(await baseLocal.biblioteca_offline.toArray())
+      alAviso(`«${m.titulo}» quedó disponible sin señal`)
+    } catch (e) {
+      alError(e instanceof SinEspacio
+        ? `No cabe: libera ${tamano(e.faltanBytes)} en «Mis manuales sin conexión» o sube el límite`
+        : mensajeDeError(e))
+    }
   }
 
   async function desactivar(m: Manual) {
@@ -140,6 +181,9 @@ export function Manuales({ gestiona, alError, alAviso, soloMisFolios = false }: 
             celda: (m) => (
               <div className="flex flex-wrap gap-2 text-sm">
                 <button className="text-primario underline" onClick={() => void ver(m)}>Ver</button>
+                {guardaSinConexion && (guardados.some((g) => g.clave === `manual:${m.id}`)
+                  ? <span className="text-xs text-slate-500">En el teléfono</span>
+                  : <button className="text-primario underline" onClick={() => void guardarSinConexion(m)}>Guardar</button>)}
                 {gestiona && <button className="text-primario underline" onClick={() => void verHistorial(m)}>Versiones</button>}
                 {gestiona && <button className="text-primario underline" onClick={() => setNuevaVersionDe(m)}>Nueva versión</button>}
                 {gestiona && <button className="text-red-700 underline" onClick={() => void desactivar(m)}>Retirar</button>}
@@ -150,7 +194,7 @@ export function Manuales({ gestiona, alError, alAviso, soloMisFolios = false }: 
       </div>
 
       {viendo && (
-        <Modal titulo={`${viendo.manual.titulo} (v${viendo.manual.version})`} abierto alCerrar={() => setViendo(null)}>
+        <Modal titulo={`${viendo.manual.titulo} (v${viendo.manual.version})`} abierto alCerrar={cerrarVisor}>
           <div className="grid gap-2">
             {viendo.manual.mime.startsWith('image/') ? (
               <img src={viendo.url} alt={viendo.manual.titulo} className="max-h-[70vh] w-full object-contain" />
@@ -164,7 +208,7 @@ export function Manuales({ gestiona, alError, alAviso, soloMisFolios = false }: 
               {viendo.manual.nombre_original} · {tamano(viendo.manual.bytes)} · el enlace caduca en unos minutos.
             </p>
             <div className="flex justify-end">
-              <a className="text-sm text-primario underline" href={viendo.url} target="_blank" rel="noreferrer">Abrir en una pestaña</a>
+              <a className="text-sm text-primario underline" href={viendo.enlace} target="_blank" rel="noreferrer">Abrir en una pestaña</a>
             </div>
           </div>
         </Modal>

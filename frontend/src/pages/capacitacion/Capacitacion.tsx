@@ -12,7 +12,6 @@ import { abrirBlob } from '../../services/minutas'
 import type { Habilidad, Tecnico } from '../../types/api'
 import type { AlertasCapacitacion, Curso, EstadoCurso, Expediente, TecnicoDelCliente, Vencimiento } from '../../types/capacitacion'
 import { COLOR_ESTADO, NOMBRE_ESTADO, ROLES_GESTIONAN_CAPACITACION, ROLES_VISTA_CLIENTE } from '../../types/capacitacion'
-import { fecha as fmtFecha } from '../folios/comunes'
 
 type Vista = 'expedientes' | 'catalogo' | 'vencimientos' | 'alertas'
 
@@ -84,6 +83,7 @@ function Expedientes({ tecnicoId, alElegir, gestiona, alError, alAviso }: {
   const tecnicos = useRecurso<Tecnico[]>('/catalogos/tecnicos')
   const [expediente, setExpediente] = useState<Expediente | null>(null)
   const [registrando, setRegistrando] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
 
   const cargar = useCallback(async () => {
     if (!tecnicoId) { setExpediente(null); return }
@@ -91,12 +91,21 @@ function Expedientes({ tecnicoId, alElegir, gestiona, alError, alAviso }: {
   }, [tecnicoId, alError])
   useEffect(() => { void cargar() }, [cargar])
 
+  const texto = busqueda.trim().toLowerCase()
+  const filtrados = (tecnicos.datos ?? []).filter(
+    (t) => !texto || t.nombre.toLowerCase().includes(texto) || (t.numero_empleado ?? '').toLowerCase().includes(texto))
+
   return (
     <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
       <Tarjeta titulo="Técnicos">
         {tecnicos.error && <Aviso>{tecnicos.error}</Aviso>}
-        <ul className="divide-y divide-slate-100" data-testid="lista-tecnicos">
-          {(tecnicos.datos ?? []).map((t) => (
+        {/* Un prestador con decenas de técnicos deja el expediente fuera de la pantalla: se filtra y la lista rueda. */}
+        <div className="mb-2">
+          <Campo etiqueta="Buscar" placeholder="Nombre o número de empleado" value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)} />
+        </div>
+        <ul className="max-h-[60vh] divide-y divide-slate-100 overflow-y-auto" data-testid="lista-tecnicos">
+          {filtrados.map((t) => (
             <li key={t.id}>
               <button className={`w-full px-2 py-2 text-left text-sm hover:bg-slate-50 ${t.id === tecnicoId ? 'bg-primario/5 font-medium' : ''}`}
                 onClick={() => alElegir(t.id)}>
@@ -105,7 +114,11 @@ function Expedientes({ tecnicoId, alElegir, gestiona, alError, alAviso }: {
               </button>
             </li>
           ))}
-          {(tecnicos.datos ?? []).length === 0 && <li className="px-2 py-2 text-sm text-slate-500">Sin técnicos.</li>}
+          {filtrados.length === 0 && (
+            <li className="px-2 py-2 text-sm text-slate-500">
+              {(tecnicos.datos ?? []).length === 0 ? 'Sin técnicos.' : 'Ningún técnico con ese nombre.'}
+            </li>
+          )}
         </ul>
       </Tarjeta>
 
@@ -430,7 +443,6 @@ function VistaCliente() {
                   <span className="block text-xs text-slate-500">
                     {c.tipo === 'certificacion' ? 'Certificación' : 'Curso'}
                     {c.proveedor ? ` · ${c.proveedor}` : ''} · {c.vigencia}
-                    {c.vigente_hasta ? ` (hasta ${fmtFecha(c.vigente_hasta)})` : ''}
                   </span>
                 </li>
               ))}

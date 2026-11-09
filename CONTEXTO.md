@@ -31,8 +31,9 @@
 
 - Migración `0013_capacitacion_biblioteca.py` aplicada (subida, bajada y subida), con las siete tablas y la RLS
   forzada en todas.
-- **433 pytest** en verde más 1 saltado a propósito (`tests/test_respaldo.py`, que levanta y borra bases: se activa
-  con `ACMA_PRUEBA_RESPALDO=1`). 39 pruebas nuevas de F2-01 repartidas en `test_capacitacion.py`,
+- **434 pytest** en verde **con los servidores de desarrollo apagados**, más 1 saltado a propósito
+  (`tests/test_respaldo.py`, que levanta y borra bases: se activa con `ACMA_PRUEBA_RESPALDO=1`). 41 pruebas nuevas
+  de F2-01 repartidas en `test_capacitacion.py`,
   `test_certificacion_habilidades.py`, `test_biblioteca.py`, `test_contenido_servicio.py` y
   `test_biblioteca_offline.py`.
 - **116 vitest** (7 nuevos en `capacitacion.test.tsx` y `biblioteca.test.tsx`, con `fake-indexeddb`),
@@ -41,9 +42,9 @@
   59 a 60 claves, el importador de 9 a 11 catálogos, la clave `biblioteca` del paquete de sincronización dejó de
   venir vacía, el seed deja a un técnico con una certificación vencida (su habilidad ya no es vigente) y
   `CERTIFICACION_VENCIDA` salió de la lista de alertas de Fase 2.
-- **La suite se corrió con la API de desarrollo y los workers de Celery encendidos** (la usuaria pidió dejarlos
-  corriendo y detenerlos quedó fuera de los permisos de esta sesión). Usan otra base de datos, así que el resultado
-  es válido; lo único que cambia es que tarda más (33 min).
+- Las pantallas nuevas se recorrieron además en la app real con la base de desarrollo (Admin prestador, técnico y
+  Admin empresa): seis fallas encontradas ahí y corregidas, incluida la del visor contra `frame-ancestors 'none'`
+  (decisión 147) y el 500 del expediente de un técnico sin cursos.
 
 ## Verificación al cierre de P11a
 
@@ -1259,6 +1260,11 @@ automática por FMEA, descuento de penalizaciones en el CFDI, ETA y ruta). No ha
     de esa ventana, media suite fallaba porque cada folio capturado se iba a `en_revision`. En la base de pruebas
     `conftest` deja los contratos abiertos los siete días; la causa 7 conserva su prueba, que estrecha la ventana y la
     restaura.
+
+147. **El visor de manuales recibe el archivo como `blob:`, no el enlace firmado.** La API manda
+    `frame-ancestors 'none'` desde P11a, así que el navegador bloquea cualquier `iframe` apuntado a
+    `/api/biblioteca/archivo`. Relajar la cabecera habría deshecho una protección de P11a por una pantalla; el
+    enlace firmado se conserva para abrir el manual en otra pestaña, donde no hay marco que valga.
 
 ## Notas de entorno (esta máquina)
 

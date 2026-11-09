@@ -124,9 +124,14 @@ async def sembrar_capacitacion(db) -> bool:
     habilidades = {h.clave: h for h in (await db.execute(select(Habilidad).where(
         Habilidad.prestador_id == prestador.id))).scalars()}
     tipos = {t.nombre: t for t in (await db.execute(select(TipoEquipo))).scalars()}
-    tecnicos = list((await db.execute(select(Tecnico, Usuario).join(Usuario, Usuario.id == Tecnico.usuario_id)
-                                      .where(Tecnico.prestador_id == prestador.id)
-                                      .order_by(Usuario.email))).all())
+    # Los cuatro tecnicos del demo, por correo y no por posicion: en la base de desarrollo conviven con los 50
+    # tecnicos de las pruebas de carga, y por orden alfabetico el historial caia en esos, no en los del demo.
+    por_email = {u.email: (t, u) for t, u in (await db.execute(
+        select(Tecnico, Usuario).join(Usuario, Usuario.id == Tecnico.usuario_id)
+        .where(Tecnico.prestador_id == prestador.id).order_by(Usuario.email))).all()}
+    tecnicos = [por_email[e] for e in (f"tecnico{i}@acma.dev" for i in (1, 2, 3, 4)) if e in por_email]
+    if not tecnicos:
+        tecnicos = list(por_email.values())
 
     # ---------------------------------------------------------------- catálogo de cursos
     cursos: dict[str, CursoCatalogo] = {}
