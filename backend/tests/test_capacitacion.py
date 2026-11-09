@@ -45,7 +45,17 @@ async def test_registro_de_curso_con_constancia_y_expediente(cliente, auth, dato
     curso = await crear_curso(cliente, auth, f"Refrigeración avanzada {HOY}", vigencia_meses=24,
                               habilidad_id=habs["refrigeracion"], norma_referencia="NOM-STPS / DC-3",
                               tipo="certificacion")
-    tecnico = await ficha_tecnico(cliente, auth, TEC)
+    # Un tecnico nuevo, sin habilidades declaradas a mano: asi el curso si certifica la habilidad. Si el prestador
+    # ya la hubiera afirmado, el curso quedaria solo como respaldo (decision 139, probado en
+    # test_certificacion_habilidades).
+    import uuid
+
+    alta = await cliente.post("/api/catalogos/tecnicos", headers=await auth(AP),
+                              json={"email": f"tecnico.documental.{uuid.uuid4().hex[:6]}@acma.dev",
+                                    "nombre": "Tecnico Documental", "contrasena": datos["contrasena"],
+                                    "numero_empleado": "DOC-001"})
+    assert alta.status_code == 201, alta.text
+    tecnico = alta.json()
     exp = await registrar(cliente, auth, tecnico["id"], curso["id"], fecha_fin=HOY - timedelta(days=10),
                           calificacion=95, folio_constancia="DC3-PRUEBA-1",
                           certificado=b"%PDF-1.4 constancia de prueba")

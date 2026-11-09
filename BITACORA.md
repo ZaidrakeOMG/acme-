@@ -99,6 +99,11 @@ técnico y Admin empresa. Seis cosas que solo se ven así:
 Probado de punta a punta en la app: guardar un manual deja el archivo en el teléfono y lo registra en
 `tecnico_descargas_offline`; borrarlo deja el registro en `en_dispositivo = false`.
 
+Al reasignar el historial en la base de desarrollo salió una séptima: **el seed decía usar la misma regla que la
+pantalla para vincular la habilidad, pero la sobreescribía aunque el prestador la hubiera afirmado a mano**. Ahora
+aplica la regla de la decisión 139, y la prueba del registro con constancia usa un técnico nuevo (sin habilidades
+declaradas) para seguir comprobando que el curso sí certifica cuando no hay nada que respetar.
+
 ### Verificado
 
 434 pytest en verde (41 nuevas) con los servidores de desarrollo apagados, más el de respaldo que se corre

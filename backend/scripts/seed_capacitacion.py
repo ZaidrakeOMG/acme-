@@ -194,20 +194,22 @@ async def sembrar_capacitacion(db) -> bool:
             registro.certificado_key = clave
             registro.certificado_nombre = f"constancia-{curso.id.hex[:8]}.pdf"
             registro.certificado_mime = "application/pdf"
-        # La vinculación con la habilidad usa la misma regla que el registro por pantalla.
+        # La vinculación con la habilidad usa la misma regla que el registro por pantalla (§6.10.3, decisión 139):
+        # la que el prestador afirmó a mano manda y el curso queda solo como respaldo documental.
         if aprobado and curso.habilidad_id:
             fila = (await db.execute(select(TecnicoHabilidad).where(
                 TecnicoHabilidad.tecnico_id == tecnico.id,
                 TecnicoHabilidad.habilidad_id == curso.habilidad_id))).scalar_one_or_none()
-            if fila is None:
-                fila = TecnicoHabilidad(prestador_id=prestador.id, tecnico_id=tecnico.id,
-                                        habilidad_id=curso.habilidad_id)
-                db.add(fila)
-            fila.certificada = True
-            fila.origen = OrigenHabilidad.curso
-            fila.fecha_certificacion = fecha_fin
-            fila.vigencia_hasta = vigente
-            registro.habilidad_otorgada_id = curso.habilidad_id
+            if fila is None or fila.origen != OrigenHabilidad.manual or not fila.certificada:
+                if fila is None:
+                    fila = TecnicoHabilidad(prestador_id=prestador.id, tecnico_id=tecnico.id,
+                                            habilidad_id=curso.habilidad_id)
+                    db.add(fila)
+                fila.certificada = True
+                fila.origen = OrigenHabilidad.curso
+                fila.fecha_certificacion = fecha_fin
+                fila.vigencia_hasta = vigente
+                registro.habilidad_otorgada_id = curso.habilidad_id
     await db.flush()
 
     # ---------------------------------------------------------------- biblioteca de manuales
