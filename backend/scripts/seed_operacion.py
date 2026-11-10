@@ -1,7 +1,7 @@
 """Datos demo de F2-03: jornadas de los cuatro técnicos con recorridos simulados de la última hora entre las tres
 unidades del cliente demo, uno por cada caso que la pantalla tiene que saber contar (§6.8.4):
 
-* **Tomás** en servicio: dentro de la geocerca de la Sucursal Centro, con su folio en ejecución.
+* **Tomás** en servicio: dentro de la geocerca de la unidad de su folio en ejecución.
 * **Teresa** en ruta: moviéndose de Polanco hacia Coyoacán, con posiciones cada 30 segundos.
 * **Tadeo** detenido 25 minutos a media avenida, lejos de cualquier unidad: es el caso de tiempo muerto.
 * **Tania** sin señal: su última posición es de hace 20 minutos.
@@ -47,6 +47,24 @@ def _alrededor(centro: tuple[float, float], metros: float) -> tuple[float, float
     angulo = random.uniform(0, 2 * math.pi)
     radio = random.uniform(0, metros) / 111_320
     return (centro[0] + radio * math.cos(angulo), centro[1] + radio * math.sin(angulo) / math.cos(math.radians(centro[0])))
+
+
+async def _destino_del_folio(db, tecnico: Tecnico) -> tuple[float, float] | None:
+    """Dónde está la unidad del folio que el técnico trae en curso. El guion «centro» lo planta ahí: si lo
+    dejáramos en una unidad fija y seed_dev le asignó un folio de otra sucursal, el técnico «en servicio»
+    saldría detenido fuera de su destino y la pantalla mostraría un tiempo muerto que no existe."""
+    fila = (await db.execute(text("""
+        SELECT ST_Y(un.ubicacion::geometry) AS lat, ST_X(un.ubicacion::geometry) AS lng
+          FROM folios f JOIN unidades_negocio un ON un.id = f.un_id
+         WHERE f.tecnico_id = :u AND f.estado IN ('en_camino', 'en_ejecucion') AND un.ubicacion IS NOT NULL
+         ORDER BY f.capturado_at LIMIT 1"""), {"u": str(tecnico.usuario_id)})).first()
+    return (float(fila.lat), float(fila.lng)) if fila and fila.lat is not None else None
+
+
+def _mas_lejana(destino: tuple[float, float]) -> tuple[float, float]:
+    """De dónde venía: la unidad demo más lejos del destino, para que el rastro se vea llegando."""
+    return max((CENTRO, POLANCO, COYOACAN),
+               key=lambda u: (u[0] - destino[0]) ** 2 + (u[1] - destino[1]) ** 2)
 
 
 async def sembrar_operacion(db) -> bool:
@@ -98,18 +116,23 @@ async def sembrar_operacion(db) -> bool:
 
         puntos: list[tuple[tuple[float, float], datetime]] = []
         if guion == "centro":
-            # Llegó al Centro hace 25 minutos y ahí sigue (está trabajando dentro de la geocerca).
+            # Llegó a la unidad de su folio hace 25 minutos y ahí sigue (trabajando dentro de la geocerca).
+            destino = await _destino_del_folio(db, tecnico) or CENTRO
+            origen = _mas_lejana(destino)
             for i in range(50):
                 t = min(1.0, i / 25)
                 momento = ahora - timedelta(minutes=50 - i)
-                puntos.append((_interpolar(POLANCO, CENTRO, t) if t < 1 else _alrededor(CENTRO, 40), momento))
+                puntos.append((_interpolar(origen, destino, t) if t < 1 else _alrededor(destino, 40), momento))
         elif guion == "ruta":
             for i in range(60):
                 momento = ahora - timedelta(seconds=30 * (60 - i))
                 puntos.append((_interpolar(POLANCO, COYOACAN, i / 60), momento))
         elif guion == "detenido":
-            for i in range(30):  # llegó a la avenida y lleva 25 minutos ahí, a 20 m a la redonda
-                momento = ahora - timedelta(minutes=55 - i)
+            # Llegó a la avenida y lleva 25 minutos ahí, a 20 m a la redonda. Los puntos tienen que llegar
+            # hasta ahora: el evaluador de tiempo muerto mira los últimos 20 minutos, y si el recorrido se
+            # corta antes el técnico sale «sin señal» y la demo no muestra el caso que promete.
+            for i in range(30):
+                momento = ahora - timedelta(minutes=29 - i)
                 puntos.append((_interpolar(CENTRO, AVENIDA, min(1.0, i / 5)) if i < 5
                                else _alrededor(AVENIDA, 20), momento))
         else:  # sin_senal: dejó de reportar hace 20 minutos

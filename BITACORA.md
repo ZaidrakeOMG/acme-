@@ -2,6 +2,24 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-10 · Arreglo a los datos demo de operaciones (`seed_operacion.py`)
+
+Al dejar el tablero listo para la revisión, los cuatro casos que el seed promete no se veían:
+
+- **El técnico detenido salía «sin señal».** Sus posiciones terminaban 26 minutos antes de la hora de la siembra,
+  y el evaluador de tiempo muerto mira los últimos 20 minutos: sin datos en esa ventana no hay nada que declarar
+  detenido. Ahora los puntos llegan hasta la hora de la siembra, con los 25 minutos quieto completos.
+- **El técnico «en servicio» disparaba un tiempo muerto falso.** El seed lo plantaba en la Sucursal Centro, pero
+  `seed_dev` le había asignado un folio de la Sucursal Polanco: quieto 25 minutos a 6.5 km de su destino, el
+  evaluador tenía razón en alertar. Ahora el seed lo planta en la unidad **de su propio folio en curso** (lo
+  consulta en la base) y llega desde la unidad más lejana, así que la exención de la geocerca se ve funcionando.
+
+Las pruebas no lo detectaron porque los tests de F2-03 arman sus propias jornadas y posiciones; esto era solo de
+los datos de demostración. Verificado después de resembrar: Tomás **en servicio** a 19 m de su unidad y sin alerta,
+Teresa **en ruta** sin alerta, Tadeo con **TECNICO_TIEMPO_MUERTO** y Tania con **TECNICO_SIN_SENAL**.
+
+Para resembrar hay que cerrar primero las jornadas abiertas (el seed es idempotente a propósito).
+
 ## 2026-11-10 · Arreglo al encender los servidores (worker de Celery)
 
 Al dejar ACMA encendido para la revisión, el log del worker mostró cinco `Fallo al enviar la notificación` con
