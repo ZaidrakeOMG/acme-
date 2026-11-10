@@ -118,6 +118,10 @@ async def sembrar(email: str, nombre: str, familias: bool) -> None:
         print(f"  Plantillas base creadas: {plantillas}")
         if familias:
             print(f"  Familias de equipo de ejemplo creadas: {await crear_familias(db)}")
+        # F2-02: las plantillas de WhatsApp y SMS nacen en borrador; hay que someterlas a Meta antes de usarlas.
+        from services.mensajeria.plantillas import sembrar_plantillas
+
+        print(f"  Plantillas de WhatsApp y SMS creadas: {await sembrar_plantillas(db)}")
         await db.commit()
 
     print("\nListo.")

@@ -153,4 +153,4 @@ from workers import (  # noqa: E402,F401
     evaluadores, evaluadores_capacitacion, evaluadores_inventario, evaluadores_seguimiento, evaluadores_sla,
     evaluadores_te,
 )
-from workers.tareas import costos, minuta, notificaciones, preventivos  # noqa: E402,F401
+from workers.tareas import costos, mensajeria, minuta, notificaciones, preventivos  # noqa: E402,F401

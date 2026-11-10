@@ -9,7 +9,8 @@ RAIZ_REPO = Path(__file__).resolve().parents[2]
 
 # Campos que llevan secretos: en produccion ninguno puede quedarse con el valor de ejemplo del .env. P11a.
 SECRETOS = ("jwt_secreto", "clave_cifrado", "minio_root_password", "smtp_password", "vapid_clave_privada",
-            "database_url", "database_migrations_url", "redis_url", "celery_broker_url", "celery_result_backend")
+            "database_url", "database_migrations_url", "redis_url", "celery_broker_url", "celery_result_backend",
+            "whatsapp_token", "whatsapp_app_secret", "whatsapp_verify_token", "twilio_auth_token")
 MARCAS_DE_EJEMPLO = ("cambiar", "ejemplo", "changeme", "password", "secreto_dev", "acma_dev")
 # La CLAVE_CIFRADO del .env.example es base64 valido, asi que no la delata ninguna marca de texto.
 CLAVE_CIFRADO_EJEMPLO = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -98,6 +99,27 @@ class Configuracion(BaseSettings):
     app_url_publica: str = "http://localhost:5173"
     # P07: enviar las notificaciones en la misma petición (pruebas / sin Celery) en lugar de encolarlas.
     notificaciones_envio_inline: bool = False
+
+    # F2-02: WhatsApp y SMS. Modo igual que SMTP: `stub` (nada sale de la máquina y el mensaje se guarda como
+    # vista previa), `prueba` (cuentas gratuitas de Meta y Twilio, solo a números verificados en su panel) y
+    # `real` (cuenta de pago). Las credenciales las carga la usuaria en `.env`; ver docs/operacion/mensajeria.md.
+    whatsapp_modo: str = "stub"  # stub | prueba | real
+    whatsapp_proveedor: str = "meta_cloud"  # meta_cloud | twilio (en modo prueba/real)
+    whatsapp_token: str = ""
+    whatsapp_numero_id: str = ""  # «Phone number ID» del panel de Meta
+    whatsapp_verify_token: str = ""  # el que se escribe en el webhook de Meta
+    whatsapp_app_secret: str = ""  # para validar la firma X-Hub-Signature-256
+    whatsapp_api_url: str = "https://graph.facebook.com/v21.0"
+    sms_modo: str = "stub"  # stub | prueba | real
+    sms_proveedor: str = "twilio"
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_remitente_sms: str = ""  # número o Messaging Service SID
+    twilio_remitente_whatsapp: str = ""  # «whatsapp:+14155238886» en la cuenta de prueba
+    twilio_api_url: str = "https://api.twilio.com/2010-04-01"
+    # Ventana de 24 h de WhatsApp para mensajes de texto libre tras un mensaje del usuario (§6.1).
+    mensajeria_ventana_libre_horas: int = 24
+    mensajeria_max_por_minuto: int = 60  # límite de tasa por proveedor y por tenant
 
     @field_validator("acma_entorno")
     @classmethod

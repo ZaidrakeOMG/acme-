@@ -423,6 +423,20 @@ async def enviar(db: AsyncSession, m: Minuta, *, sin_validacion: bool = False) -
                                                                 "contadores_html": "", "secciones_html": cuerpo_html, "notas_html": "", "hash_pdf": m.hash_pdf}},
         asunto=f"{'[URGENTE] ' if m.urgente else ''}Minuta del {m.fecha.strftime('%d/%m/%Y')}{ambito}", cuerpo=resumen, url=url, tenant_id=m.tenant_id, prestador_id=m.prestador_id,
         canales=["app", "push", "email"], plantilla="minuta", adjuntos=[{"nombre": f"minuta-{m.fecha.isoformat()}.pdf", "clave": m.pdf_key, "mime": "application/pdf"}])
+    # F2-02 (§7.5): para quien lo pidió en sus preferencias, la minuta también sale por WhatsApp o SMS como resumen
+    # de máximo 5 puntos con el enlace firmado al PDF. Va en una llamada aparte porque `canales` fuerza la lista
+    # para todos los destinatarios, y estos canales son opcionales por usuario.
+    for uid in destinatarios:
+        extra = [c for c in await notificaciones_service.canales_de(db, uid, "minuta.enviada")
+                 if c in ("whatsapp", "sms")]
+        if not extra:
+            continue
+        creadas += await notificaciones_service.notificar(
+            db, "minuta.enviada", [uid], {"minuta_id": str(m.id), "fecha": m.fecha.isoformat(), "tipo": m.tipo.value,
+                                          "urgente": m.urgente},
+            asunto=f"Minuta del {m.fecha.strftime('%d/%m/%Y')}{ambito}", cuerpo=resumen, url=url,
+            tenant_id=m.tenant_id, prestador_id=m.prestador_id, canales=extra)
+
     for n in creadas:
         db.add(MinutaDestinatario(minuta_id=m.id, tenant_id=m.tenant_id, prestador_id=m.prestador_id, usuario_id=n.usuario_id, canal=n.canal,
                                   estado_entrega=n.estado if n.estado != EstadoNotificacion.pendiente else EstadoNotificacion.enviada, timestamp=ahora, notificacion_id=n.id))
@@ -610,6 +624,15 @@ async def resumen(db: AsyncSession, lista: list[Minuta]) -> list[dict[str, Any]]
     return salida
 
 
+def _entrega(envio) -> dict[str, Any] | None:
+    """Estado de entrega de un mensaje de WhatsApp o SMS, como lo cuenta la pantalla de la minuta (F2-02)."""
+    if envio is None:
+        return None
+    return {"estado": envio.estado.value, "proveedor": envio.proveedor.value, "telefono": envio.telefono_mascara,
+            "enviado_at": envio.enviado_at, "entregado_at": envio.entregado_at, "leido_at": envio.leido_at,
+            "abierto_at": envio.abierto_at, "motivo": envio.detalle_error or envio.codigo_error}
+
+
 async def detalle(db: AsyncSession, actor: Actor, m: Minuta) -> dict[str, Any]:
     from services import hallazgos_service
 
@@ -621,11 +644,17 @@ async def detalle(db: AsyncSession, actor: Actor, m: Minuta) -> dict[str, Any]:
     destinatarios = list((await db.execute(select(MinutaDestinatario).where(MinutaDestinatario.minuta_id == m.id))).scalars())
     nombres = {u.id: u.nombre for u in (await db.execute(select(Usuario).where(Usuario.id.in_({d.usuario_id for d in destinatarios} | {r.usuario_id for r in respuestas if r.usuario_id})))).scalars()} \
         if destinatarios or respuestas else {}
+    # F2-02 (§7.5): para los canales de mensajeria, el estado real de la entrega lo informa el proveedor.
+    from services import mensajeria_service
+
+    mensajeria = await mensajeria_service.envios_de_notificaciones(
+        db, [d.notificacion_id for d in destinatarios if d.notificacion_id])
     return {**base, "secciones": s, "hallazgos_detalle": await hallazgos_service.enriquecer(db, hallazgos),
             "respuestas": [{"id": r.id, "hallazgo_id": r.hallazgo_id, "opcion_elegida": r.opcion_elegida, "usuario_id": r.usuario_id, "usuario_nombre": nombres.get(r.usuario_id),
                             "timestamp": r.timestamp, "notas": r.notas, "canal": r.canal, "modulo_destino": r.modulo_destino, "modulo_registro_id": r.modulo_registro_id,
                             "folio_generado_id": r.folio_generado_id} for r in respuestas],
-            "destinatarios": [{"usuario_id": d.usuario_id, "nombre": nombres.get(d.usuario_id), "canal": d.canal, "estado_entrega": d.estado_entrega, "timestamp": d.timestamp} for d in destinatarios],
+            "destinatarios": [{"usuario_id": d.usuario_id, "nombre": nombres.get(d.usuario_id), "canal": d.canal, "estado_entrega": d.estado_entrega, "timestamp": d.timestamp,
+                               "entrega_mensajeria": _entrega(mensajeria.get(d.notificacion_id))} for d in destinatarios],
             "puede_validar": m.estado == EstadoMinuta.pendiente_validacion and actor.rol in VALIDAN, "puede_responder": await puede_responder(db, actor, m) and actor.rol in RESPONDEN,
             "opciones": [{"valor": o.value, "texto": t} for o, t in OPCIONES.items()], "pdf_disponible": m.pdf_key is not None}
 

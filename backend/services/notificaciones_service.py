@@ -1,9 +1,14 @@
 """Notificaciones multicanal (§6.1, P07): un único punto de entrada `notificar()` que resuelve el canal por evento y por
 preferencia del usuario, encola cada envío en `notificaciones` y lo despacha en Celery (o en línea en pruebas).
 
-Canales de Fase 1: `app` (bandeja interna), `push` (web-push de P05) y `email` (SMTP de `services/correo.py`).
-`whatsapp` y `sms` quedan registrados como `omitida` con motivo «canal Fase 2». La bitácora `services/notificaciones.ENVIADAS`
-de P04–P06 se conserva por compatibilidad."""
+Canales: `app` (bandeja interna), `push` (web-push de P05), `email` (SMTP de `services/correo.py`) y, desde F2-02,
+`whatsapp` y `sms` (`services/mensajeria_service.py`). La bitácora `services/notificaciones.ENVIADAS` de P04–P06 se
+conserva por compatibilidad.
+
+F2-02: cuando el usuario pidió WhatsApp o SMS pero el canal no puede usarse —sin consentimiento, teléfono sin
+verificar, horario de silencio, tope mensual, canal apagado en el tenant—, la notificación queda `omitida` con el
+motivo escrito y el aviso **cae al siguiente canal** (push, correo o bandeja), para que nadie se quede sin enterarse.
+"""
 import logging
 import uuid
 from collections.abc import Iterable
@@ -24,7 +29,8 @@ from services import correo, notificaciones, push_service
 
 log = logging.getLogger("acma.notificaciones")
 
-FASE_2 = {CanalNotificacion.whatsapp, CanalNotificacion.sms}
+# F2-02: los canales de mensajería ya no son de Fase 2; su disponibilidad la decide `mensajeria_service.evaluar()`.
+MENSAJERIA = {CanalNotificacion.whatsapp, CanalNotificacion.sms}
 CANALES_POR_DEFECTO: list[str] = ["app", "push", "email"]
 # Canales por evento cuando el usuario no tiene preferencia (los demás eventos usan los tres de Fase 1).
 CANALES_POR_EVENTO: dict[str, list[str]] = {
@@ -121,16 +127,40 @@ async def notificar(db: AsyncSession, evento: str, destinatarios: Iterable[UUID]
     ahora = datetime.now(UTC)
     for uid in ids:
         lista = [str(c) for c in canales] if canales is not None else await canales_de(db, uid, evento)
+        usuario: Usuario | None = None
+        usados = list(lista)
+        respaldos: list[str] = []
         for canal_txt in lista:
             canal = CanalNotificacion(canal_txt)
             n = Notificacion(id=uuid.uuid4(), usuario_id=uid, tenant_id=tenant_id, prestador_id=prestador_id, evento=evento, canal=canal, asunto=asunto[:300],
                              cuerpo_json={"cuerpo": cuerpo, "datos": datos, "adjuntos": adjuntos or [], "plantilla": plantilla}, url=url, timestamp=ahora)
-            if canal in FASE_2:
-                n.estado, n.proveedor_respuesta = EstadoNotificacion.omitida, "canal Fase 2"
+            if canal in MENSAJERIA:
+                from services import mensajeria_service
+
+                if usuario is None:
+                    usuario = await db.get(Usuario, uid)
+                puede, motivo = ((False, "usuario inexistente") if usuario is None else
+                                 await mensajeria_service.evaluar(db, usuario, canal.value, evento, prestador_id=prestador_id,
+                                                                  tenant_id=tenant_id, datos=datos))
+                if not puede:
+                    n.estado, n.proveedor_respuesta = EstadoNotificacion.omitida, motivo[:2000]
+                    destino = mensajeria_service.canal_de_respaldo(usados)
+                    if destino:
+                        usados.append(destino)
+                        respaldos.append(destino)
             elif canal == CanalNotificacion.app:
                 n.estado, n.enviada_at = EstadoNotificacion.enviada, ahora  # la bandeja interna es inmediata
             db.add(n)
             creadas.append(n)
+        for destino in respaldos:
+            canal = CanalNotificacion(destino)
+            r = Notificacion(id=uuid.uuid4(), usuario_id=uid, tenant_id=tenant_id, prestador_id=prestador_id, evento=evento, canal=canal, asunto=asunto[:300],
+                             cuerpo_json={"cuerpo": cuerpo, "datos": {**datos, "respaldo_de": "mensajeria"}, "adjuntos": adjuntos or [],
+                                          "plantilla": plantilla}, url=url, timestamp=ahora)
+            if canal == CanalNotificacion.app:
+                r.estado, r.enviada_at = EstadoNotificacion.enviada, ahora
+            db.add(r)
+            creadas.append(r)
     await db.flush()
     # Compatibilidad con P04–P06 (pruebas y log).
     notificaciones.enviar(usuarios=ids, tenant_id=tenant_id, prestador_id=prestador_id, titulo=asunto, cuerpo=cuerpo, datos={"evento": evento, **datos},
@@ -178,6 +208,10 @@ async def procesar(db: AsyncSession, ids: list[UUID] | None = None, limite: int 
             elif n.canal == CanalNotificacion.push:
                 enviados = await push_service.enviar_a_usuarios(db, [u.id], n.asunto, n.cuerpo_json.get("cuerpo", ""), {"url": n.url or "/", **n.cuerpo_json.get("datos", {})})
                 estado, detalle = ("enviada", f"push:{enviados}") if enviados else ("omitida", "sin suscripción push")
+            elif n.canal in MENSAJERIA:  # F2-02
+                from services import mensajeria_service
+
+                estado, detalle = await mensajeria_service.enviar_notificacion(db, n, u)
             else:
                 estado, detalle = "enviada", ""
         except Exception as e:  # noqa: BLE001

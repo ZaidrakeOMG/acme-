@@ -152,6 +152,8 @@ class DestinatarioSalida(BaseModel):
     canal: CanalNotificacion
     estado_entrega: EstadoNotificacion
     timestamp: datetime
+    # F2-02: en WhatsApp y SMS el proveedor informa entrega y lectura; en los demas canales queda en None.
+    entrega_mensajeria: dict[str, Any] | None = None
 
 
 class MinutaDetalle(MinutaResumen):

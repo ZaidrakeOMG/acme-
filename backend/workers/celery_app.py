@@ -43,6 +43,8 @@ celery_app.conf.update(
         "purgar-accesos-api": {"task": "acma.purgar_accesos_api", "schedule": crontab(hour=3, minute=50)},
         # F2-01: antes de que empiece la jornada, para que el despachador ya vea retiradas las habilidades vencidas.
         "recalcular-capacitacion": {"task": "acma.recalcular_capacitacion", "schedule": crontab(hour=5, minute=10)},
+        # F2-02: reintentos de WhatsApp y SMS que fallaron por algo temporal (espera exponencial en el servicio).
+        "reintentar-mensajeria": {"task": "acma.reintentar_mensajeria", "schedule": 300.0},
     },
 )
 

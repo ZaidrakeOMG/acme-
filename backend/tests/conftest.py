@@ -79,6 +79,12 @@ async def datos():
                    ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo")}
         for contrato in (await db.execute(select(Contrato))).scalars():
             contrato.horario_servicio_json = abierto
+        # F2-02: por el mismo motivo, el horario de silencio de la mensajeria queda desactivado (inicio == fin). Con
+        # el del demo (22:00-07:00) los avisos no criticos se omitian o no segun la hora de la corrida. Las pruebas
+        # que verifican el silencio fijan su propia ventana y la restauran (`test_mensajeria_notificar.py`).
+        from models.mensajeria import MensajeriaConfiguracion
+        for cfg in (await db.execute(select(MensajeriaConfiguracion))).scalars():
+            cfg.horario_silencio_json = {"inicio": "00:00", "fin": "00:00", "zona": "America/Mexico_City"}
         await db.flush()
         otro_prestador = Prestador(razon_social="Otro Prestador", rfc="OPR200101AA1")
         otro_tenant = Tenant(razon_social="Otro Cliente", rfc="OCL200101BB2")

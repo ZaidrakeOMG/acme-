@@ -2,6 +2,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import select
 
 from core.dependencias import DB, Actor, ActorActual, requiere_rol
 from models.base import Rol
@@ -35,12 +36,36 @@ async def marcar(datos: MarcarLeidasEntrada, db: DB, actor: ActorActual) -> dict
     return {"marcadas": n}
 
 
-@router.get("/eventos", summary="Catálogo de eventos notificables y canales de Fase 1")
-async def eventos(_: ActorActual) -> dict:
-    return {"eventos": [{"clave": k, "nombre": v, "canales_default": notificaciones_service.CANALES_POR_EVENTO.get(k, notificaciones_service.CANALES_POR_DEFECTO)}
+@router.get("/eventos", summary="Catálogo de eventos notificables y canales disponibles",
+            description="Desde F2-02 WhatsApp y SMS son canales normales: `disponible` dice si el prestador o el "
+                        "tenant los tiene activos, y `requiere_telefono`, que hace falta verificar el número.")
+async def eventos(db: DB, actor: ActorActual) -> dict:
+    from services import mensajeria_service
+    from services.mensajeria.plantillas import CATALOGO
+
+    cfg = await mensajeria_service.configuracion(db, actor.prestador_id, actor.tenant_id)
+    if cfg is None and actor.tenant_id:
+        from models.organizaciones import TenantPrestador
+
+        for prestador_id in (await db.execute(select(TenantPrestador.prestador_id).where(
+                TenantPrestador.tenant_id == actor.tenant_id))).scalars():
+            cfg = await mensajeria_service.configuracion(db, prestador_id, actor.tenant_id)
+            if cfg is not None:
+                break
+    plantillas = {p.evento for p in CATALOGO}
+    return {"eventos": [{"clave": k, "nombre": v,
+                         "canales_default": notificaciones_service.CANALES_POR_EVENTO.get(k, notificaciones_service.CANALES_POR_DEFECTO),
+                         "tiene_plantilla": k in plantillas}
                         for k, v in notificaciones_service.EVENTOS.items()],
-            "canales": [{"clave": "app", "nombre": "Bandeja en la app", "fase": 1}, {"clave": "push", "nombre": "Push", "fase": 1}, {"clave": "email", "nombre": "Correo", "fase": 1},
-                        {"clave": "whatsapp", "nombre": "WhatsApp", "fase": 2}, {"clave": "sms", "nombre": "SMS", "fase": 2}]}
+            "canales": [{"clave": "app", "nombre": "Bandeja en la app", "disponible": True},
+                        {"clave": "push", "nombre": "Push", "disponible": True},
+                        {"clave": "email", "nombre": "Correo", "disponible": True},
+                        {"clave": "whatsapp", "nombre": "WhatsApp", "requiere_telefono": True,
+                         "disponible": bool(cfg and cfg.whatsapp_activo),
+                         "modo": mensajeria_service.proveedores.modo_de_canal("whatsapp")},
+                        {"clave": "sms", "nombre": "SMS", "requiere_telefono": True,
+                         "disponible": bool(cfg and cfg.sms_activo),
+                         "modo": mensajeria_service.proveedores.modo_de_canal("sms")}]}
 
 
 @router.get("/preferencias", response_model=list[PreferenciaSalida], summary="Mis preferencias por evento ('*' = todos)")

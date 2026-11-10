@@ -4,12 +4,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select, text, update
 
-from core.dependencias import DB, Actor, requiere_rol
+from core.dependencias import DB, Actor, ActorActual, requiere_rol
 from core.errors import ErrorAPI, no_encontrado, prohibido
 from core.security import errores_politica_contrasena, hashear_contrasena_async
 from models.base import ROLES_PRESTADOR, ROLES_TENANT, Dominio, EstadoRegistro, Rol, dominio_de_rol
 from models.usuarios import Sesion, Usuario
 from schemas.comun import RESPUESTAS_ERROR
+from schemas.mensajeria import CodigoEntrada, ConsentimientoEntrada, TelefonoEntrada, TelefonoSalida
 from schemas.organizaciones import UsuarioCambios, UsuarioEntrada, UsuarioSalida
 from services import auditoria
 
@@ -110,6 +111,97 @@ async def crear(datos: UsuarioEntrada, request: Request, db: DB, actor: Actor = 
                                     recurso_tipo="usuario", recurso_id=usuario.id, despues=auditoria.instantanea(usuario))
     await db.commit()
     return usuario
+
+
+# ------------------------------------------------------------------ mi teléfono y mis consentimientos (F2-02)
+# Van antes de `/{usuario_id}`: FastAPI resuelve las rutas en el orden en que se declaran y «me» no es un UUID.
+def _salida_telefono(usuario: Usuario) -> TelefonoSalida:
+    from services.mensajeria import telefonos
+
+    return TelefonoSalida(**telefonos.estado_de_canales(usuario), aviso_privacidad=telefonos.AVISO_PRIVACIDAD)
+
+
+@router.get("/me/telefono", response_model=TelefonoSalida, summary="Mi teléfono móvil y mis consentimientos",
+            description="Nunca devuelve el número completo: solo su máscara (§6.9.5).")
+async def mi_telefono(db: DB, actor: ActorActual):
+    usuario = await db.get(Usuario, actor.id)
+    return _salida_telefono(usuario)
+
+
+@router.put("/me/telefono", response_model=TelefonoSalida, summary="Guardar mi teléfono móvil",
+            description="Lo guarda cifrado y **sin verificar**: cambiar el número obliga a verificarlo otra vez.")
+async def guardar_mi_telefono(datos: TelefonoEntrada, request: Request, db: DB, actor: ActorActual):
+    from services.mensajeria import telefonos
+
+    usuario = await db.get(Usuario, actor.id)
+    e164 = telefonos.normalizar(datos.telefono)
+    telefonos.guardar(usuario, e164)
+    await auditoria.registrar_actor(db, actor, "usuarios.telefono", request, recurso_tipo="usuario",
+                                    recurso_id=usuario.id,
+                                    despues={"telefono": usuario.telefono_movil_mascara, "verificado": False})
+    await db.commit()
+    await db.refresh(usuario)
+    return _salida_telefono(usuario)
+
+
+@router.delete("/me/telefono", response_model=TelefonoSalida, summary="Quitar mi teléfono móvil",
+               description="Sin número no hay canal: se borran también los consentimientos de WhatsApp y SMS.")
+async def borrar_mi_telefono(request: Request, db: DB, actor: ActorActual):
+    from services.mensajeria import telefonos
+
+    usuario = await db.get(Usuario, actor.id)
+    telefonos.borrar(usuario)
+    await auditoria.registrar_actor(db, actor, "usuarios.telefono_baja", request, recurso_tipo="usuario",
+                                    recurso_id=usuario.id, despues={"telefono": None})
+    await db.commit()
+    await db.refresh(usuario)
+    return _salida_telefono(usuario)
+
+
+@router.post("/me/telefono/codigo", summary="Enviarme el código de verificación por WhatsApp o SMS",
+             description="Código de un solo uso, válido 10 minutos. En modo `stub` queda en la bitácora y en el log.")
+async def pedir_codigo(db: DB, actor: ActorActual, canal: str = Query(default="sms", pattern="^(whatsapp|sms)$")) -> dict:
+    from services import mensajeria_service
+
+    usuario = await db.get(Usuario, actor.id)
+    r = await mensajeria_service.enviar_codigo(db, usuario, canal)
+    await db.commit()
+    return r
+
+
+@router.post("/me/telefono/verificar", response_model=TelefonoSalida, summary="Verificar mi teléfono con el código")
+async def verificar_telefono(datos: CodigoEntrada, request: Request, db: DB, actor: ActorActual):
+    from services.mensajeria import telefonos
+
+    usuario = await db.get(Usuario, actor.id)
+    try:
+        telefonos.verificar_codigo(usuario, datos.codigo)
+    finally:
+        await db.commit()  # los intentos fallidos también se guardan
+    await auditoria.registrar_actor(db, actor, "usuarios.telefono_verificado", request, recurso_tipo="usuario",
+                                    recurso_id=usuario.id, despues={"telefono": usuario.telefono_movil_mascara})
+    await db.commit()
+    await db.refresh(usuario)
+    return _salida_telefono(usuario)
+
+
+@router.put("/me/consentimiento", response_model=TelefonoSalida, summary="Dar o quitar el consentimiento de un canal",
+            description="Equivale a escribir ALTA o BAJA por WhatsApp o SMS. Queda en la bitácora con su fecha.")
+async def consentimiento(datos: ConsentimientoEntrada, request: Request, db: DB, actor: ActorActual):
+    from services.mensajeria import telefonos
+
+    usuario = await db.get(Usuario, actor.id)
+    if datos.acepta and usuario.telefono_verificado_at is None:
+        raise ErrorAPI(409, "TELEFONO_SIN_VERIFICAR",
+                       "Verifica tu teléfono antes de activar WhatsApp o SMS")
+    telefonos.fijar_consentimiento(usuario, datos.canal.value, datos.acepta)
+    await auditoria.registrar_actor(db, actor, "usuarios.consentimiento", request, recurso_tipo="usuario",
+                                    recurso_id=usuario.id,
+                                    despues={"canal": datos.canal.value, "acepta": datos.acepta,
+                                             "telefono": usuario.telefono_movil_mascara})
+    await db.commit()
+    await db.refresh(usuario)
+    return _salida_telefono(usuario)
 
 
 @router.get("/{usuario_id}", response_model=UsuarioSalida, summary="Detalle de usuario")

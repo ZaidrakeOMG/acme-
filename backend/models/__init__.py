@@ -68,6 +68,10 @@ from models.capacitacion import (  # F2-01
     BibliotecaManual, BibliotecaVersion, CapacitacionAlertasConfig, CategoriaManual, ContenidoServicio,
     CursoCatalogo, EstadoCursoTecnico, TecnicoCurso, TecnicoDescargaOffline, TipoCurso,
 )
+from models.mensajeria import (  # F2-02
+    CanalMensajeria, CategoriaPlantilla, EstadoAprobacionPlantilla, EstadoEnvioMensajeria, MensajeriaConfiguracion,
+    MensajeriaEnvio, MensajeriaPlantilla, MensajeriaRespuesta, ProveedorMensajeria,
+)
 
 __all__ = [
     "Articulo", "EstadoCFDI", "EstadoGastoCajaChica", "EstadoOrdenCompra", "EstadoPoliza", "Existencia", "FondoCajaChica", "FormatoPoliza",
@@ -110,4 +114,6 @@ __all__ = [
     "UnidadNegocio", "Usuario", "UsuarioGrupo", "UsuarioUN",
     "BibliotecaManual", "BibliotecaVersion", "CapacitacionAlertasConfig", "CategoriaManual", "ContenidoServicio",
     "CursoCatalogo", "EstadoCursoTecnico", "TecnicoCurso", "TecnicoDescargaOffline", "TipoCurso",
+    "CanalMensajeria", "CategoriaPlantilla", "EstadoAprobacionPlantilla", "EstadoEnvioMensajeria",
+    "MensajeriaConfiguracion", "MensajeriaEnvio", "MensajeriaPlantilla", "MensajeriaRespuesta", "ProveedorMensajeria",
 ]

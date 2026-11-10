@@ -29,6 +29,19 @@ class Usuario(ConVersion, Base):
     bloqueado_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     password_actualizado_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     ultimo_acceso_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # F2-02: teléfono móvil para WhatsApp y SMS. El número va **cifrado** (envelope de P11a) y nunca se muestra
+    # completo: el hash resuelve los mensajes entrantes del proveedor y la máscara es lo que se ve en pantalla.
+    telefono_movil_e164: Mapped[str | None] = mapped_column(Text)
+    telefono_movil_hash: Mapped[str | None] = mapped_column(String(64))
+    telefono_movil_mascara: Mapped[str | None] = mapped_column(String(40))
+    telefono_verificado_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    telefono_codigo_hash: Mapped[str | None] = mapped_column(String(64))
+    telefono_codigo_expira_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    telefono_codigo_intentos: Mapped[int] = mapped_column(Integer, default=0)
+    whatsapp_consentimiento_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    whatsapp_baja_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sms_consentimiento_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sms_baja_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class HistorialContrasena(Base):
