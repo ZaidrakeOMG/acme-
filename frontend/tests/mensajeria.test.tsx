@@ -162,7 +162,7 @@ describe('Mensajería por WhatsApp y SMS (F2-02)', () => {
     await entrar('admin_prestador', '/mensajeria')
     const panel = await screen.findByTestId('consumo-mensajeria')
     expect(within(panel).getByText('850 de 1000 mensajes')).toBeInTheDocument()
-    expect(within(panel).getByText('340.0000 MXN estimados')).toBeInTheDocument()
+    expect(within(panel).getByText('340.00 MXN estimados')).toBeInTheDocument()  // en pesos, no en diezmilésimos
     expect(screen.getByText(/Llegaste al 85% del tope/)).toBeInTheDocument()
     expect(screen.getByText(/WhatsApp: modo stub/)).toBeInTheDocument()
   })

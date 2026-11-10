@@ -2,6 +2,77 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-10 · F2-03 — Pantalla de operaciones en tiempo real
+
+Segundo bloque prioritario de Dirección, ejecutado enseguida de F2-02. Commits locales por backend y frontend.
+**Sin contratar nada:** el mapa usa OpenStreetMap con Leaflet, gratis y sin cuenta, detrás de una interfaz de
+proveedor para poder cambiar a Google Maps en el paso final.
+
+### Lo que ahora se ve en vivo
+
+- **Migración `0015_operaciones_tiempo_real.py`**: `jornadas_tecnico` (una abierta por técnico, por índice único),
+  `jornada_pausas`, `tecnico_posiciones` **particionada por día** con índice espacial, y
+  `alertas_operacion_seguimiento` para el push al técnico, su respuesta y la escalación; más la última posición, la
+  precisión, la batería y el `estatus_operativo` en la ficha del técnico. RLS forzada en todas.
+- **Jornada del técnico** desde «Mis folios»: iniciar, pausar (comida, trámite, otro), reanudar y cerrar, con el
+  aviso de qué se registra la primera vez y su aceptación guardada. **Sin jornada no se registra ninguna posición.**
+- **Envío de posición** con las frecuencias del diseño (30 s en jornada, 5 min en pausa, 2 min con batería baja),
+  en lotes pequeños; sin señal se guardan en IndexedDB (Dexie v4) y salen al reconectar marcadas como tardías, sin
+  mover el mapa hacia atrás. El servidor valida el lote y la calidad del dato, guarda la posición actual en Redis
+  con TTL de 2 minutos y publica el evento al tablero del prestador del técnico, nunca a otro.
+- **Estatus automático**: en servicio, en ruta, en pausa, sin señal o fuera de jornada, recalculado en cada lote y
+  cada minuto por el worker.
+- **Geocerca de llegada**: al entrar al radio de 150 m de la unidad del folio en camino, la app propone confirmar
+  la llegada —no transiciona sola— y la entrada queda en el historial del folio como dato informativo del SLA.
+- **Detección automática**: tiempo muerto (20 min quieto en 50 m fuera de su destino) con alerta al despachador,
+  push al técnico con «Estoy bien» / «Necesito apoyo» y escalación al Admin prestador a los 10 minutos sin
+  respuesta; sin señal (15 min) con marcador gris y aviso, **sin emergencia automática**. El desvío de ruta sigue
+  en Fase 2, sin evaluador, esperando el bloque de optimización de rutas.
+- **Cierre automático** de la jornada que el técnico olvidó cerrar (2 h sin posiciones ni folios en curso).
+- **Tablero** (`/operaciones`) para Despachador, Admin prestador, Mesa de control (lectura), Dirección y
+  Superadmin: mapa en vivo con un marcador por técnico —que se mueve solo él, sin redibujar el mapa— y las unidades
+  con folios activos; panel de técnicos ordenable con su estatus en texto; panel de folios del día con el contador
+  regresivo del SLA de P10; feed de alertas con acción directa (ver en el mapa, llamar, abrir el folio, reasignar);
+  y la barra de indicadores de jornada de P10, en vivo. WebSocket con respaldo SSE e indicador de «datos en vivo /
+  reconectando».
+- **Privacidad**: las posiciones son del prestador del técnico; el cliente no las ve ni por API ni por RLS. El
+  técnico consulta su propio recorrido y mirar el de alguien queda en la bitácora de accesos sensibles.
+- **Demostración sin salir a la calle**: `scripts/seed_operacion.py` deja a los cuatro técnicos demo con jornada y
+  recorrido de la última hora (uno en servicio, uno en ruta, uno detenido 25 min y uno sin señal) y
+  `scripts/simular_jornada.py` los mueve en vivo por el mapa.
+
+**Pruebas:** 531 pytest (39 nuevas de F2-03, con los servidores apagados) y
+131 vitest (8 nuevos); `tsc --noEmit` y `npm run build` en verde. Carga de
+posiciones: 71 usuarios durante 90 s con 3 workers: **222 posiciones por minuto sin una sola falla** (el doble del requisito de §6.8.4), con mediana de 960 ms. El detalle y lo que se puede y no se puede afirmar de los percentiles están en [`docs/rendimiento/resultados.md`](docs/rendimiento/resultados.md).
+
+### Revisión en el navegador
+
+Las dos pantallas nuevas se recorrieron en la app real contra la base de desarrollo (Admin prestador, Despachador y
+técnico). Lo que se encontró ahí y no en las pruebas:
+
+- **«Tiempo en el estatus actual» medía la jornada, no el estatus.** §6.8.4 pide ordenar por ese tiempo y la
+  pantalla mostraba «219 min» para un técnico que acababa de quedarse sin señal. Se agregó
+  `tecnicos.estatus_operativo_desde`, que el servicio actualiza en cada cambio, y el panel lo lee en horas y
+  minutos.
+- **El feed de alertas enseñaba la clave cruda** (`SLA_INCUMPLIDO_ESCALADO_DIRECCION`). Ahora el tablero manda el
+  nombre del catálogo de alertas y la pantalla lo muestra en palabras.
+- **«Marcar atendida» era un enlace a otra pantalla.** §6.8.4 pide acción directa: ahora atiende la alerta ahí
+  mismo y refresca el feed.
+- **El panel decía «Folios del día»** y traía además los activos de días anteriores, que sí deben salir (un folio
+  abierto de ayer es justo lo que el despachador necesita ver). Se renombró a «Folios activos y del día».
+- **En Mensajería, un fallo al cargar se veía igual que «sin configurar»**, y el botón de crear la configuración
+  habría sobreescrito la que sí existe, dejando los dos canales apagados. Ahora la pantalla distingue «cargando»
+  de «no hay configuración».
+- El costo del mes se mostraba con cuatro decimales (`9.0000 MXN`); las tarifas por mensaje sí los llevan, el
+  total del mes no.
+
+**Incidencias resueltas:** la prueba de P10 que usaba `TECNICO_TIEMPO_MUERTO` como ejemplo de alerta de Fase 2 tuvo
+que cambiar de ejemplo, porque ahora está activa; el gestor de tiempo real de P05, escrito solo para el chat, se
+generalizó a canales con tema (`chat:` / `operacion:`) sin tocar el chat; el WebSocket del tablero se movió a
+`/ws/operacion` porque el proxy del servidor de desarrollo solo levanta la conexión en `/ws`; y las pruebas no
+podían limpiar posiciones con DELETE, lo que destapó que `tecnico_posiciones` es append-only incluso para el dueño
+del esquema (ahora hay una prueba que lo afirma).
+
 ## 2026-11-10 · F2-02 — Notificaciones por WhatsApp y SMS
 
 Segundo bloque de la segunda etapa, primero de los dos prioritarios de Dirección. Commits locales por backend y
@@ -49,8 +120,8 @@ Twilio quedó escrita para que la usuaria cargue sus credenciales cuando quiera.
 - **Guía de operación** en `docs/operacion/mensajeria.md`: paso a paso de las cuentas gratuitas de Meta y de Twilio,
   qué variables llenar, los límites de cada cuenta de prueba y cómo se someten las plantillas.
 
-**Pruebas:** PENDIENTE_PYTEST pytest (PENDIENTE_NUEVAS nuevas de F2-02, con los servidores apagados) y
-PENDIENTE_VITEST vitest (7 nuevos); `tsc --noEmit` y `npm run build` en verde. Ninguna prueba llama a Meta ni a
+**Pruebas:** 531 pytest (58 nuevas de F2-02, con los servidores apagados) y
+131 vitest (7 nuevos); `tsc --noEmit` y `npm run build` en verde. Ninguna prueba llama a Meta ni a
 Twilio: el proveedor simulado responde y las firmas de los webhooks se arman en la prueba.
 
 **Incidencias resueltas:** Docker Desktop volvió a caerse por un socket huérfano

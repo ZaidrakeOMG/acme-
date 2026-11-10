@@ -138,6 +138,11 @@ WhatsApp no deja mandar lo que quieras: cada aviso viaja en una **plantilla apro
    motivo: ACMA levanta la alerta `MENSAJERIA_PLANTILLA_RECHAZADA`, deja de usar esa plantilla y los avisos caen al
    siguiente canal hasta que la corrijas.
 
+**La minuta del día tiene su propia forma (§7.5):** por WhatsApp va el resumen de los cinco puntos más críticos y
+un botón al PDF completo; por SMS va solo la fecha y el enlace, porque los cinco puntos llevan acentos y el
+separador « · » no existe en el alfabeto de los SMS, así que el mensaje costaría tres segmentos en lugar de uno. El
+PDF se abre con un enlace firmado que dura una hora, sin pedir contraseña: lo abre quien recibió el mensaje.
+
 Reglas que las plantillas de ACMA ya cumplen y que conviene no romper al editarlas:
 
 * **Nada sensible en el mensaje**: ni montos, ni datos de terceros, ni evidencias. Solo folio, sucursal, estado y

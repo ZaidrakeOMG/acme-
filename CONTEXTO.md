@@ -27,18 +27,39 @@
 | P11b | Publicación en `acma.unai.com.mx` con el servidor definitivo y los datos reales de UNAI | Pendiente |
 | F2-01 | Capacitación y certificaciones del personal, biblioteca de manuales con versiones y contenido de servicio contractual, con descarga para uso sin señal | ✅ 2026-11-07 |
 | F2-02 | Notificaciones por WhatsApp y SMS: plantillas aprobables por Meta, consentimiento del destinatario, horario de silencio, tope de gasto, enlace corto propio y minuta por WhatsApp | ✅ 2026-11-10 |
+| F2-03 | Pantalla de operaciones en tiempo real: jornada del técnico con GPS, mapa en vivo con OpenStreetMap, estatus automático, geocerca de llegada, tiempo muerto y sin señal | ✅ 2026-11-10 |
+
+## Verificación al cierre de F2-03
+
+- Migración `0015_operaciones_tiempo_real.py` aplicada (subida, bajada y subida), con `jornadas_tecnico`,
+  `jornada_pausas`, `tecnico_posiciones` (**particionada por día**), `alertas_operacion_seguimiento` y las columnas
+  de posición y estatus en `tecnicos`; RLS forzada en las cuatro tablas nuevas.
+- **531 pytest** en verde **con los servidores de desarrollo apagados**, más 1 saltado a propósito.
+  39 pruebas nuevas de F2-03 en `test_operacion_posiciones.py`, `test_operacion_estatus.py`,
+  `test_alertas_operacion.py` y `test_operacion_tablero.py`.
+- **131 vitest** (8 nuevos en `operaciones.test.tsx`), `tsc --noEmit` y
+  `npm run build` en verde.
+- **Prueba de carga de posiciones** (ACT-1.6 con el perfil de §6.8.4): 71 usuarios durante 90 s con 3 workers: **222 posiciones por minuto sin una sola falla** (el doble del requisito de §6.8.4), con mediana de 960 ms. El detalle y lo que se puede y no se puede afirmar de los percentiles están en [`docs/rendimiento/resultados.md`](docs/rendimiento/resultados.md).
+- Las dos pantallas nuevas se recorrieron además en la app real con la base de desarrollo (Admin prestador,
+  Despachador y técnico): seis correcciones salieron de ahí, entre ellas la columna `estatus_operativo_desde` (el
+  «tiempo en el estatus» medía la jornada) y el «Sin configurar» de Mensajería, cuyo botón habría apagado los
+  canales de un prestador ya configurado. El detalle está en `BITACORA.md`.
+- Pruebas de otros prompts que cambiaron porque F2-03 cambia lo que afirmaban: `TECNICO_TIEMPO_MUERTO` y
+  `TECNICO_SIN_SENAL` dejaron de ser alertas de Fase 2 (la de Fase 2 que queda como ejemplo es
+  `TECNICO_DESVIO_RUTA`), el catálogo de alertas no cambió de tamaño pero sí de fase, y el aviso de la barra de
+  indicadores de jornada ya no habla del mapa, que ahora existe.
 
 ## Verificación al cierre de F2-02
 
 - Migración `0014_whatsapp_sms.py` aplicada (subida, bajada y subida), con las cuatro tablas nuevas
   (`mensajeria_plantillas`, `mensajeria_configuracion`, `mensajeria_envios`, `mensajeria_respuestas`) y la RLS
   forzada en todas, más las columnas de teléfono y consentimiento en `usuarios`.
-- **PENDIENTE_PYTEST pytest** en verde **con los servidores de desarrollo apagados**, más 1 saltado a propósito
-  (`tests/test_respaldo.py`). PENDIENTE_NUEVAS pruebas nuevas de F2-02 en `test_mensajeria_proveedores.py`,
+- **531 pytest** en verde **con los servidores de desarrollo apagados**, más 1 saltado a propósito
+  (`tests/test_respaldo.py`). 58 pruebas nuevas de F2-02 en `test_mensajeria_proveedores.py`,
   `test_mensajeria_notificar.py`, `test_mensajeria_minuta.py`, `test_mensajeria_consentimiento.py` y
   `test_mensajeria_webhooks.py`. Ninguna llama a Meta ni a Twilio: el proveedor simulado es el que responde, y las
   firmas de los webhooks se arman en la prueba con el mismo algoritmo del proveedor.
-- **PENDIENTE_VITEST vitest** (7 nuevos en `mensajeria.test.tsx`), `tsc --noEmit` y `npm run build` en verde.
+- **131 vitest** (7 nuevos en `mensajeria.test.tsx`), `tsc --noEmit` y `npm run build` en verde.
 - `conftest` también desactiva el **horario de silencio** en la base de pruebas (`inicio == fin`), por la misma razón
   por la que abre los contratos: con el horario del demo (22:00–07:00) el resultado de las pruebas dependía de la
   hora a la que se corrieran. La regla del silencio tiene su propia prueba, que fija su ventana y la restaura.
@@ -986,6 +1007,77 @@ revisión legal del aviso de privacidad. El paso a paso de las cuentas gratuitas
   canales **WhatsApp** y **SMS** de notificaciones y alertas: los dos están activos, con pantalla propia
   (*Mensajería*) y con su configuración por cliente.
 
+### Operaciones en tiempo real (F2-03)
+
+**La jornada manda.** `jornadas_tecnico` (una abierta por técnico, garantizado por índice único) con sus pausas en
+`jornada_pausas`. **Sin jornada activa el servidor no acepta ninguna posición**, y la primera vez el técnico acepta
+un aviso de qué se registra y para qué (`aviso_aceptado_at`), cuyo texto está en
+`operacion_service.AVISO_GEOLOCALIZACION` y en `docs/decisiones_para_validar.md` para revisión legal. La app deja de
+reportar cuando se cierra la jornada, cuando la app se cierra y cuando el teléfono se bloquea, porque
+`watchPosition` deja de emitir: no hace falta nada más para cumplir §6.8.4.
+
+**Frecuencias** (literales del diseño, las publica `GET /api/operacion/parametros` para que app y pantalla hablen del
+mismo número): 30 s en jornada activa, 5 min en pausa y 2 min con batería bajo el 20 % (Battery Status API donde
+exista; sin ella se usa el intervalo normal). El servidor no valida frecuencias —manda la app— pero sí el tamaño del
+lote (60 posiciones) y la calidad del dato: se descartan las de precisión peor que 500 m, las del futuro y las de
+hace más de dos días, cada una con su motivo en la respuesta.
+
+**Posiciones.** `tecnico_posiciones` está **particionada por día** (`acma_crear_particiones_posiciones`, cada
+madrugada, con 7 días de adelanto) y vive **90 días**: `acma_purgar_posiciones` suelta las particiones viejas con
+DETACH + DROP, el mismo mecanismo de la auditoría de P11a. Es una tabla de solo inserción: no lleva las columnas de
+versión de §6.2 capa 1 ni su trigger, porque 50 técnicos a 30 s son 100 filas por minuto. La **hora de llegada y la
+de cierre** de cada folio quedan en el historial del folio, que es permanente, así que soltar una partición no borra
+lo que el folio necesita.
+
+Al recibir un lote, el servicio actualiza `tecnicos.ultima_posicion`, guarda la posición actual en **Redis con TTL de
+2 minutos** y publica un evento por WebSocket. Lo que llegó tarde (guardado sin señal en IndexedDB y enviado al
+reconectar) entra al historial marcado como `tardia` y **no mueve** la última posición si es más vieja que la que ya
+está: el mapa no da saltos falsos.
+
+**Estatus operativo** (`tecnicos.estatus_operativo`), en este orden: `fuera_de_jornada` sin jornada, `pausa` si la
+jornada está en pausa, `sin_senal` si la última posición pasó el umbral de `TECNICO_SIN_SENAL`, `en_servicio` con un
+folio en ejecución y `en_ruta` en los demás casos. Lo recalcula cada lote de posiciones y, cada minuto, la tarea
+`acma.seguimiento_operacion`, para que el mapa no muestre «en ruta» a quien lleva media hora sin reportar.
+
+**Geocerca de llegada (§6.8.6).** Cuando la posición entra al radio de la UN del folio en camino (150 m, configurable
+en `configuracion_prestador` con la clave `operacion.geocerca_radio_m`), la respuesta trae una **sugerencia**: la app
+le propone «Confirmar llegada» y la transición la sigue haciendo el técnico. La entrada al radio queda en el
+historial del folio como evento `entrada_geocerca`, **informativo** para el SLA de respuesta: no cambia la regla de
+P10.
+
+**Detección automática** (evaluadores de P10, cada minuto):
+* `TECNICO_TIEMPO_MUERTO` (20 min, radio 50 m): todas las posiciones del periodo dentro del radio, en un punto que
+  no es la UN destino de su folio, y no en pausa. Dispara la alerta al despachador, crea un
+  `alertas_operacion_seguimiento` y manda **push al técnico** con dos respuestas («Estoy bien» / «Necesito apoyo»).
+  A los 10 minutos sin respuesta, `acma.seguimiento_operacion` **escala al Admin prestador**. «Necesito apoyo»
+  levanta de inmediato una alerta de prioridad alta al despachador.
+* `TECNICO_SIN_SENAL` (15 min): marcador gris con «Sin señal desde HH:MM» y aviso al despachador. **No genera
+  emergencia**: el despachador decide.
+* `TECNICO_DESVIO_RUTA` sigue en **fase 2 y sin evaluador**, con la nota de que necesita la ruta planeada del bloque
+  de optimización de rutas. Su espacio en la pantalla queda preparado (el amarillo del panel de técnicos).
+* **Cierre automático de jornada** (`acma.cerrar_jornadas_inactivas`, cada 15 min): jornada sin posiciones ni folios
+  en curso en 2 h (configurable) se cierra con `cerrada_por = sistema`.
+
+**Tiempo real.** El gestor de P05 se generalizó: el canal es `chat:{id}` o `operacion:{prestador}`, y
+`publicar_canal` / `suscribir_canal` sirven a los dos. Hay **un canal por prestador**, así que las posiciones de un
+prestador no llegan al tablero de otro (§6.9.5). `WS /api/operacion/ws` con respaldo `GET /api/operacion/stream`
+(SSE), los dos autenticados con `?token=`, reconexión con espera exponencial y el indicador «datos en vivo /
+reconectando» en la pantalla.
+
+**Privacidad (§6.9.5).** Las posiciones son del prestador del técnico: el cliente no las ve ni por endpoint ni por
+RLS (una prueba lo verifica con el contexto de un Admin UN). El técnico ve su propio recorrido, y consultar el de
+alguien queda registrado como acceso a datos sensibles (P11a).
+
+**Mapa.** Leaflet 1.9.4 con react-leaflet 5.0.0 y teselas de **OpenStreetMap** (gratis, sin cuenta) detrás de la
+interfaz `ProveedorMapa` de `src/services/mapas.ts`: con `VITE_MAPA_PROVEEDOR=google` y `VITE_MAPA_LLAVE` se cambia
+sin tocar la pantalla, y sin llave se queda en OSM para que el mapa nunca aparezca en blanco. El mapa **mueve solo
+el marcador que cambió** (los marcadores se guardan por técnico), y si Leaflet falla, un límite de error deja los
+paneles funcionando.
+
+- **Hoja «Dónde se ve en el sistema» (Excel, no se edita)**: quedan obsoletas las filas que marcan como «Fase 2» la
+  **pantalla de operaciones**, el **mapa en vivo**, el **GPS del técnico** y las alertas **TECNICO_TIEMPO_MUERTO** y
+  **TECNICO_SIN_SEÑAL**. Siguen vigentes las de **desvío de ruta**, **ETA por tráfico** y **optimización de rutas**.
+
 ### Frontend
 - `src/config/modulos.ts` define los 27 módulos de Fase 1, su prompt y los roles que los ven. Desde P10 **todos tienen
   `ruta`**: no queda ninguno con la etiqueta «Disponible en el prompt Pxx».
@@ -1399,6 +1491,41 @@ automática por FMEA, descuento de penalizaciones en el CFDI, ETA y ruta). No ha
 157. **El restablecimiento de contraseña sigue siendo solo por correo.** No hay plantilla de WhatsApp ni de SMS para
     ese evento, a propósito: el canal de recuperación de una cuenta no debe depender de un teléfono que puede estar
     en manos de otra persona.
+
+158. **Las posiciones se guardan 90 días y se sueltan por partición.** El diseño no fija retención para el
+    GPS; 90 días es lo mismo que la bitácora de accesos de P11a y alcanza para aclarar un reclamo de servicio. Lo
+    permanente es la hora de llegada y de cierre de cada folio, que vive en el historial del folio. **Es una
+    decisión de privacidad: conviene que la valide quien lleva el tema de datos personales de empleados.**
+159. **Sin jornada abierta no se guarda ni una posición**, y la jornada la abre y la cierra el técnico. El diseño
+    pedía que el GPS funcionara «en jornada activa»; la decisión es que el interruptor sea del técnico y no del
+    despachador, y que la app no reporte nunca con la jornada cerrada.
+160. **La geocerca propone, no decide.** Entrar al radio de 150 m de la unidad no transiciona el folio: le propone
+    al técnico confirmar su llegada (§6.8.6 lo pide así). La entrada al radio se guarda como dato informativo del
+    SLA de respuesta, sin cambiar la regla de P10, para que después se pueda comparar «entró» contra «confirmó».
+161. **El radio de la geocerca (150 m) y el cierre automático de jornada (2 h) viven en `configuracion_prestador`**
+    (`operacion.geocerca_radio_m`, `operacion.jornada_cierre_horas`), no en el catálogo de alertas: no son umbrales
+    de alerta. Los umbrales de tiempo muerto y sin señal sí salen de la configuración central de P10.
+162. **El tiempo muerto exige posiciones del periodo completo.** Si el técnico no reportó, el caso lo cuenta
+    `TECNICO_SIN_SENAL`, no el tiempo muerto: sin datos no se puede afirmar que esté detenido. Además pide al menos
+    dos posiciones y que la más vieja cubra el 80 % del periodo.
+163. **«Sin señal» no genera emergencia** (§6.8.4 lo dice explícito) y tampoco push al técnico: si no tiene red, el
+    push no llega, y si lo tiene, el problema es otro. Solo se avisa al despachador, que decide si llama.
+164. **Un canal de tiempo real por prestador.** Se consideró un canal por mercado (el despachador ve su mercado),
+    pero el filtro por mercado ya lo hace el alcance de P04 al armar el tablero, y un canal por prestador mantiene
+    simple la suscripción. Lo que nunca pasa es que un prestador reciba eventos de otro.
+165. **El marcador del técnico se mueve, el mapa no se redibuja.** Con 50 técnicos a 30 segundos, volver a dibujar
+    todo haría parpadear la pantalla de la oficina; los marcadores se guardan por técnico y solo se mueve el que
+    cambió. Si Leaflet falla, los paneles siguen: el tablero sirve sin mapa, pero no sin paneles.
+166. **La batería se lee con la Battery Status API donde exista.** Firefox y Safari no la tienen: ahí se usa el
+    intervalo normal de 30 s y la columna `bateria_pct` queda vacía. El diseño pedía «donde exista».
+
+167. **El tiempo en el estatus se guarda, no se deduce.** `tecnicos.estatus_operativo_desde` se actualiza en cada
+    cambio de estatus. Deducirlo de la jornada o de la última posición daba números que no eran lo que §6.8.4 pide
+    ordenar («tiempo en el estatus actual»), y la pantalla mentía con un número creíble, que es lo peor que puede
+    hacer.
+168. **El WebSocket del tablero vive en `/ws/operacion`, fuera de `/api`.** El proxy del servidor de desarrollo
+    solo levanta la conexión en `/ws` (como el chat de P05), así que dejarlo dentro de `/api` lo habría empujado
+    siempre al respaldo SSE sin que se notara.
 
 ## Notas de entorno (esta máquina)
 

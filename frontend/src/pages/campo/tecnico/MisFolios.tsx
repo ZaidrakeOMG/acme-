@@ -5,6 +5,7 @@ import { useConexion } from '../../../hooks/useConexion'
 import { api, mensajeDeError } from '../../../services/api'
 import { foliosCampo, type FolioLocal } from '../../../services/campo'
 import { EstadoInsignia, SeveridadInsignia, antiguedad } from '../../folios/comunes'
+import { MiJornada } from './MiJornada'
 
 const ACTIVOS = new Set(['asignado', 'reasignado', 'en_camino', 'en_ejecucion', 'pendiente_refaccion'])
 
@@ -56,6 +57,7 @@ export function MisFolios() {
       </div>
       {!enLinea && <Aviso tipo="info">Sin conexión: trabajas con la última lista descargada; tus acciones se encolan.</Aviso>}
       {error && <Aviso>{error}</Aviso>}
+      <MiJornada />
       <Lista titulo="Hoy" items={deHoy} />
       <Lista titulo="Próximos" items={proximos} />
       <Link to="/campo/manuales" className="block rounded-xl border border-slate-200 bg-white p-4 text-sm active:bg-slate-50">

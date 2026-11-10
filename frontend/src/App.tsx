@@ -40,6 +40,7 @@ import { ResponderMinuta } from './pages/minutas/ResponderMinuta'
 import { EnlaceCorto } from './pages/EnlaceCorto'
 import { Notificaciones } from './pages/Notificaciones'
 import { Mensajeria } from './pages/mensajeria/Mensajeria'
+import { Operaciones } from './pages/operaciones/Operaciones'
 import { Activos } from './pages/activos/Activos'
 import { Dashboard } from './pages/bi/Dashboard'
 import { Reportes } from './pages/bi/Reportes'
@@ -78,6 +79,7 @@ const PAGINAS: Record<string, ReactNode> = {
   clasificacion: <Clasificacion />,
   notificaciones: <Notificaciones />,
   mensajeria: <Mensajeria />,
+  operaciones: <Operaciones />,
   trabajos_especiales: <TrabajosEspeciales />,
   oc_activos: <OcActivos />,
   inventario: <Inventario />,

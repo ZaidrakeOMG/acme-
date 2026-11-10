@@ -138,6 +138,36 @@ Lo que se puede afirmar:
   de 6.1 a 8.3 segundos: esa diferencia es el generador de carga peleando por los mismos núcleos. El número a
   comprometer se mide en el servidor de producción, con el generador en otra máquina (lo hace P11b).
 
+## 3.1 Posiciones GPS de la jornada (F2-03)
+
+§6.8.4 pide recibir la posición de **50 técnicos cada 30 segundos**, o sea **100 posiciones por minuto**, junto con
+el uso normal del sistema. El perfil `TecnicoCampo` abre su jornada al arrancar y manda posiciones como su tarea más
+frecuente (peso 10 de 24).
+
+Corrida del 2026-11-10 · 71 usuarios (50 técnicos, 20 de oficina, 1 operador) · 90 segundos · 3 workers · misma
+máquina para la API y el generador:
+
+| Endpoint | Peticiones | Fallas | Mediana | p95 | p99 | Máximo | RPS |
+|---|---|---|---|---|---|---|---|
+| `POST /api/operacion/posiciones` | 321 | **0** | 960 ms | 6,100 ms | 8,800 ms | 10,000 ms | **3.7** |
+| `POST /api/operacion/jornada/iniciar` | 50 | 0 | 8,300 ms | 12,000 ms | 15,000 ms | 14,600 ms | 0.6 |
+| Toda la corrida | 1,379 | **0 (0.00 %)** | 920 ms | 8,600 ms | 12,000 ms | 17,000 ms | 15.9 |
+
+Lo que se puede afirmar:
+
+- **El requisito se cumple con margen:** 3.7 posiciones por segundo son **222 por minuto**, más del doble de las
+  100 que pide §6.8.4, y **sin una sola falla** en toda la corrida.
+- **Lo más caro es arrancar**, no mantener: los 50 técnicos abriendo jornada al mismo tiempo (mediana de 8.3 s)
+  coinciden con los 71 logins del arranque, que en esta máquina ya cuestan 6.7 s de mediana por el hash de
+  contraseña. En la jornada real las jornadas se abren a lo largo de la mañana, de una en una.
+- **Los percentiles siguen sin servir para comprometer un SLA**, por lo mismo que dice la sección 3: el generador
+  pelea por los mismos núcleos que la API y la base. Lo que esta corrida demuestra es que el flujo de posiciones no
+  rompe nada ni se degrada: cero errores de servidor y ninguna petición perdida.
+- **Cada posición cuesta poco más que un INSERT:** el servicio comprueba la jornada, inserta en la partición del
+  día, actualiza la última posición del técnico, guarda el caché de Redis con TTL de 2 minutos, publica el evento
+  del tablero y, si el técnico va camino a una unidad, mide la distancia a su geocerca. Son seis operaciones
+  cortas, y la partición diaria mantiene los índices pequeños.
+
 ## 4. Costo real de cada endpoint, sin carga
 
 Siete llamadas seguidas sobre los mismos datos, un usuario a la vez. Esto sí es el costo del código, y es la base

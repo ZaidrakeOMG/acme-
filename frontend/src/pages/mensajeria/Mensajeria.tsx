@@ -84,6 +84,12 @@ export function Mensajeria() {
   )
 }
 
+/** El costo del mes se lee en pesos y centavos; la tarifa por mensaje sí lleva cuatro decimales. */
+function pesos(valor: string): string {
+  const n = Number(valor)
+  return Number.isFinite(n) ? n.toFixed(2) : valor
+}
+
 interface Props {
   alAvisar?: (t: string | null) => void
   alFallar: (t: string | null) => void
@@ -95,6 +101,9 @@ function Canales({ alAvisar, alFallar, modos }: Props & { modos: Modos | null })
   const [consumo, setConsumo] = useState<Consumo | null>(null)
   const [eventos, setEventos] = useState<EventoNotificable[]>([])
   const [guardando, setGuardando] = useState(false)
+  // Sin esto, un fallo al cargar se vería igual que «este prestador no tiene mensajería configurada», y el botón
+  // de crearla sobreescribiría una configuración que sí existe (dejando los canales apagados).
+  const [cargado, setCargado] = useState(false)
 
   const cargar = useCallback(async () => {
     try {
@@ -102,6 +111,7 @@ function Canales({ alAvisar, alFallar, modos }: Props & { modos: Modos | null })
       setCfg(c)
       setConsumo(u)
       setEventos(ev.eventos)
+      setCargado(true)
     } catch (e) { alFallar(mensajeDeError(e)) }
   }, [alFallar])
   useEffect(() => { void cargar() }, [cargar])
@@ -124,6 +134,9 @@ function Canales({ alAvisar, alFallar, modos }: Props & { modos: Modos | null })
     void guardar({ [campo]: nuevos } as Partial<ConfiguracionMensajeria>)
   }
 
+  if (!cargado) {
+    return <div className="h-32 animate-pulse rounded-xl bg-slate-100" aria-label="Cargando la configuración" />
+  }
   if (!cfg) {
     return (
       <Tarjeta titulo="Sin configurar">
@@ -170,7 +183,7 @@ function Canales({ alAvisar, alFallar, modos }: Props & { modos: Modos | null })
           <div className="space-y-2 text-sm" data-testid="consumo-mensajeria">
             <div className="flex items-center justify-between">
               <span>{consumo.mensajes} de {consumo.tope || '∞'} mensajes</span>
-              <span className="text-slate-500">{consumo.costo_estimado} {consumo.moneda} estimados</span>
+              <span className="text-slate-500">{pesos(consumo.costo_estimado)} {consumo.moneda} estimados</span>
             </div>
             <div className="h-2 w-full rounded bg-slate-200">
               <div className={`h-2 rounded ${cerca ? 'bg-red-500' : 'bg-acento'}`}
@@ -183,7 +196,7 @@ function Canales({ alAvisar, alFallar, modos }: Props & { modos: Modos | null })
             )}
             <ul className="text-xs text-slate-600">
               {Object.entries(consumo.por_canal).map(([canal, v]) => (
-                <li key={canal}>{canal}: {v.mensajes} mensaje(s) · {v.costo} {consumo.moneda}</li>
+                <li key={canal}>{canal}: {v.mensajes} mensaje(s) · {pesos(v.costo)} {consumo.moneda}</li>
               ))}
             </ul>
           </div>

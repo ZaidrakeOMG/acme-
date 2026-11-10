@@ -2,6 +2,8 @@
  * Base local IndexedDB (Dexie) — §6.2 capa 3. Versión 2 (P05): caché de catálogos, folios y formularios, borradores de
  * respuestas, evidencias pendientes (blob + metadatos), cola FIFO de mutaciones con `id_cliente`, caché y pendientes del chat.
  * Versión 3 (F2-01): biblioteca sin conexión, con el archivo y su versión para avisar cuando hay una más nueva.
+ * Versión 4 (F2-03): cola de posiciones del GPS que no se pudieron mandar (sin señal); se envían al reconectar
+ * marcadas como `tardia` para que el mapa no dé saltos falsos.
  */
 import Dexie, { type EntityTable } from 'dexie'
 
@@ -119,6 +121,21 @@ export interface BibliotecaOffline {
   desactualizado: boolean
 }
 
+/** Una posición del GPS que se guardó sin señal y espera para salir (§6.8.4). F2-03. */
+export interface PosicionPendiente {
+  id_cliente: string
+  jornada_id: string | null
+  lat: number
+  lng: number
+  capturada_at: string
+  precision_m: number | null
+  velocidad_mps: number | null
+  rumbo: number | null
+  bateria_pct: number | null
+  intentos: number
+  enviado: 0 | 1
+}
+
 export class BaseLocal extends Dexie {
   metadatos!: EntityTable<Metadato, 'clave'>
   catalogos_cache!: EntityTable<CatalogoCache, 'clave'>
@@ -130,6 +147,7 @@ export class BaseLocal extends Dexie {
   chat_mensajes_cache!: EntityTable<MensajeCache, 'id'>
   chat_pendientes!: EntityTable<ChatPendiente, 'id_cliente'>
   biblioteca_offline!: EntityTable<BibliotecaOffline, 'clave'>
+  posiciones_pendientes!: EntityTable<PosicionPendiente, 'id_cliente'>
 
   constructor(nombre = 'acma') {
     super(nombre)
@@ -156,6 +174,19 @@ export class BaseLocal extends Dexie {
       chat_mensajes_cache: '&id, chat_id, timestamp_servidor',
       chat_pendientes: '&id_cliente, chat_id, estado',
       biblioteca_offline: '&clave, clase, id, tipo_equipo_id, desactualizado',
+    })
+    this.version(4).stores({
+      metadatos: '&clave',
+      catalogos_cache: '&clave, entidad, id, updated_at',
+      folios_cache: '&id, estado, un_id, tecnico_id, updated_at',
+      formularios_cache: '&id, tipo',
+      respuestas_borrador: '&id, formulario_id, referencia_id, estado',
+      evidencias_pendientes: '&id_cliente, respuesta_id, estado',
+      mutaciones_pendientes: '&id_cliente, orden, estado, tipo',
+      chat_mensajes_cache: '&id, chat_id, timestamp_servidor',
+      chat_pendientes: '&id_cliente, chat_id, estado',
+      biblioteca_offline: '&clave, clase, id, tipo_equipo_id, desactualizado',
+      posiciones_pendientes: '&id_cliente, jornada_id, enviado, capturada_at',
     })
   }
 }

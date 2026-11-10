@@ -6,7 +6,7 @@ funciona hoy con la opción marcada.** Esta lista es para que alguien del negoci
 Cómo leerla: cada punto trae **la pregunta**, **lo que ACMA hace hoy** y **qué cambia si responde distinto**. No hace
 falta saber nada técnico. Lo que no se cambie se queda como está.
 
-Hay 33 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
+Hay 36 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
 y a lo que se le cobra o se le descuenta al prestador.
 
 ---
@@ -296,6 +296,49 @@ verificación en dos pasos si su rol la exige. Igual con cualquier otra acción:
 **Si responde distinto:** se podría aprobar con un botón del mensaje, pero entonces quien tenga el teléfono —o la
 sesión de WhatsApp abierta en una computadora— podría autorizar gasto sin contraseña ni segundo factor. Por eso
 quedó así.
+
+## Ubicación de los técnicos en la jornada
+
+### 34. El aviso que ve el técnico la primera vez que inicia su jornada: ¿este texto es el correcto?
+
+**Hoy:** antes de abrir su primera jornada, el técnico tiene que aceptar este aviso, y su aceptación queda guardada
+con fecha:
+
+> «Mientras tu jornada esté iniciada, ACMA registra la ubicación de tu teléfono cada 30 segundos (cada 5 minutos en
+> pausa) para que el despachador sepa dónde estás, pueda apoyarte si te detienes y pueda decirle al cliente a qué
+> hora llegas. No se registra nada cuando cierras la jornada, ni cuando la app está cerrada o el teléfono
+> bloqueado. El recorrido se guarda 90 días y solo lo ve el personal de tu prestador: el cliente nunca ve tu
+> ubicación. Consultar tu recorrido queda registrado en la bitácora de accesos.»
+
+**Esto lo tiene que revisar el área legal y, si existe, el área de recursos humanos**: es geolocalización de
+empleados, que en México exige avisar para qué se usa el dato, por cuánto tiempo se guarda y quién lo consulta.
+Cambiar el texto no toca nada más del sistema.
+
+**Si responde distinto:** se cambia el texto; si legal pide un consentimiento firmado aparte (en el contrato o en
+una carta), la casilla de la app dejaría de ser suficiente y habría que registrar ese documento.
+
+### 35. ¿Noventa días de recorrido es lo correcto?
+
+**Hoy:** el recorrido completo (una posición cada 30 segundos de cada jornada) se guarda **90 días** y después se
+borra solo, soltando el día entero. Lo que **no** se borra nunca es la hora de llegada y la hora de cierre de cada
+folio, que viven en el historial del folio.
+
+Noventa días alcanzan para aclarar un reclamo de servicio del trimestre y es la misma retención que la bitácora de
+accesos a la API. Más tiempo significa guardar los movimientos de una persona durante más tiempo; menos, quedarse
+sin cómo demostrar un recorrido cuando el cliente reclama un mes después.
+
+**Si responde distinto:** se cambia un número en la tarea de limpieza. También se puede guardar menos (por ejemplo
+30 días) y conservar aparte solo las llegadas y los cierres, que ya son permanentes.
+
+### 36. ¿Confirman que el cliente nunca ve la ubicación de los técnicos?
+
+**Hoy:** **no la ve**. Ni el Admin empresa, ni el Admin UN, ni el operador: ni en pantalla ni por la API, y la base
+de datos tampoco se la muestra. La ubicación la ven el Despachador, la Mesa de control, el Admin prestador y la
+Dirección del prestador; el técnico ve la suya.
+
+**Si responde distinto:** el diseño contempla para más adelante un «ETA al operador» —decirle al cliente a qué hora
+llega el técnico, sin mostrarle el mapa— que llega con el bloque de optimización de rutas. Mostrarle el mapa en
+vivo al cliente sería otra decisión, y conviene que la tomen las dos partes del contrato.
 
 ## Dos cosas que no son preguntas de negocio pero hay que decidir antes de publicar
 
