@@ -34,6 +34,18 @@ SesionLocal = async_sessionmaker(
 )
 
 
+def reconstruir_sin_pool() -> None:
+    """Para el worker de Celery (`celeryd_init`): cada tarea abre y cierra su propio event loop, y un pool
+    compartido guardaria conexiones de loops ya cerrados; la siguiente tarea las reusaba y el envio fallaba
+    con "Event loop is closed". Sin pool, cada sesion abre su conexion y la cierra al terminar."""
+    global engine, engine_lectura, SesionLocal
+
+    config.db_pool_nulo = True
+    engine = crear_engine(config.database_url)
+    engine_lectura = engine if config.url_lectura == config.database_url else crear_engine(config.url_lectura)
+    SesionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession, sync_session_class=SesionRLS)
+
+
 def nueva_sesion(contexto: ContextoRLS | None) -> AsyncSession:
     """Sesión con contexto RLS explícito (scripts, Celery, middleware de auditoría)."""
     sesion = SesionLocal()

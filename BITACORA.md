@@ -2,6 +2,25 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-10 · Arreglo al encender los servidores (worker de Celery)
+
+Al dejar ACMA encendido para la revisión, el log del worker mostró cinco `Fallo al enviar la notificación` con
+`RuntimeError: Event loop is closed`. No era de F2-02 ni de F2-03: el worker corre cada tarea con `asyncio.run`,
+o sea un *event loop* nuevo por tarea, y `push_service.enviar_a_usuarios` abre su sesión de sistema con
+`core.db.nueva_sesion`, que usa el **engine con pool** de la API. La segunda tarea de la corrida reusaba una
+conexión del loop ya cerrado y el envío se caía; lo probé fuera del worker: tarea 1 bien, tarea 2
+`AttributeError: 'NoneType' object has no attribute 'send'`, tarea 3 bien otra vez (se perdía más o menos una de
+cada dos). Afecta a todo lo que notifica desde background, incluido el push de tiempo muerto de F2-03.
+
+- `core/db.py`: `reconstruir_sin_pool()` rehace el engine, la réplica de lectura y la fábrica de sesiones sin pool.
+- `workers/celery_app.py`: se llama desde la señal `celeryd_init`, así que **solo aplica dentro del worker**; la API
+  conserva el pool afinado en P11a (10+10 conexiones para 70 usuarios concurrentes).
+
+Verificado: el engine del worker queda en `NullPool` y el de la API en `AsyncAdaptedQueuePool`; tres tareas
+seguidas que pasan por `enviar_a_usuarios` terminan bien, y el worker reiniciado lleva 0 errores.
+**Sin prueba automática**: `tests/conftest.py` fija `DB_POOL_NULO=true`, así que la suite nunca ejercita el camino
+con pool y un test de esto tendría que rehacer el engine global a media corrida. Queda anotado como pendiente.
+
 ## 2026-11-10 · F2-03 — Pantalla de operaciones en tiempo real
 
 Segundo bloque prioritario de Dirección, ejecutado enseguida de F2-02. Commits locales por backend y frontend.

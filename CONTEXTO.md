@@ -238,6 +238,11 @@
   `services.alertas_service.disparar(...)` (respeta umbral efectivo, estado activo y supresiones).
 - Almacenamiento: `services.almacenamiento.obtener_almacenamiento()` (MinIO o memoria en pruebas).
 - `DATABASE_READ_URL` opcional → `core.db.engine_lectura` (igual al principal si está vacía).
+- **Sesiones dentro del worker**: cada tarea de Celery corre en su propio event loop (`asyncio.run`), así que
+  `celeryd_init` llama a `core.db.reconstruir_sin_pool()` y en el worker las sesiones van sin pool. Lo que
+  notifica desde background (`push_service.enviar_a_usuarios` y todo lo que use `nueva_sesion`) depende de eso;
+  con pool compartido la segunda tarea de la corrida fallaba con «Event loop is closed». La API conserva su pool
+  (P11a). Pendiente: la suite fija `DB_POOL_NULO=true`, así que no hay prueba automática del camino con pool.
 
 ### Catálogos maestros (P02)
 - Migración `0002_catalogos.py` usa los helpers de `core/sql_migracion.py` (`ex`, `rls`, `versionar`, `politicas_tenant`,

@@ -5,6 +5,7 @@
 """
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import celeryd_init
 
 from core.config import config
 
@@ -55,3 +56,13 @@ celery_app.conf.update(
 )
 
 app = celery_app
+
+
+@celeryd_init.connect
+def _sesiones_sin_pool(**_: object) -> None:
+    """El worker corre cada tarea en su propio event loop (`asyncio.run`), asi que un pool compartido guardaria
+    conexiones de loops ya cerrados: el segundo envio de push de la corrida fallaba con "Event loop is closed".
+    La senal solo se dispara al arrancar el worker; la API conserva su pool afinado en P11a."""
+    from core.db import reconstruir_sin_pool
+
+    reconstruir_sin_pool()
