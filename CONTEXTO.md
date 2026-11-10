@@ -26,6 +26,22 @@
 | P11a | Endurecimiento: seguridad de §6.9.5, pruebas de carga, respaldos con restauración medida y paquete de producción | ✅ 2026-11-05 |
 | P11b | Publicación en `acma.unai.com.mx` con el servidor definitivo y los datos reales de UNAI | Pendiente |
 | F2-01 | Capacitación y certificaciones del personal, biblioteca de manuales con versiones y contenido de servicio contractual, con descarga para uso sin señal | ✅ 2026-11-07 |
+| F2-02 | Notificaciones por WhatsApp y SMS: plantillas aprobables por Meta, consentimiento del destinatario, horario de silencio, tope de gasto, enlace corto propio y minuta por WhatsApp | ✅ 2026-11-10 |
+
+## Verificación al cierre de F2-02
+
+- Migración `0014_whatsapp_sms.py` aplicada (subida, bajada y subida), con las cuatro tablas nuevas
+  (`mensajeria_plantillas`, `mensajeria_configuracion`, `mensajeria_envios`, `mensajeria_respuestas`) y la RLS
+  forzada en todas, más las columnas de teléfono y consentimiento en `usuarios`.
+- **PENDIENTE_PYTEST pytest** en verde **con los servidores de desarrollo apagados**, más 1 saltado a propósito
+  (`tests/test_respaldo.py`). PENDIENTE_NUEVAS pruebas nuevas de F2-02 en `test_mensajeria_proveedores.py`,
+  `test_mensajeria_notificar.py`, `test_mensajeria_minuta.py`, `test_mensajeria_consentimiento.py` y
+  `test_mensajeria_webhooks.py`. Ninguna llama a Meta ni a Twilio: el proveedor simulado es el que responde, y las
+  firmas de los webhooks se arman en la prueba con el mismo algoritmo del proveedor.
+- **PENDIENTE_VITEST vitest** (7 nuevos en `mensajeria.test.tsx`), `tsc --noEmit` y `npm run build` en verde.
+- `conftest` también desactiva el **horario de silencio** en la base de pruebas (`inicio == fin`), por la misma razón
+  por la que abre los contratos: con el horario del demo (22:00–07:00) el resultado de las pruebas dependía de la
+  hora a la que se corrieran. La regla del silencio tiene su propia prueba, que fija su ventana y la restaura.
 
 ## Verificación al cierre de F2-01
 
@@ -884,6 +900,92 @@
   servicio contractual** y la alerta **CERTIFICACION_VENCIDA**: los cuatro ya tienen pantalla y están activos. Sigue
   vigente lo que la hoja diga de GPS, medidores, OCR y adaptadores de ERP.
 
+### WhatsApp y SMS (F2-02)
+
+**Regla de selección de canal.** `notificar()` sigue siendo el único punto de entrada; para `whatsapp` y `sms`
+pregunta a `mensajeria_service.evaluar()`, que aplica en este orden y deja escrito el motivo del «no»:
+
+1. preferencia del usuario por evento (`notificacion_preferencias`, P07);
+2. canal activo en `mensajeria_configuracion` (fila del tenant si existe, si no la del prestador);
+3. lista blanca de eventos del canal, si está llena (vacía = todos);
+4. teléfono registrado **y verificado**, y consentimiento vigente de ese canal;
+5. horario de silencio, salvo eventos críticos;
+6. tope mensual de mensajes, salvo eventos críticos.
+
+Cuando no puede salir, la notificación queda `omitida` con el motivo y **el aviso cae al siguiente canal** (`push`,
+`email`, `app`, el primero que el usuario no tuviera ya). Lo mismo pasa con un error permanente del proveedor
+(número inválido, plantilla rechazada, usuario dado de baja): no se reintenta y cae al siguiente canal. Los errores
+temporales se reintentan con espera exponencial (2, 4, 8… minutos, hasta 5 intentos) desde
+`acma.reintentar_mensajeria`, cada 5 minutos en el beat.
+
+**Eventos críticos** (ignoran el silencio y el tope): `aprobacion.pendiente`, `aprobacion.bloqueada`,
+`trahabajo_especial.urgencia`, la verificación del teléfono, las alertas de SLA
+(`SLA_INCUMPLIDO`, `SLA_RESPUESTA_EN_RIESGO`, `SLA_RESOLUCION_EN_RIESGO`, su escalación a dirección y
+`TECNICO_SIN_SENAL`), el folio rechazado y cualquier evento con severidad o urgencia crítica.
+
+**Capa de proveedores** (`services/mensajeria/`): la interfaz `ProveedorMensajeria` (`enviar_plantilla`,
+`enviar_texto`, `estado`, `validar_webhook`) con tres implementaciones —`stub` (por defecto; guarda el mensaje
+renderizado en la bitácora y un archivo de vista previa en el almacenamiento, simula entrega y lectura y acepta
+fallas programadas por número para las pruebas), `meta_cloud` (WhatsApp Cloud API) y `twilio` (SMS y,
+opcionalmente, WhatsApp)—. El modo se elige con `WHATSAPP_MODO` y `SMS_MODO` (`stub` / `prueba` / `real`), igual que
+`SMTP` en P07; si el modo pide un proveedor real y falta su credencial, se usa el simulado y queda en el log, para
+que una variable mal escrita no deje a nadie sin aviso. Límite de tasa por proveedor y por tenant
+(`MENSAJERIA_MAX_POR_MINUTO`, cubeta por minuto en el proceso).
+
+**Plantillas.** El texto vive en `services/mensajeria/plantillas.py` (una sola fuente) y `sembrar_plantillas()` lo
+sincroniza con `mensajeria_plantillas`, que es lo que el Admin prestador edita y somete a Meta: 22 plantillas por
+canal, en español, categoría `utility`, con variables posicionales `{{1}}…` y botón de enlace a la pantalla exacta.
+La base es de la plataforma (`prestador_id` nulo); cuando el Admin prestador la edita, ACMA **clona** la plantilla
+para su prestador en borrador y deja la base intacta. En modo `stub` nacen `aprobada` (no hay nada que someter);
+con cuenta real nacen en borrador. `GET /plantillas/{id}/exportar` entrega el JSON que pide Meta.
+Ninguna plantilla lleva datos financieros ni personales de terceros: una prueba revisa el catálogo completo con
+`datos_sensibles()`, y los SMS se escriben **sin acentos** para caber en un segmento GSM-7 de 160 caracteres.
+
+**Minuta por WhatsApp (§7.5).** `minuta_service.enviar()` manda, además de los tres canales de Fase 1, una
+notificación por WhatsApp o SMS a quien lo haya pedido en sus preferencias: resumen de **máximo 5 puntos** con lo
+más crítico del día (indicadores en rojo, hallazgos de urgencia alta o crítica, preventivos con retraso,
+cotizaciones por vencer, hallazgos sin responder) y botón al **PDF completo** con un enlace firmado de 60 minutos
+(`/api/mensajeria/minutas/{token}.pdf`, que reconstruye el contexto RLS del usuario del token, como el visor de
+F2-01). Sin nada crítico, el mensaje dice «sin pendientes críticos» con el mismo enlace.
+
+**Enlace corto propio.** Cada envío lleva un `codigo_enlace` de 8 caracteres; el mensaje enseña
+`APP_URL_PUBLICA/l/{codigo}` y la pantalla `/l/:codigo` resuelve el destino con
+`GET /api/mensajeria/enlaces/{codigo}` (público a propósito: lo abre quien recibió el mensaje, que no tiene sesión en
+ese navegador; solo devuelve una ruta y registra el clic en `abierto_at`). Sin servicio externo de acortamiento.
+
+**Teléfono y consentimiento (§6.9.5).** El número vive **cifrado** en `usuarios.telefono_movil_e164` (el mismo
+envelope AES-256-GCM de P11a) con su `hash` —para reconocer al remitente de un mensaje entrante sin descifrar a
+nadie— y su máscara `+52 871 ••• ••34`, que es lo único que se muestra y lo único que se guarda en bitácoras. El
+alta la hace el propio usuario en *Notificaciones → Mi celular*, con verificación por código de un solo uso de 6
+dígitos (10 minutos, 5 intentos) enviado por el mismo canal; cambiar el número obliga a verificarlo otra vez.
+Consentimiento explícito por canal con fecha; «BAJA» por WhatsApp o SMS da de baja el canal de inmediato y «ALTA» lo
+reactiva, con acuse por el mismo canal dentro de la ventana de 24 h.
+
+**Ninguna acción crítica se ejecuta desde un mensaje.** Los botones «Aprobar» y «Rechazar» del WhatsApp de una
+aprobación son respuestas rápidas: al llegar, ACMA contesta con el enlace a la pantalla de aprobación y registra
+`accion_ejecutada = enlace_enviado`. La decisión se toma en ACMA, con sesión y doble factor si el rol lo exige.
+
+**Costo.** `costo_estimado` por mensaje con las tarifas de `mensajeria_configuracion` (sin consultar precios del
+proveedor), contador del mes por prestador y por tenant, alerta `MENSAJERIA_CONSUMO_ALTO` al llegar al porcentaje
+configurado (una vez por mes y dueño) y bloqueo de los no críticos al llegar al tope. Un SMS de dos segmentos cuesta
+el doble; lo que no salió no se cobra. `MENSAJERIA_PLANTILLA_RECHAZADA` se dispara cuando el proveedor rechaza o
+pausa una plantilla.
+
+**Webhooks.** `POST /api/mensajeria/webhook/meta` (firma `X-Hub-Signature-256` con el secreto de la app;
+`GET` responde el `hub.challenge` con `WHATSAPP_VERIFY_TOKEN`) y `POST /api/mensajeria/webhook/twilio` (firma
+HMAC-SHA1 de la URL más los parámetros). Sin secreto configurado los dos quedan cerrados. En una máquina local el
+proveedor no alcanza a ACMA: `POST /api/mensajeria/webhook/simular` hace su papel (solo administradores, nunca en
+producción).
+
+**Lo que falta para producción:** plantillas aprobadas por Meta, número de negocio verificado (y token permanente,
+no el temporal de 24 h), URL pública con HTTPS y los webhooks configurados en Meta y en Twilio, tarifas reales y
+revisión legal del aviso de privacidad. El paso a paso de las cuentas gratuitas está en
+[`docs/operacion/mensajeria.md`](docs/operacion/mensajeria.md).
+
+- **Hoja «Dónde se ve en el sistema» (Excel, no se edita)**: quedan obsoletas las filas que marcan como «Fase 2» los
+  canales **WhatsApp** y **SMS** de notificaciones y alertas: los dos están activos, con pantalla propia
+  (*Mensajería*) y con su configuración por cliente.
+
 ### Frontend
 - `src/config/modulos.ts` define los 27 módulos de Fase 1, su prompt y los roles que los ven. Desde P10 **todos tienen
   `ruta`**: no queda ninguno con la etiqueta «Disponible en el prompt Pxx».
@@ -1265,6 +1367,38 @@ automática por FMEA, descuento de penalizaciones en el CFDI, ETA y ruta). No ha
     `frame-ancestors 'none'` desde P11a, así que el navegador bloquea cualquier `iframe` apuntado a
     `/api/biblioteca/archivo`. Relajar la cabecera habría deshecho una protección de P11a por una pantalla; el
     enlace firmado se conserva para abrir el manual en otra pestaña, donde no hay marco que valga.
+
+148. **El número de teléfono se guarda cifrado y en claro no aparece en ningún lado.** La columna
+    `usuarios.telefono_movil_e164` lleva el envelope de P11a; para reconocer un mensaje entrante se usa un hash con
+    el secreto de la instalación, y en pantallas y bitácoras solo se ve la máscara. El diseño pedía «cifrado»: lo
+    que es decisión es guardar además el hash (sin él, un «BAJA» obligaría a descifrar a todos los usuarios para
+    saber quién escribió).
+149. **El consentimiento es por canal y lo da el propio usuario**, no el administrador: nadie activa un número que
+    no es suyo. Y exige el teléfono verificado antes, con un código de un solo uso de 6 dígitos (10 minutos, 5
+    intentos). El diseño no fijaba el método de verificación.
+150. **Las palabras exactas son «BAJA» y «ALTA»** (en mayúsculas o minúsculas, con o sin acentos, por WhatsApp o por
+    SMS), con acuse por el mismo canal. El diseño no las nombraba.
+151. **El resumen de la minuta por WhatsApp va en un solo parámetro, con los puntos separados por « · ».** Meta no
+    acepta saltos de línea dentro de un parámetro de plantilla, así que los cinco puntos no pueden ir en líneas
+    separadas sin partir la plantilla en cinco variables (que además Meta no deja mandar vacías). Si al someter la
+    plantilla Meta lo rechaza, el cambio es solo del texto de la plantilla.
+152. **El enlace del PDF de la minuta dura 60 minutos**, contra los 5 del visor de manuales de F2-01: el manual se
+    abre en el momento, la minuta se lee cuando el Admin UN tiene tiempo. Es una elección.
+153. **El enlace corto `/l/{codigo}` se resuelve sin sesión.** Son 8 caracteres aleatorios y la respuesta es solo
+    una ruta de ACMA; el destino sí exige sesión, salvo el PDF de la minuta, que viaja con su propio enlace firmado.
+    La alternativa (pedir sesión para resolverlo) rompía el único caso que importa: abrir el aviso desde el teléfono.
+154. **El tope mensual bloquea los avisos no críticos, no todos.** Al llegar al tope se siguen mandando las
+    aprobaciones pendientes, el SLA y lo crítico: un tope de gasto no puede dejar sin avisar de algo que cuesta una
+    penalización. El diseño pedía «bloqueo al llegar al tope» sin decir si admitía excepciones.
+155. **Las plantillas de SMS se escriben sin acentos.** Con acentos el mensaje pasa de GSM-7 (160 caracteres por
+    segmento) a UCS-2 (70), y un aviso de dos segmentos cuesta el doble. La vista previa avisa cuando un texto
+    editado cruza esa línea.
+156. **La plantilla base es de la plataforma y el prestador edita una copia.** Quien edita una plantilla global
+    recibe su propia versión en borrador; la base no se toca. Así el prestador puede ajustar el texto para su número
+    de Meta sin cambiárselo a los demás, y la plataforma puede corregir la base sin pisar lo que ya aprobaron.
+157. **El restablecimiento de contraseña sigue siendo solo por correo.** No hay plantilla de WhatsApp ni de SMS para
+    ese evento, a propósito: el canal de recuperación de una cuenta no debe depender de un teléfono que puede estar
+    en manos de otra persona.
 
 ## Notas de entorno (esta máquina)
 

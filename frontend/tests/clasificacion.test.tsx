@@ -74,8 +74,10 @@ describe('Clasificación de folios no críticos', () => {
     let leida = false
     const llamadas = await entrar('admin_un', '/notificaciones', {
       'GET /api/notificaciones': () => ({ json: [{ ...notificacion, leida_at: leida ? '2026-10-28T11:00:00Z' : null }] }),
-      'GET /api/notificaciones/eventos': () => ({ json: { eventos: [{ clave: 'minuta.enviada', nombre: 'Minuta del día enviada', canales_default: ['app', 'push', 'email'] }], canales: [] } }),
+      // F2-02: la pantalla dibuja una casilla por cada canal que devuelve el servidor, ya no los tres fijos.
+      'GET /api/notificaciones/eventos': () => ({ json: { eventos: [{ clave: 'minuta.enviada', nombre: 'Minuta del día enviada', canales_default: ['app', 'push', 'email'] }], canales: [{ clave: 'app', nombre: 'Bandeja en la app', disponible: true }, { clave: 'push', nombre: 'Push', disponible: true }, { clave: 'email', nombre: 'Correo', disponible: true }] } }),
       'GET /api/notificaciones/preferencias': () => ({ json: [{ evento: 'minuta.enviada', canales: ['app'] }] }),
+      'GET /api/usuarios/me/telefono': () => ({ json: { telefono_mascara: null, tiene_telefono: false, verificado: false, verificado_at: null, whatsapp: { consentimiento_at: null, baja_at: null, activo: false }, sms: { consentimiento_at: null, baja_at: null, activo: false }, aviso_privacidad: 'Aviso de prueba' } }),
       'POST /api/notificaciones/leidas': () => { leida = true; return { json: { marcadas: 1 } } },
       'PUT /api/notificaciones/preferencias': (cuerpo) => ({ json: cuerpo }),
     })

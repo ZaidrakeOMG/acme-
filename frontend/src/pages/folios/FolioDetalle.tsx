@@ -11,6 +11,7 @@ import { ACCIONES, accionFolio, aprobarFolio, comentarFolio, fijarMonto, obtener
 import { notificar } from '../../services/notificaciones'
 import { ROLES_AUTORIZAN, ROLES_REASIGNAN, ROLES_SOLICITAN } from '../../types/preventivos'
 import { PanelPreventivo, ReasignarModal } from './Reasignar'
+import { AvisosFolio } from './AvisosFolio'
 import { Financiero } from './Financiero'
 import { SeccionSLA } from './SeccionSLA'
 import { EstadoInsignia, SeveridadInsignia, fecha, resumenCertificaciones } from './comunes'
@@ -278,6 +279,8 @@ export function FolioDetalle() {
           <SeccionSLA folioId={d.folio.id} alCambiar={cargar} />
         </Tarjeta>
       </div>
+
+      <AvisosFolio folioId={f.id} />
 
       <Tarjeta titulo="Chat del folio">
         <ChatFolio folioId={f.id} />

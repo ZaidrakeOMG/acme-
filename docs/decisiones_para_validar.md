@@ -6,7 +6,7 @@ funciona hoy con la opción marcada.** Esta lista es para que alguien del negoci
 Cómo leerla: cada punto trae **la pregunta**, **lo que ACMA hace hoy** y **qué cambia si responde distinto**. No hace
 falta saber nada técnico. Lo que no se cambie se queda como está.
 
-Hay 30 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
+Hay 33 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
 y a lo que se le cobra o se le descuenta al prestador.
 
 ---
@@ -256,6 +256,46 @@ calificaciones, ni las constancias en archivo.
 
 **Si responde distinto:** se puede acortar o alargar la ventana de 90 días, mostrar también las certificaciones ya
 vencidas (para que el cliente vea el historial) o quitarle del todo esta vista.
+
+## Avisos por WhatsApp y SMS
+
+### 31. El aviso de privacidad del teléfono: ¿este texto es el que debe revisar el área legal?
+
+**Hoy:** cuando alguien registra su celular en ACMA ve este texto y, al marcar la casilla, queda su consentimiento
+con fecha:
+
+> «Tu número de celular se usa solo para enviarte avisos operativos de ACMA: folios, aprobaciones, minutas y alertas
+> del servicio. No se usa para publicidad ni se comparte con nadie más que el proveedor de mensajería que entrega el
+> mensaje (Meta para WhatsApp, Twilio para SMS). El número se guarda cifrado y en las bitácoras solo aparece
+> enmascarado. Puedes darte de baja cuando quieras: escribe BAJA por WhatsApp o SMS, o quita el consentimiento en
+> esta pantalla; para volver, escribe ALTA.»
+
+**Esto lo tiene que revisar el área legal**, porque es tratamiento de datos personales de empleados y de personal
+del cliente: la ley pide decir para qué se usa el dato, con quién se comparte y cómo darse de baja. Cambiar el texto
+no toca nada más del sistema.
+
+**Si responde distinto:** se cambia el texto; si legal pide un consentimiento firmado aparte, la casilla de la
+pantalla dejaría de ser suficiente y habría que registrar también ese documento.
+
+### 32. ¿Está bien el horario de silencio de 22:00 a 07:00 y el tope de 1 000 mensajes al mes?
+
+**Hoy:** fuera de ese horario solo salen los avisos **críticos** (aprobación pendiente o bloqueada, SLA en riesgo o
+incumplido, severidad crítica y trabajo especial de urgencia); los demás esperan. Al llegar al tope mensual se
+bloquean los no críticos y, al 80 % del tope, se levanta una alerta al Admin prestador. Cada cliente puede tener su
+propio horario y su propio tope.
+
+**Si responde distinto:** se ajustan horario y tope por cliente en *Mensajería → Canales y consumo*, o se cambia qué
+eventos cuentan como críticos. Ojo: ampliar la lista de críticos significa mensajes de madrugada.
+
+### 33. ¿Confirman que una aprobación nunca se resuelve desde el mensaje?
+
+**Hoy:** **no se resuelve**. El WhatsApp de una aprobación trae los botones «Aprobar» y «Rechazar», pero no ejecutan
+la decisión: contestan con el enlace a la pantalla de aprobación, donde la persona entra con su usuario y su
+verificación en dos pasos si su rol la exige. Igual con cualquier otra acción: el mensaje informa y lleva.
+
+**Si responde distinto:** se podría aprobar con un botón del mensaje, pero entonces quien tenga el teléfono —o la
+sesión de WhatsApp abierta en una computadora— podría autorizar gasto sin contraseña ni segundo factor. Por eso
+quedó así.
 
 ## Dos cosas que no son preguntas de negocio pero hay que decidir antes de publicar
 

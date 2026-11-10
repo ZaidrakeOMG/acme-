@@ -140,7 +140,7 @@ export interface RespuestaHallazgoEntrada { opcion: OpcionRespuesta; notas?: str
 // --------------------------------------------------------- notificaciones
 
 export interface Notificacion { id: string; evento: string; canal: CanalNotificacion; asunto: string; cuerpo: string; datos: Record<string, unknown>; estado: EstadoNotificacion; timestamp: string; leida_at: string | null; url: string | null }
-export interface EventoNotificable { clave: string; nombre: string; canales_default: string[] }
+export interface EventoNotificable { clave: string; nombre: string; canales_default: string[]; tiene_plantilla?: boolean }
 export interface Preferencia { evento: string; canales: CanalNotificacion[] }
 
 // ------------------------------------------------------------ seguimiento

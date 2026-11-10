@@ -2,6 +2,64 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-10 · F2-02 — Notificaciones por WhatsApp y SMS
+
+Segundo bloque de la segunda etapa, primero de los dos prioritarios de Dirección. Commits locales por backend y
+frontend. **Nada se contrató:** el canal funciona en modo simulado y la guía para las cuentas gratuitas de Meta y
+Twilio quedó escrita para que la usuaria cargue sus credenciales cuando quiera.
+
+### Lo que ahora puede salir por WhatsApp y SMS
+
+- **Migración `0014_whatsapp_sms.py`** con cuatro tablas (`mensajeria_plantillas`, `mensajeria_configuracion`,
+  `mensajeria_envios`, `mensajeria_respuestas`), RLS forzada en todas, y las columnas de teléfono, verificación y
+  consentimiento en `usuarios`. El número se guarda **cifrado** con el sobre de P11a, con su hash (para reconocer
+  un mensaje entrante sin descifrar a nadie) y su máscara `+52 871 ••• ••34`, que es lo único que se ve.
+- **Capa de proveedores** (`services/mensajeria/`) detrás de una interfaz: `stub` (el de desarrollo: guarda el
+  mensaje renderizado y una vista previa, simula entrega y lectura, y acepta fallas programadas para probar los
+  caminos de error), `meta_cloud` (WhatsApp Cloud API) y `twilio` (SMS y, si se prefiere, WhatsApp). El modo se
+  elige con `WHATSAPP_MODO` y `SMS_MODO`, igual que el correo en P07; sin credenciales se usa el simulado y queda
+  en el log, para que una variable mal escrita no deje a nadie sin aviso.
+- **`notificar()` ya no omite nada por «canal Fase 2»**: resuelve el canal con la preferencia del usuario, la
+  configuración del tenant o del prestador, el consentimiento y el teléfono verificado, el horario de silencio
+  (salvo lo crítico) y el tope mensual. Cuando no puede salir, **el aviso cae al siguiente canal** y el motivo
+  queda escrito en la notificación y en la bitácora.
+- **22 plantillas por canal** en español, categoría *utility*, con variables posicionales y botón a la pantalla
+  exacta de ACMA. El texto vive en el código y los seeds lo sincronizan; la base es de la plataforma y el Admin
+  prestador edita una copia propia, que vuelve a borrador porque Meta tiene que aprobarla otra vez. Se exporta en el
+  formato que pide Meta con un botón.
+- **La minuta del día por WhatsApp (§7.5)**: resumen de máximo 5 puntos con lo más crítico y botón al PDF completo
+  con enlace firmado de 60 minutos. Sin nada crítico, dice «sin pendientes críticos».
+- **Enlace corto propio** `/l/{codigo}`: en un SMS de 160 caracteres no cabe una URL larga. Se resuelve sin sesión
+  (lo abre quien recibió el mensaje, en su teléfono), solo devuelve una ruta y registra el clic.
+- **Consentimiento del destinatario**: el propio usuario registra su celular en *Notificaciones → Mi celular*, lo
+  verifica con un código de un solo uso de 6 dígitos y acepta canal por canal. «BAJA» por WhatsApp o SMS lo da de
+  baja de inmediato y «ALTA» lo reactiva, con acuse por el mismo canal.
+- **Ninguna acción crítica se ejecuta desde un mensaje**: los botones «Aprobar» y «Rechazar» contestan con el enlace
+  a la pantalla de aprobación, donde se entra con sesión y doble factor si el rol lo exige.
+- **Costo y plantillas rechazadas**: costo estimado por mensaje con tarifas configurables, contador del mes por
+  prestador y tenant, alerta `MENSAJERIA_CONSUMO_ALTO` al llegar al porcentaje configurado, bloqueo de los no
+  críticos al llegar al tope y alerta `MENSAJERIA_PLANTILLA_RECHAZADA` cuando el proveedor rechaza o pausa una
+  plantilla.
+- **Webhooks** de Meta (con `hub.challenge` y firma `X-Hub-Signature-256`) y de Twilio (firma HMAC-SHA1), más un
+  endpoint de **simulación** para desarrollo, porque en una máquina local el proveedor no alcanza a ACMA.
+- **Pantallas**: módulo nuevo *Mensajería* (canales y consumo, plantillas con vista previa como se verá en WhatsApp,
+  bitácora de envíos con estado de entrega y motivo del cambio de canal), la tarjeta «Mi celular» en Notificaciones
+  con el aviso de privacidad, el bloque «Avisos por WhatsApp y SMS» en el detalle del folio y el estado de entrega
+  real en los destinatarios de la minuta. Se quitaron las leyendas «canal Fase 2».
+- **Guía de operación** en `docs/operacion/mensajeria.md`: paso a paso de las cuentas gratuitas de Meta y de Twilio,
+  qué variables llenar, los límites de cada cuenta de prueba y cómo se someten las plantillas.
+
+**Pruebas:** PENDIENTE_PYTEST pytest (PENDIENTE_NUEVAS nuevas de F2-02, con los servidores apagados) y
+PENDIENTE_VITEST vitest (7 nuevos); `tsc --noEmit` y `npm run build` en verde. Ninguna prueba llama a Meta ni a
+Twilio: el proveedor simulado responde y las firmas de los webhooks se arman en la prueba.
+
+**Incidencias resueltas:** Docker Desktop volvió a caerse por un socket huérfano
+(`AppData\Local\docker-secrets-engine\engine.sock`), la misma falla de P01; `conftest` tuvo que desactivar el
+horario de silencio en la base de pruebas, porque con el del demo (22:00–07:00) el resultado de las pruebas
+dependía de la hora de la corrida —el mismo problema que el horario de servicio del contrato en F2-01—; y la
+pantalla de notificaciones dejó de tener los tres canales fijos en el código, así que una prueba de P07 que mandaba
+la lista de canales vacía dejó de encontrar sus casillas.
+
 ## 2026-11-07 · F2-01 — Capacitación del personal y biblioteca técnica
 
 Primer bloque de la segunda etapa. Dos commits locales: backend y frontend.

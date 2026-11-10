@@ -37,7 +37,9 @@ import { Restablecer } from './pages/auth/Restablecer'
 import { Clasificacion } from './pages/clasificacion/Clasificacion'
 import { Minutas } from './pages/minutas/Minutas'
 import { ResponderMinuta } from './pages/minutas/ResponderMinuta'
+import { EnlaceCorto } from './pages/EnlaceCorto'
 import { Notificaciones } from './pages/Notificaciones'
+import { Mensajeria } from './pages/mensajeria/Mensajeria'
 import { Activos } from './pages/activos/Activos'
 import { Dashboard } from './pages/bi/Dashboard'
 import { Reportes } from './pages/bi/Reportes'
@@ -75,6 +77,7 @@ const PAGINAS: Record<string, ReactNode> = {
   seguimiento: <Seguimiento />,
   clasificacion: <Clasificacion />,
   notificaciones: <Notificaciones />,
+  mensajeria: <Mensajeria />,
   trabajos_especiales: <TrabajosEspeciales />,
   oc_activos: <OcActivos />,
   inventario: <Inventario />,
@@ -105,6 +108,8 @@ export function App() {
       <Routes>
         {/* El enlace del correo llega sin sesión: su pantalla va antes del login. P11a. */}
         <Route path="restablecer" element={<Restablecer />} />
+        {/* F2-02: el enlace corto de un SMS o de WhatsApp se abre desde el teléfono, normalmente sin sesión. */}
+        <Route path="l/:codigo" element={<EnlaceCorto />} />
         <Route path="*" element={<Login />} />
       </Routes>
     )
@@ -123,6 +128,7 @@ export function App() {
       <Route element={<AppShell />}>
         <Route index element={<RoleHub />} />
         <Route path="seguridad" element={<Seguridad />} />
+        <Route path="l/:codigo" element={<EnlaceCorto />} />
         <Route path="formularios/plantillas" element={['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Plantillas /> : <SinPermiso />} />
         <Route path="formularios/constructor/:formularioId?" element={['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Constructor /> : <SinPermiso />} />
         <Route path="formularios/llenar/:formularioId" element={<Llenar />} />
