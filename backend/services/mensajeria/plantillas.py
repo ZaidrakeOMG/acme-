@@ -119,7 +119,9 @@ CATALOGO: tuple[Plantilla, ...] = (
     Plantilla(
         clave="minuta_disponible", nombre="Minuta del día", evento="minuta.enviada",
         whatsapp="Minuta del {{1}}{{2}}.\nLo más crítico de hoy: {{3}}\nEl PDF completo está en el botón de abajo.",
-        sms="ACMA: minuta del {{1}} lista. Lo critico: {{3}}. PDF: {enlace}",
+        # En SMS no va el resumen: los cinco puntos llevan acentos y el separador « · » no existe en GSM-7, así que
+        # el mensaje costaría tres segmentos. El enlace lleva al PDF, que es donde está todo.
+        sms="ACMA: la minuta del {{1}} ya esta lista. Resumen y PDF: {enlace}",
         variables=("fecha", "ambito", "resumen"), botones=VER_MINUTA,
         ejemplo={"fecha": "08/11/2026", "ambito": " de Sucursal Centro",
                  "resumen": "2 hallazgos de urgencia alta · 1 preventivo con retraso"}),

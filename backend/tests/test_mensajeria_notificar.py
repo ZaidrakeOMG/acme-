@@ -162,7 +162,12 @@ async def test_un_error_permanente_cae_al_siguiente_canal_y_no_se_reintenta(clie
         creadas = await notificar_de_prueba("folio.espera", CON_AMBOS, canales=["whatsapp"])
         whatsapp = next(n for n in creadas if n["canal"] == "whatsapp")
         assert whatsapp["estado"] == "omitida" and "131026" in whatsapp["respuesta"]
-        assert any(n["canal"] in ("push", "email") for n in creadas), "debe caer al siguiente canal"
+        # El respaldo nace al fallar el envío, después de que `notificar()` devolvió su lista: se ve en la base.
+        posteriores = await notificaciones_de(CON_AMBOS, "folio.espera")
+        respaldo = next((n for n in posteriores if n["datos"].get("respaldo_de") == "whatsapp"), None)
+        assert respaldo is not None, "debe caer al siguiente canal"
+        assert respaldo["canal"] in ("push", "email")
+        assert "131026" in respaldo["datos"]["motivo_respaldo"]
         envio = await ultimo_envio(CON_AMBOS, "whatsapp")
         assert envio["estado"] == "rechazado_por_proveedor" and envio["costo"] == "0.0000"
         assert envio["intentos"] == 1, "un error permanente no se reintenta"

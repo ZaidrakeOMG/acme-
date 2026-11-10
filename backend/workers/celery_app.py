@@ -45,6 +45,12 @@ celery_app.conf.update(
         "recalcular-capacitacion": {"task": "acma.recalcular_capacitacion", "schedule": crontab(hour=5, minute=10)},
         # F2-02: reintentos de WhatsApp y SMS que fallaron por algo temporal (espera exponencial en el servicio).
         "reintentar-mensajeria": {"task": "acma.reintentar_mensajeria", "schedule": 300.0},
+        # F2-03: escalacion del tiempo muerto y refresco del estatus de los tecnicos (el mapa no debe mentir),
+        # cierre de jornadas olvidadas y particiones diarias de posiciones con su retencion de 90 dias.
+        "seguimiento-operacion": {"task": "acma.seguimiento_operacion", "schedule": 60.0},
+        "cerrar-jornadas-inactivas": {"task": "acma.cerrar_jornadas_inactivas", "schedule": 900.0},
+        "particiones-posiciones": {"task": "acma.crear_particiones_posiciones", "schedule": crontab(hour=3, minute=5)},
+        "purgar-posiciones": {"task": "acma.purgar_posiciones", "schedule": crontab(hour=3, minute=40)},
     },
 )
 

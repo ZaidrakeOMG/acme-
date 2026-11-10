@@ -270,15 +270,18 @@ async def simular_webhook(datos: WebhookSimuladoEntrada, db: DB,
     if config.es_produccion:
         raise prohibido("La simulación de webhooks no existe en producción")
     resumen: dict[str, object] = {}
-    if datos.mensaje_id and datos.estado:
-        envio = await svc.actualizar_estado(db, "stub", datos.mensaje_id, datos.estado)
-        resumen["estado"] = envio.estado.value if envio else "envío no encontrado"
-    if datos.telefono and (datos.texto or datos.boton):
-        respuesta = await svc.procesar_entrante(db, canal=datos.canal.value, telefono=datos.telefono,
-                                                texto_mensaje=datos.texto, boton=datos.boton, proveedor="stub")
-        resumen["accion"] = respuesta.accion_ejecutada or "registrada"
-        resumen["usuario_resuelto"] = respuesta.usuario_id is not None
-    await db.commit()
+    # El webhook de verdad lo atiende el sistema, no un usuario: un mensaje puede venir de un número que no está en
+    # la plataforma, y esa fila no tiene dueño a quien atribuirla. La simulación corre con el mismo contexto.
+    async with nueva_sesion(CONTEXTO_SISTEMA) as sistema:
+        if datos.mensaje_id and datos.estado:
+            envio = await svc.actualizar_estado(sistema, "stub", datos.mensaje_id, datos.estado)
+            resumen["estado"] = envio.estado.value if envio else "envío no encontrado"
+        if datos.telefono and (datos.texto or datos.boton):
+            respuesta = await svc.procesar_entrante(sistema, canal=datos.canal.value, telefono=datos.telefono,
+                                                    texto_mensaje=datos.texto, boton=datos.boton, proveedor="stub")
+            resumen["accion"] = respuesta.accion_ejecutada or "registrada"
+            resumen["usuario_resuelto"] = respuesta.usuario_id is not None
+        await sistema.commit()
     await svc.auditoria.registrar_actor(db, actor, "mensajeria.webhook_simulado", None, despues=dict(resumen))
     await db.commit()
     return resumen

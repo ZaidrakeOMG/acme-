@@ -5,8 +5,10 @@ from datetime import UTC, datetime, timedelta
 from tests.folios_utiles import AE, AP, AUN, DES, MC, OP, SA, TEC
 from tests.sla_utiles import panel_alertas
 
-# F2-01 saco CERTIFICACION_VENCIDA de esta lista: su fuente de datos (tecnico_cursos) ya existe.
-FASE_2 = {"TECNICO_TIEMPO_MUERTO", "TECNICO_DESVIO_RUTA", "TECNICO_SIN_SENAL", "MEDIDOR_PROXIMO_PM"}
+# F2-01 saco CERTIFICACION_VENCIDA de esta lista (su fuente, `tecnico_cursos`, ya existe) y F2-03 saco
+# TECNICO_TIEMPO_MUERTO y TECNICO_SIN_SENAL (ya hay posiciones GPS de donde salir). El desvio de ruta sigue en
+# Fase 2 porque necesita la ruta planeada del bloque de optimizacion de rutas.
+FASE_2 = {"TECNICO_DESVIO_RUTA", "MEDIDOR_PROXIMO_PM"}
 
 
 async def _catalogo(cliente, auth, email=AP) -> dict:
@@ -43,16 +45,19 @@ async def test_alertas_de_fase_2_visibles_inactivas_y_no_activables(cliente, aut
     cat = await _catalogo(cliente, auth)
     for clave in FASE_2:
         assert cat[clave]["fase"] == 2 and cat[clave]["activa_por_defecto"] is False
-    # Las de Fase 1 siguen en fase 1, y CERTIFICACION_VENCIDA dejo de ser de Fase 2 con F2-01.
+    # Las de Fase 1 siguen en fase 1; CERTIFICACION_VENCIDA dejo de ser de Fase 2 con F2-01, y el tiempo muerto
+    # y «sin señal» con F2-03.
     assert cat["SLA_INCUMPLIDO"]["fase"] == 1
     assert cat["CERTIFICACION_VENCIDA"]["fase"] == 1 and cat["CERTIFICACION_VENCIDA"]["activa_por_defecto"] is True
-    r = await cliente.put("/api/alertas/configuracion/TECNICO_TIEMPO_MUERTO", headers=await auth(AP),
-                          json={"umbral_valor": "20", "parametros": {}, "canales": ["app"],
+    for clave in ("TECNICO_TIEMPO_MUERTO", "TECNICO_SIN_SENAL"):
+        assert cat[clave]["fase"] == 1 and cat[clave]["activa_por_defecto"] is True
+    r = await cliente.put("/api/alertas/configuracion/TECNICO_DESVIO_RUTA", headers=await auth(AP),
+                          json={"umbral_valor": "500", "parametros": {}, "canales": ["app"],
                                 "destinatarios_roles": ["despachador"], "activa": True})
     assert r.status_code == 422 and r.json()["codigo"] == "ALERTA_FASE_2"
     # Configurarla inactiva sí se permite (queda etiquetada en la pantalla).
-    r = await cliente.put("/api/alertas/configuracion/TECNICO_TIEMPO_MUERTO", headers=await auth(AP),
-                          json={"umbral_valor": "20", "parametros": {}, "canales": ["app"],
+    r = await cliente.put("/api/alertas/configuracion/TECNICO_DESVIO_RUTA", headers=await auth(AP),
+                          json={"umbral_valor": "500", "parametros": {}, "canales": ["app"],
                                 "destinatarios_roles": ["despachador"], "activa": False})
     assert r.status_code == 200 and r.json()["activa"] is False
 

@@ -2,8 +2,9 @@
 
 Tres perfiles, con el peso con que el diseño describe la jornada:
 
-  TecnicoCampo    50 usuarios · sincroniza catálogos incrementales, lee sus folios, abre el detalle y manda su cola
-                  offline (§6.2 capa 3, §6.8.6). Es el perfil que define el requisito de §6.7.
+  TecnicoCampo    50 usuarios · abre jornada, manda su posición GPS, sincroniza catálogos incrementales, lee sus
+                  folios, abre el detalle y manda su cola offline (§6.2 capa 3, §6.8.4, §6.8.6). Es el perfil que
+                  define el requisito de §6.7; desde F2-03 incluye las 100 posiciones por minuto de §6.8.4.
   UsuarioOficina  20 usuarios · listados con filtros, detalle de folio, minuta del día, tablero y SLA del contrato.
   OperadorCaptura  1 usuario  · captura de folios nuevos, la escritura más costosa (dispara clasificación,
                   severidad, SLA y alertas).
@@ -90,7 +91,40 @@ class TecnicoCampo(BaseAcma):
         self.desde: str | None = None
         self.folios: list[str] = []
         self.chats: list[str] = []
+        # Un punto de partida distinto por técnico, alrededor de la Ciudad de México.
+        self.lat = 19.40 + random.uniform(-0.08, 0.08)
+        self.lng = -99.15 + random.uniform(-0.08, 0.08)
         super().on_start()
+        # F2-03: sin jornada abierta el servidor no acepta posiciones (§6.8.4).
+        with self.client.post("/api/operacion/jornada/iniciar",
+                              json={"dispositivo_id": self.dispositivo, "acepta_aviso": True},
+                              name="POST /api/operacion/jornada/iniciar", catch_response=True) as r:
+            if r.status_code and r.status_code >= 500:
+                r.failure(f"{r.status_code}: {r.text[:200]}")
+
+    def on_stop(self) -> None:
+        self.client.post("/api/operacion/jornada/cerrar", name="POST /api/operacion/jornada/cerrar")
+
+    @task(10)
+    def mandar_posicion(self) -> None:
+        """La escritura más frecuente de la jornada: 50 técnicos cada 30 s son 100 posiciones por minuto (§6.8.4)."""
+        self.lat += random.uniform(-0.0012, 0.0012)
+        self.lng += random.uniform(-0.0012, 0.0012)
+        cuerpo = {"posiciones": [{
+            "lat": round(self.lat, 6), "lng": round(self.lng, 6),
+            "capturada_at": datetime.now(UTC).isoformat(),
+            "precision_m": round(random.uniform(5, 25), 1),
+            "velocidad_mps": round(random.uniform(0, 14), 2),
+            "rumbo": round(random.uniform(0, 359), 1),
+            "bateria_pct": random.randint(20, 100),
+        }]}
+        with self.client.post("/api/operacion/posiciones", json=cuerpo, name="POST /api/operacion/posiciones",
+                              catch_response=True) as r:
+            # Un 409 es legítimo si la jornada se cerró sola; un 5xx no.
+            if r.status_code and r.status_code >= 500:
+                r.failure(f"{r.status_code}: {r.text[:200]}")
+            elif r.status_code == 409:
+                r.success()
 
     @task(5)
     def sincronizar(self) -> None:

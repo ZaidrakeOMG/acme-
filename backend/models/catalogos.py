@@ -4,11 +4,13 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
+from geoalchemy2 import Geography
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base, ConVersion, pg_enum
+from models.operaciones import EstatusOperativo  # F2-03: el estatus operativo vive en la ficha del técnico
 
 
 class EstadoActivo(str, enum.Enum):
@@ -57,6 +59,15 @@ class Tecnico(ConVersion, Base):
     vehiculo_placas: Mapped[str | None] = mapped_column(String(20))
     estado: Mapped[EstadoActivo] = mapped_column(pg_enum(EstadoActivo, "estado_activo"), default=EstadoActivo.activo)
     fecha_ingreso: Mapped[date | None] = mapped_column(Date)
+    # F2-03 (§6.8.4): última posición conocida y estatus operativo, lo que el tablero dibuja en el mapa. El
+    # historial vive en `tecnico_posiciones`; aquí solo está la última, para no consultar la partición del día.
+    ultima_posicion = mapped_column(Geography(geometry_type="POINT", srid=4326, spatial_index=False), nullable=True)
+    ultima_posicion_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ultima_precision_m: Mapped[Decimal | None] = mapped_column(Numeric(7, 1))
+    ultima_bateria_pct: Mapped[int | None] = mapped_column(SmallInteger)
+    estatus_operativo: Mapped[EstatusOperativo] = mapped_column(
+        pg_enum(EstatusOperativo, "estatus_operativo_tecnico"), default=EstatusOperativo.fuera_de_jornada)
+    estatus_operativo_desde: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class TecnicoHabilidad(ConVersion, Base):

@@ -150,7 +150,7 @@ def recalcular_capacitacion() -> dict:
 
 # Evaluadores de alertas por módulo y tareas de otros módulos (se registran al importar).
 from workers import (  # noqa: E402,F401
-    evaluadores, evaluadores_capacitacion, evaluadores_inventario, evaluadores_seguimiento, evaluadores_sla,
-    evaluadores_te,
+    evaluadores, evaluadores_capacitacion, evaluadores_inventario, evaluadores_operacion, evaluadores_seguimiento,
+    evaluadores_sla, evaluadores_te,
 )
-from workers.tareas import costos, mensajeria, minuta, notificaciones, preventivos  # noqa: E402,F401
+from workers.tareas import costos, mensajeria, minuta, notificaciones, operacion, preventivos  # noqa: E402,F401

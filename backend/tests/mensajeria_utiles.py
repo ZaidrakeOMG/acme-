@@ -158,6 +158,26 @@ async def ultimo_envio(email: str | None = None, canal: str | None = None):
                 "critico": e.critico, "error": e.codigo_error, "evento": e.evento}
 
 
+async def envio_de_minuta(minuta_id, canal: str = "whatsapp") -> dict | None:
+    """El envio de **esa** minuta: la bitacora guarda los de minutas anteriores y el orden de los archivos de
+    pruebas no debe decidir cual se lee."""
+    from models.mensajeria import CanalMensajeria, MensajeriaEnvio
+    from models.minutas import Notificacion
+
+    async with nueva_sesion(CONTEXTO_SISTEMA) as db:
+        fila = (await db.execute(
+            select(MensajeriaEnvio).join(Notificacion, Notificacion.id == MensajeriaEnvio.notificacion_id)
+            .where(MensajeriaEnvio.canal == CanalMensajeria(canal),
+                   Notificacion.cuerpo_json["datos"]["minuta_id"].astext == str(minuta_id))
+            .order_by(MensajeriaEnvio.created_at.desc()).limit(1))).scalar_one_or_none()
+        if fila is None:
+            return None
+        return {"id": fila.id, "canal": fila.canal.value, "estado": fila.estado.value,
+                "cuerpo": fila.cuerpo_renderizado, "plantilla": fila.plantilla_clave,
+                "codigo_enlace": fila.codigo_enlace, "destino": fila.enlace_destino,
+                "evento": fila.evento, "usuario_id": fila.usuario_id, "mascara": fila.telefono_mascara}
+
+
 async def telefono_en_claro(email: str) -> str | None:
     """Solo para las pruebas: descifra el número para programar fallas del proveedor simulado por destinatario."""
     from models.usuarios import Usuario

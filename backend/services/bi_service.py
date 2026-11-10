@@ -397,7 +397,8 @@ async def alertas_abiertas(db: AsyncSession, f: Filtro) -> int:
 
 
 async def jornada(db: AsyncSession, f: Filtro) -> dict[str, Any]:
-    """Indicadores globales de jornada de §6.8.4, sin mapa (Fase 2): se montan sobre el listado de folios del despachador."""
+    """Indicadores globales de jornada de §6.8.4: se montan sobre el listado de folios del despachador. Desde F2-03
+    los muestra también la pantalla de operaciones en tiempo real, junto al mapa en vivo."""
     hoy = date.today()
     dia = Filtro(hoy, hoy, f.tenant_id, f.prestador_id)
     consulta = await _acotar(db, select(Folio).where(Folio.capturado_at >= dia.inicio, Folio.capturado_at < dia.fin), dia)
@@ -412,7 +413,8 @@ async def jornada(db: AsyncSession, f: Filtro) -> dict[str, Any]:
             "tecnicos_activos": int((await db.execute(activos)).scalar_one() or 0),
             "alertas_abiertas": await alertas_abiertas(db, dia),
             "tiempo_promedio_atencion_horas": str(Decimal(sum(horas) / len(horas)).quantize(CENTAVO)) if horas else "0.00",
-            "aviso_fase_2": "El mapa en vivo, el GPS y los desvíos de ruta llegan en Fase 2"}
+            # F2-03 trajo el mapa en vivo y el GPS; lo que sigue esperando es el bloque de rutas.
+            "aviso_fase_2": "El desvío de ruta y el ETA por tráfico llegan con el bloque de optimización de rutas (Fase 2)"}
 
 
 # ------------------------------------------------------- jerarquía §6.8.5

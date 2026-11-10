@@ -95,8 +95,12 @@ async def test_evaluar_alertas_registra_en_historial(datos):
         resumen = await tareas.evaluar_alertas_async()
     finally:
         tareas.EVALUADORES.pop(clave)
-    # 59 alertas − 51 evaluadores (50 reales + el falso). Los reales pueden disparar según la fecha (p. ej. CALENDARIO_MES_SIN_PUBLICAR a partir del día 25).
-    # Las de Fase 2 (GPS y medidores) y las informativas siguen sin evaluador; CERTIFICACION_VENCIDA ya tiene
+    # Alertas del catálogo menos las que tienen evaluador (los reales más el falso de esta prueba). Los reales
+    # pueden disparar según la fecha (p. ej. CALENDARIO_MES_SIN_PUBLICAR a partir del día 25). F2-02 agregó dos
+    # alertas sin evaluador (las de mensajería, que se disparan en el momento del envío) y F2-03 agregó dos
+    # evaluadores para alertas que ya existían, así que la cuenta vuelve a ser la misma.
+    # Las de Fase 2 (desvío de ruta y medidores) y las informativas siguen sin evaluador; desde F2-03 el tiempo
+    # muerto y «sin señal» sí lo tienen, y CERTIFICACION_VENCIDA ya tiene
     # el suyo desde F2-01, y la alerta informativa que agrego no lleva evaluador: la cuenta no cambia.
     assert resumen["disparadas"] >= 1 and resumen["sin_evaluador"] == 8
     async with nueva_sesion(CONTEXTO_SISTEMA) as db:

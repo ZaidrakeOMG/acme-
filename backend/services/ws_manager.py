@@ -1,6 +1,11 @@
-"""Tiempo real del chat (§6.8.1): un canal por chat. Las conexiones WebSocket/SSE de este proceso se registran en colas
-locales; la publicación pasa por Redis pub/sub para que funcione con más de un proceso de API. Si Redis no está
-disponible (o TIEMPO_REAL_MODO=local, como en pruebas) se reparte solo en el proceso."""
+"""Tiempo real (§6.8.1 chat, §6.8.4 operaciones): un canal por tema. Las conexiones WebSocket/SSE de este proceso
+se registran en colas locales; la publicación pasa por Redis pub/sub para que funcione con más de un proceso de API.
+Si Redis no está disponible (o TIEMPO_REAL_MODO=local, como en pruebas) se reparte solo en el proceso.
+
+El canal es una cadena con su tema por delante: `chat:{id}` para el chat de un folio y `operacion:{prestador}` para
+el tablero de operaciones, que es por prestador para que las posiciones de un prestador no lleguen al tablero de
+otro (§6.9.5). F2-03 generalizó lo que P05 tenía escrito solo para el chat; `suscribir()` y `publicar()` siguen
+recibiendo el id del chat para no tocar el código de P05."""
 import asyncio
 import contextlib
 import json
@@ -46,49 +51,60 @@ class GestorTiempoReal:
                 await asyncio.sleep(1)
                 continue
             if mensaje and mensaje.get("type") == "message":
-                canal = str(mensaje["channel"]).split(":", 1)[1]
                 with contextlib.suppress(Exception):
-                    self._repartir_local(canal, json.loads(mensaje["data"]))
+                    self._repartir_local(str(mensaje["channel"]), json.loads(mensaje["data"]))
             await asyncio.sleep(0)
 
     # --------------------------------------------------------- suscripción
-    async def suscribir(self, chat_id: str) -> asyncio.Queue:
+    async def suscribir_canal(self, canal: str) -> asyncio.Queue:
         cola: asyncio.Queue = asyncio.Queue(maxsize=500)
-        self._locales.setdefault(chat_id, set()).add(cola)
+        self._locales.setdefault(canal, set()).add(cola)
         redis_cliente = await self._conectar()
-        if redis_cliente is not None and chat_id not in self._canales:
-            self._canales.add(chat_id)
-            await self._pubsub.subscribe(f"chat:{chat_id}")
+        if redis_cliente is not None and canal not in self._canales:
+            self._canales.add(canal)
+            await self._pubsub.subscribe(canal)
         return cola
 
-    async def desuscribir(self, chat_id: str, cola: asyncio.Queue) -> None:
-        colas = self._locales.get(chat_id)
+    async def desuscribir_canal(self, canal: str, cola: asyncio.Queue) -> None:
+        colas = self._locales.get(canal)
         if colas:
             colas.discard(cola)
             if not colas:
-                self._locales.pop(chat_id, None)
-                if self._pubsub is not None and chat_id in self._canales:
-                    self._canales.discard(chat_id)
+                self._locales.pop(canal, None)
+                if self._pubsub is not None and canal in self._canales:
+                    self._canales.discard(canal)
                     with contextlib.suppress(Exception):
-                        await self._pubsub.unsubscribe(f"chat:{chat_id}")
+                        await self._pubsub.unsubscribe(canal)
 
-    def _repartir_local(self, chat_id: str, evento: dict[str, Any]) -> None:
-        for cola in list(self._locales.get(chat_id, ())):
+    async def suscribir(self, chat_id: str) -> asyncio.Queue:
+        return await self.suscribir_canal(f"chat:{chat_id}")
+
+    async def desuscribir(self, chat_id: str, cola: asyncio.Queue) -> None:
+        await self.desuscribir_canal(f"chat:{chat_id}", cola)
+
+    def _repartir_local(self, canal: str, evento: dict[str, Any]) -> None:
+        for cola in list(self._locales.get(canal, ())):
             with contextlib.suppress(asyncio.QueueFull):
                 cola.put_nowait(evento)
 
-    async def publicar(self, chat_id: str, evento: dict[str, Any]) -> None:
+    async def publicar_canal(self, canal: str, evento: dict[str, Any]) -> None:
         redis_cliente = await self._conectar()
         if redis_cliente is not None:
             try:
-                await redis_cliente.publish(f"chat:{chat_id}", json.dumps(evento, default=str))
+                await redis_cliente.publish(canal, json.dumps(evento, default=str))
                 return  # el proceso lo recibe por su propia suscripción
             except Exception as e:
                 log.warning("Publicación en Redis falló (%s); reparto local", e)
-        self._repartir_local(chat_id, evento)
+        self._repartir_local(canal, evento)
+
+    async def publicar(self, chat_id: str, evento: dict[str, Any]) -> None:
+        await self.publicar_canal(f"chat:{chat_id}", evento)
 
     def conexiones(self, chat_id: str) -> int:
-        return len(self._locales.get(chat_id, ()))
+        return len(self._locales.get(f"chat:{chat_id}", ()))
+
+    def conexiones_canal(self, canal: str) -> int:
+        return len(self._locales.get(canal, ()))
 
 
 gestor = GestorTiempoReal()

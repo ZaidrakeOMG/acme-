@@ -34,8 +34,11 @@ TELEFONOS = [
     ("despachador@acma.dev", "+521555010003", ["app", "push", "whatsapp", "sms"]),
     ("tecnico1@acma.dev", "+521555010004", ["app", "push", "sms"]),
 ]
-# Eventos a los que se les aplica la preferencia con canales de mensajería (los demás siguen como estaban).
-EVENTOS_CON_MENSAJERIA = ["minuta.enviada", "folio.estado", "aprobacion.pendiente"]
+# Solo la minuta trae la preferencia ya puesta, y solo para quien la recibe: es lo que §7.5 pide ver funcionando.
+# Los demás eventos se activan desde la pantalla de Notificaciones, usuario por usuario; ponerlos aquí llenaría de
+# mensajes la base demo y cambiaría lo que afirman las pruebas de otros prompts.
+EVENTOS_CON_MENSAJERIA = ["minuta.enviada"]
+CON_PREFERENCIA_DE_MINUTA = {"admin.empresa@acma.dev", "admin.un@acma.dev"}
 
 # (evento, plantilla, canal, estado, días de antigüedad)
 EJEMPLOS = [
@@ -132,6 +135,8 @@ async def sembrar_mensajeria(db) -> bool:
             if canal in canales:
                 telefonos.fijar_consentimiento(usuario, canal, True)
         usuarios[correo] = usuario
+        if correo not in CON_PREFERENCIA_DE_MINUTA:
+            continue
         for evento in EVENTOS_CON_MENSAJERIA:
             fila = (await db.execute(select(NotificacionPreferencia).where(
                 NotificacionPreferencia.usuario_id == usuario.id,

@@ -1,4 +1,4 @@
-"""Notificaciones multicanal (§6.1, P07): notificar() por preferencia y evento, canales Fase 2 omitidos, bandeja y no leídas,
+"""Notificaciones multicanal (§6.1, P07): notificar() por preferencia y evento, bandeja y no leídas,
 correo en modo stub (.eml en el almacenamiento) y por SMTP contra un servidor local (aiosmtpd)."""
 import asyncio
 import threading
@@ -16,14 +16,18 @@ async def test_preferencias_canales_y_bandeja(cliente, auth, datos):
     h = await auth(DES)
     eventos = (await cliente.get("/api/notificaciones/eventos", headers=h)).json()
     assert {e["clave"] for e in eventos["eventos"]} >= {"minuta.enviada", "cotizacion.solicitada", "aprobacion.pendiente"}
-    assert [c["clave"] for c in eventos["canales"] if c["fase"] == 2] == ["whatsapp", "sms"]
+    # F2-02: whatsapp y sms ya son canales normales; lo que los distingue es que exigen teléfono verificado.
+    assert [c["clave"] for c in eventos["canales"] if c.get("requiere_telefono")] == ["whatsapp", "sms"]
+    assert all(c["disponible"] for c in eventos["canales"] if not c.get("requiere_telefono"))
     r = await cliente.put("/api/notificaciones/preferencias", headers=h, json={"evento": "no.existe", "canales": ["app"]})
     assert r.status_code == 422 and r.json()["codigo"] == "EVENTO_DESCONOCIDO"
     r = await cliente.put("/api/notificaciones/preferencias", headers=h, json={"evento": "cotizacion.solicitada", "canales": ["app", "whatsapp", "sms"]})
     assert r.status_code == 200 and r.json()["canales"] == ["app", "whatsapp", "sms"]
     assert any(p["evento"] == "cotizacion.solicitada" for p in (await cliente.get("/api/notificaciones/preferencias", headers=h)).json())
     antes = (await cliente.get("/api/notificaciones/no-leidas", headers=h)).json()["no_leidas"]
-    # El Admin UN solicita una cotización: Mesa de control, Despachador y Admin prestador la reciben; para el despachador whatsapp/sms quedan omitidas.
+    # El Admin UN solicita una cotización: Mesa de control, Despachador y Admin prestador la reciben. El
+    # despachador del demo tiene teléfono verificado y consentimiento (F2-02), así que también le sale por
+    # WhatsApp y por SMS, con el proveedor simulado.
     c = await crear_registro(cliente, auth, "cotizaciones", datos, AUN, descripcion="Cotizar cambio de compresor")
     for email in (DES, MC, AP):
         nuevas = [n for n in await bandeja(cliente, auth, email, solo_no_leidas=True) if n["datos"].get("cotizacion_id") == c["id"]]
@@ -39,7 +43,10 @@ async def test_preferencias_canales_y_bandeja(cliente, auth, datos):
         filas = (await db.execute(select(Notificacion).where(Notificacion.evento == "cotizacion.solicitada", Notificacion.cuerpo_json["datos"]["cotizacion_id"].astext == c["id"]))).scalars().all()
     por_canal = {(str(n.usuario_id), n.canal.value): (n.estado.value, n.proveedor_respuesta) for n in filas}
     desp = (await cliente.get("/api/usuarios", headers=await auth(AP), params={"rol": "despachador"})).json()[0]["id"]
-    assert por_canal[(desp, "app")][0] == "enviada" and por_canal[(desp, "whatsapp")] == ("omitida", "canal Fase 2") and por_canal[(desp, "sms")] == ("omitida", "canal Fase 2")
+    assert por_canal[(desp, "app")][0] == "enviada"
+    for canal in ("whatsapp", "sms"):
+        estado, detalle = por_canal[(desp, canal)]
+        assert estado == "enviada" and detalle.startswith("stub:"), (canal, estado, detalle)
     assert (desp, "email") not in por_canal  # la preferencia excluyó el correo
     # Marcar leídas: por id y todas.
     ids = [n["id"] for n in await bandeja(cliente, auth, DES, solo_no_leidas=True)][:1]

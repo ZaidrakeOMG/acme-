@@ -7,8 +7,8 @@ from sqlalchemy import select
 
 from core.db import nueva_sesion
 from core.rls import CONTEXTO_SISTEMA
-from tests.folios_utiles import AP, AUN
-from tests.mensajeria_utiles import limpiar_stub, ultimo_envio
+from tests.folios_utiles import AP
+from tests.mensajeria_utiles import envio_de_minuta, limpiar_stub
 from tests.seguimiento_utiles import configurar_minuta, folio_con_hallazgo, generar_minuta, limpiar_minutas_hoy
 
 
@@ -22,7 +22,7 @@ async def test_la_minuta_llega_por_whatsapp_con_maximo_cinco_puntos_y_enlace_al_
     minutas = await generar_minuta(cliente, auth, datos)
     minuta = next(m for m in minutas if m["tipo"] == "un" and m["un_id"] == folio["un_id"])
 
-    envio = await ultimo_envio(AUN, "whatsapp")
+    envio = await envio_de_minuta(minuta["id"])
     assert envio is not None and envio["plantilla"] == "minuta_disponible", envio
     assert envio["estado"] == "enviado" and envio["evento"] == "minuta.enviada"
     assert "Minuta del" in envio["cuerpo"] and "{{" not in envio["cuerpo"]
@@ -47,9 +47,12 @@ async def test_el_enlace_corto_resuelve_el_destino_y_registra_el_clic(cliente, a
     limpiar_stub()
     await limpiar_minutas_hoy(datos["tenant"])
     await configurar_minuta(cliente, auth, datos, modo="automatica")
-    await folio_con_hallazgo(cliente, auth, datos, "Compresor con ruido anormal y vibración", "alta")
-    await generar_minuta(cliente, auth, datos)
-    envio = await ultimo_envio(AUN, "whatsapp")
+    folio, _ = await folio_con_hallazgo(cliente, auth, datos, "Compresor con ruido anormal y vibración", "alta")
+    minutas = await generar_minuta(cliente, auth, datos)
+    # La del Admin UN del folio: `generar_minuta` puede devolver varias UN si el día tuvo actividad en otras.
+    minuta = next(m for m in minutas if m["tipo"] == "un" and m["un_id"] == folio["un_id"])
+    envio = await envio_de_minuta(minuta["id"])
+    assert envio is not None, "la minuta del Admin UN sale tambien por WhatsApp"
     codigo = envio["codigo_enlace"]
     assert codigo and len(codigo) <= 16
 

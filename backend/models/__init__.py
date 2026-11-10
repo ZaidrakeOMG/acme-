@@ -68,6 +68,10 @@ from models.capacitacion import (  # F2-01
     BibliotecaManual, BibliotecaVersion, CapacitacionAlertasConfig, CategoriaManual, ContenidoServicio,
     CursoCatalogo, EstadoCursoTecnico, TecnicoCurso, TecnicoDescargaOffline, TipoCurso,
 )
+from models.operaciones import (  # F2-03
+    AlertaOperacionSeguimiento, CerradaPorJornada, EstadoJornada, EstatusOperativo, JornadaPausa, JornadaTecnico,
+    MotivoPausaJornada, RespuestaAlertaTecnico, TecnicoPosicion,
+)
 from models.mensajeria import (  # F2-02
     CanalMensajeria, CategoriaPlantilla, EstadoAprobacionPlantilla, EstadoEnvioMensajeria, MensajeriaConfiguracion,
     MensajeriaEnvio, MensajeriaPlantilla, MensajeriaRespuesta, ProveedorMensajeria,
@@ -116,4 +120,6 @@ __all__ = [
     "CursoCatalogo", "EstadoCursoTecnico", "TecnicoCurso", "TecnicoDescargaOffline", "TipoCurso",
     "CanalMensajeria", "CategoriaPlantilla", "EstadoAprobacionPlantilla", "EstadoEnvioMensajeria",
     "MensajeriaConfiguracion", "MensajeriaEnvio", "MensajeriaPlantilla", "MensajeriaRespuesta", "ProveedorMensajeria",
+    "AlertaOperacionSeguimiento", "CerradaPorJornada", "EstadoJornada", "EstatusOperativo", "JornadaPausa",
+    "JornadaTecnico", "MotivoPausaJornada", "RespuestaAlertaTecnico", "TecnicoPosicion",
 ]

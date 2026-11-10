@@ -51,12 +51,23 @@ cd backend && .venv/Scripts/python -m locust -f pruebas_carga/locustfile.py --ho
 
 | Perfil | Peso | Qué ejercita |
 |---|---|---|
-| `TecnicoCampo` | 50 | `GET /api/sync/catalogos` incremental, sus folios, detalle e historial, canales del folio y `POST /api/sync/mutaciones` con su cola offline |
+| `TecnicoCampo` | 50 | **`POST /api/operacion/posiciones`** (la escritura más frecuente de la jornada, F2-03), `GET /api/sync/catalogos` incremental, sus folios, detalle e historial, canales del folio y `POST /api/sync/mutaciones` con su cola offline |
 | `UsuarioOficina` | 20 | listados con filtros, detalle de folio con su contador de SLA, tablero, jornada, minuta del día, cumplimiento del contrato y seguimiento |
 | `OperadorCaptura` | 1 | `POST /api/folios`, la escritura más costosa: dispara clasificación, severidad, SLA y alertas |
 
 Cada usuario simulado toma un correo distinto de la lista y conserva el token de acceso en memoria, igual que la app
 después de P11a (el refresh vive en una cookie `httpOnly` y la carga no necesita renovarlo en corridas de minutos).
+
+## Posiciones GPS (F2-03)
+
+Cada `TecnicoCampo` **abre su jornada** al empezar (`POST /api/operacion/jornada/iniciar`) y la cierra al terminar,
+porque sin jornada el servidor no acepta posiciones (§6.8.4). La tarea `mandar_posicion` tiene peso 10 de 24, así
+que con `wait_time = between(1, 4)` los 50 técnicos mandan del orden de **8 posiciones por segundo** (unas 500 por
+minuto): cinco veces el requisito de §6.8.4, que son 100 por minuto (50 técnicos cada 30 s). El resultado medido
+está en [`docs/rendimiento/resultados.md`](../../docs/rendimiento/resultados.md).
+
+Si una jornada se cierra sola durante la corrida (el cierre automático son 2 h sin actividad, así que no debería
+pasar), el envío responde 409 y el guion lo cuenta como respuesta correcta, no como falla.
 
 ## Notas
 

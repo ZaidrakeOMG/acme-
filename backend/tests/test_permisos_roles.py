@@ -232,8 +232,10 @@ async def test_catalogo_tiene_los_20_tipos_mas_los_de_cada_modulo(cliente, auth)
     # 20 del diseño + MATRIZ_SEVERIDAD_INCOMPLETA (P02) + GEOLOCALIZACION_FUERA_DE_UN (P03) + 3 de P04 + 3 de P06
     # + 14 de P07 + 7 de P08 + 6 de P09 − 2 conciliadas en P10 (PRESUPUESTO_UMBRAL_ALCANZADO y PRESUPUESTO_EXCEDIDO
     # pasaron a PRESUPUESTO_ALERTA_1/3) + 6 de P10 + 1 de F2-01
-    # (CERTIFICACION_VENCIDA_HABILIDAD_RETIRADA; CERTIFICACION_VENCIDA ya existia desde P01).
-    assert len(catalogo) == 60
+    # (CERTIFICACION_VENCIDA_HABILIDAD_RETIRADA; CERTIFICACION_VENCIDA ya existia desde P01)
+    # + 2 de F2-02 (MENSAJERIA_CONSUMO_ALTO y MENSAJERIA_PLANTILLA_RECHAZADA). F2-03 no agrego claves: activo dos
+    # que ya existian desde P01 (TECNICO_TIEMPO_MUERTO y TECNICO_SIN_SENAL).
+    assert len(catalogo) == 62
     assert {"SLA_RESPUESTA_EN_RIESGO", "COTIZACION_ESCALADA_DIRECCION", "TECNICO_SIN_SENAL"} <= {a["clave"] for a in catalogo}
 
 

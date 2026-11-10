@@ -147,6 +147,9 @@ async def sembrar(db) -> bool:
     await db.flush()
     from scripts.seed_mensajeria import sembrar_mensajeria  # F2-02
     await sembrar_mensajeria(db)
+    await db.flush()
+    from scripts.seed_operacion import sembrar_operacion  # F2-03
+    await sembrar_operacion(db)
     await db.commit()
     return True
 
