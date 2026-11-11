@@ -6,7 +6,7 @@ funciona hoy con la opción marcada.** Esta lista es para que alguien del negoci
 Cómo leerla: cada punto trae **la pregunta**, **lo que ACMA hace hoy** y **qué cambia si responde distinto**. No hace
 falta saber nada técnico. Lo que no se cambie se queda como está.
 
-Hay 37 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
+Hay 42 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
 y a lo que se le cobra o se le descuenta al prestador.
 
 ---
@@ -353,6 +353,57 @@ folio (los mismos 150 m de la llegada), y quien tenga folio en ejecución pero e
 **en ruta**. Es un cambio chico y no toca la base de datos; lo que cambia es el conteo del tablero y el tiempo que
 se le atribuye a cada estatus, así que conviene decidirlo antes de que esos números se empiecen a comparar entre
 meses.
+
+## Medidores y mantenimiento por uso
+
+### 38. Una lectura rara, ¿se rechaza o se manda a revisión?
+
+**Hoy:** va a **revisión**. Si el número que capturan es menor que el anterior, o si saltó más de tres veces lo que
+el equipo usa al día, la lectura queda en una bandeja y **no mueve el medidor ni dispara mantenimientos** hasta que
+el Despachador o el Admin prestador la apruebe o la rechace con razón. La única que se rechaza de entrada es la que
+trae fecha futura, porque eso siempre es un error de captura.
+
+**Por qué así:** una lectura que retrocede suele ser real —el marcador dio la vuelta o cambiaron el medidor— y eso
+lo sabe la persona, no el sistema. Rechazarla de entrada obligaría a volver a capturarla.
+
+**Si responde distinto:** se pueden rechazar automáticamente, y entonces el operador tendría que corregir en el
+momento, pero se pierde el rastro de lo que se intentó capturar. El múltiplo (tres veces) se configura por tipo de
+medidor y se puede subir o bajar sin tocar nada.
+
+### 39. ¿Cada cuántos días sin lectura hay que avisar?
+
+**Hoy:** **30 días**. Un medidor que no se estima y lleva más de un mes sin lectura avisa al Despachador y al Admin
+prestador, porque mientras eso pasa los mantenimientos por uso de ese equipo están ciegos: nadie sabe si ya tocaba.
+
+**Si responde distinto:** es un umbral configurable por cliente y por prestador, como el resto de las alertas. En
+equipos de uso intenso puede convenir una semana.
+
+### 40. El mantenimiento por un valor del medidor, ¿se repite?
+
+**Hoy:** **no**. «Cambio de aceite a las 500 horas» es un hito: se atiende una vez y no vuelve a pedirse, por más
+horas que acumule el equipo. Lo que se repite es el otro tipo, «cada 10,000 ciclos», que se cuenta desde el último
+mantenimiento.
+
+**Si responde distinto:** nada: si lo que querían era que se repitiera, el plan se configura con el tipo «cada N
+unidades» y queda resuelto. Esta nota está aquí para que no se configure un hito esperando un ciclo.
+
+### 41. Cuando el técnico no pudo leer el marcador, ¿qué valor queda como «último mantenimiento»?
+
+**Hoy:** la **última lectura válida** del medidor. Al cerrar un preventivo, ACMA busca primero la lectura que se
+registró en ese folio; si el técnico no pudo leer el marcador, usa la última que haya. Si nunca hubo lectura, no
+mueve nada y el plan sigue esperando la primera.
+
+**Si responde distinto:** se puede exigir la lectura dentro del folio para poder cerrarlo. Es más estricto y más
+exacto, pero deja al técnico sin poder cerrar cuando el marcador está inaccesible o dañado.
+
+### 42. ¿La llave de API del cliente la administra el cliente o el prestador?
+
+**Hoy:** el **Admin empresa** del cliente (y el Superadmin). Es la llave con la que el SCADA o el ERP del cliente
+manda lecturas a ACMA; solo sirve para eso, vive atada a ese cliente y se puede revocar en cualquier momento.
+
+**Si responde distinto:** se le puede dar también al Admin prestador, que es quien suele hacer la integración
+técnica. La contra es que entonces el prestador puede emitir llaves sobre los datos del cliente sin que el cliente
+lo autorice.
 
 ## Dos cosas que no son preguntas de negocio pero hay que decidir antes de publicar
 

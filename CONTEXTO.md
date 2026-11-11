@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-11-06 · Paso 0 Estabilidad del entorno (límites de WSL) antes de la segunda etapa**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-11-11 · F2-04 Medidores de activos y planes de mantenimiento por uso**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -28,6 +28,31 @@
 | F2-01 | Capacitación y certificaciones del personal, biblioteca de manuales con versiones y contenido de servicio contractual, con descarga para uso sin señal | ✅ 2026-11-07 |
 | F2-02 | Notificaciones por WhatsApp y SMS: plantillas aprobables por Meta, consentimiento del destinatario, horario de silencio, tope de gasto, enlace corto propio y minuta por WhatsApp | ✅ 2026-11-10 |
 | F2-03 | Pantalla de operaciones en tiempo real: jornada del técnico con GPS, mapa en vivo con OpenStreetMap, estatus automático, geocerca de llegada, tiempo muerto y sin señal | ✅ 2026-11-10 |
+| F2-04 | Medidores de activos y planes de mantenimiento por uso: los seis tipos de medidor, lecturas por los cuatro métodos, los cuatro triggers que faltaban, depreciación por unidades producidas y llaves de API para recibir lecturas | ✅ 2026-11-11 |
+
+## Verificación al cierre de F2-04
+
+- Migración `0016_medidores_planes_uso.py` aplicada (subida, bajada y subida), con las cuatro tablas literales de
+  §6.9.2 más `medidor_cambios`, `eventos_trigger_catalogo` y `llaves_api_tenant`; RLS forzada en las seis que
+  tienen dueño y `medidor_lecturas` sin privilegio DELETE para `acma_api`.
+- **588 pytest** en verde **con los servidores de desarrollo apagados** (28:45), más 1 saltado a propósito. 45
+  pruebas nuevas de F2-04 en `test_medidores.py`, `test_medidor_lecturas.py`, `test_triggers_medidor.py`,
+  `test_trigger_evento.py`, `test_trigger_combinado.py`, `test_depreciacion_unidades.py`,
+  `test_lecturas_api_llave.py` y una del importador.
+- Las dos pruebas guardián de P11a hicieron su trabajo: `test_acceso_cruzado` pidió declarar de dónde sacar un
+  `medidor_id` real (y ahora barre `GET /api/medidores/{medidor_id}/cambios` con usuarios de otro cliente y de otro
+  prestador) y `test_permisos_roles` acusó el catálogo de alertas de 62 a 64.
+- **137 vitest** (6 nuevos en `medidores.test.tsx`), `tsc --noEmit` y `npm run build` en verde.
+- Pruebas de otros prompts que cambiaron porque F2-04 cambia lo que afirmaban: los cuatro triggers ya no responden
+  403 `TRIGGER_FASE_2` (ahora se validan sus parámetros), `MEDIDOR_PROXIMO_PM` salió de la lista de alertas de Fase 2
+  (solo queda `TECNICO_DESVIO_RUTA`), el método «unidades de producción» dejó de avisar `REQUIERE_MEDIDORES_FASE_2`
+  y calcula, el importador pasó de 11 a 12 catálogos, el catálogo de alertas creció de 62 a 64 claves, el seed
+  agregó una familia global («Equipos industriales») y seis equipos en la primera UN, y el editor de planes dejó de
+  tener triggers deshabilitados.
+- **Tres cambios de comportamiento de P06** que salieron de este bloque, los tres documentados arriba: la
+  generación nocturna ahora respeta el candado «no hay folio abierto de este plan en este equipo», pinta el origen
+  real del folio (`medidor` / `evento`) y recalcula la próxima fecha con la proyección del uso cuando el plan tiene
+  triggers por medidor.
 
 ## Verificación al cierre de F2-03
 
@@ -1083,8 +1108,86 @@ paneles funcionando.
   **pantalla de operaciones**, el **mapa en vivo**, el **GPS del técnico** y las alertas **TECNICO_TIEMPO_MUERTO** y
   **TECNICO_SIN_SEÑAL**. Siguen vigentes las de **desvío de ruta**, **ETA por tráfico** y **optimización de rutas**.
 
+### Medidores y planes por uso (F2-04)
+
+**El acumulado es la cifra que manda.** `equipo_medidores` guarda dos números: `valor_actual` es lo que dice el
+marcador y `valor_acumulado` es lo que el equipo lleva de verdad. El acumulado se calcula
+`acumulado_offset + (valor - ciclo_inicio)`, y un `medidor_cambios` (reinicio del marcador o reemplazo del medidor)
+mueve esas dos columnas, así que **el acumulado nunca retrocede**. Los planes por uso miran siempre el acumulado,
+nunca el marcador; `medidores_service.acumulado_de()` es la única fuente de esa cuenta.
+
+- **Tablas (0016)**: `tipos_medidor` (catálogo; sin dueño = global del Superadmin, con `requiere_foto` y
+  `factor_salto_maximo` por tipo), `equipo_medidores`, `medidor_lecturas`, `medidor_estimaciones`,
+  `medidor_cambios`, `eventos_trigger_catalogo` (catálogo **cerrado**, sembrado en la migración, solo lectura para
+  la app) y `llaves_api_tenant`. Columnas nuevas: `plan_triggers.clave`, `plan_ejecuciones` y
+  `preventivos_calendario` con `plan_trigger_id` y `valor_medidor`, `activo_depreciacion.equipo_medidor_id` y
+  `unidades_al_inicio`, `activo_depreciacion_historial` con las unidades del período. El ENUM `origen_preventivo`
+  gana `medidor` y `evento`.
+- **`medidor_lecturas` es append-only con una excepción**: la medición (valor, método, quién y cuándo) no cambia
+  nunca, pero las anómalas quedan `en_revision` y alguien las resuelve, así que el trigger
+  `acma_medidor_lectura_inmutable()` deja cambiar solo `estado`, `motivo`, `valor_acumulado`, `revisada_por` y
+  `revisada_at` — el patrón de `acma_chat_mensaje_inmutable()` de P05. `acma_api` tampoco tiene privilegio DELETE.
+- **`plan_triggers.clave`** (`t1`, `t2`, …) es la identidad estable de cada condición dentro del plan. Antes una
+  edición borraba y recreaba los triggers y sus id cambiaban; el `combinado` apunta a otros triggers, así que ahora
+  `planes_service._guardar_triggers` hace **upsert por clave** y el id sobrevive. Por dentro se guardan claves
+  (`triggers_claves`); la API acepta y devuelve además `triggers_ids`, que es con lo que trabaja la interfaz.
+- **`services/triggers_service.py`** resuelve los cuatro tipos nuevos con **un solo predicado**, `cumple()`: todos se
+  leen como «desde la última ejecución del plan en este equipo pasó X». Por eso la **evaluación inmediata** (al
+  registrar una lectura válida o al ocurrir un evento) y la **nocturna** dan el mismo resultado y no se duplican:
+  las dos pasan por el mismo candado, `_folio_abierto()`. `medidor_umbral` es un **hito** (no se repite si
+  `equipo_planes.ultimo_valor_medidor` ya lo alcanzó); `medidor_intervalo` se cuenta desde ahí. Una condición que es
+  hija de un `combinado` **no dispara por sí sola** (`claves_hijas()`).
+- **El folio lo crea el sistema**: `_generar()` fija el contexto RLS de sistema dentro de la misma transacción y lo
+  restaura, porque ni el operador que capturó la lectura ni el técnico que cerró el folio pueden escribir `folios`
+  del cliente (RLS de P04). Es el patrón del alta de equipos de P08.
+- **Reinicio del combinado (§6.9.1)**: sale gratis. Al cerrarse el preventivo, P06 mueve `fecha_ultima_ejecucion` y
+  `triggers_service.al_cerrar` mueve `equipo_medidores.valor_ultimo_pm` y `equipo_planes.ultimo_valor_medidor`, que
+  son la referencia de **todos** los triggers del plan.
+- **Validación de lecturas**: menor que la anterior o salto mayor a N× el incremento diario (N por tipo de medidor,
+  default 3) → `en_revision` + `MEDIDOR_LECTURA_ANOMALA`; fecha futura → 422; duplicada (mismo medidor, mismo
+  instante del dispositivo y mismo valor) → se devuelve la que ya existía, que es lo que necesitan la cola sin señal
+  y la importación para reintentar. El incremento diario con el que se proyecta y se miden los saltos sale, en este
+  orden, del promedio **real** medido, de la estimación configurada o del historial (`incremento_diario()`).
+- **Estimación**: `acma.ciclo_medidores` (beat 01:30, antes de la generación de las 02:00) escribe una lectura
+  `estimado` por día de operación; una lectura real posterior marca las estimadas como `rechazada` («corregida
+  por…», no se borran) y recalcula `incremento_real_promedio`, que es el «estimado vs. real» que muestra la ficha.
+- **Entradas de lectura**: el técnico por la bandera `lectura_medidor` del motor de formularios (campo `texto`
+  numérico o `slider`, con foto opcional u obligatoria del marcador; el gancho está en
+  `formularios/servicio.enviar`), el operador por `/api/medidores/operador/equipos` y la cola `registrar_lectura` de
+  P05 (los medidores viajan en el paquete de catálogos), la importación por el catálogo `lecturas_medidor` del
+  importador de P02 y `POST /api/medidores/lecturas/lote` con **llave de API por cliente** (hasheada, revocable, con
+  permiso solo `medidores.lecturas`; la búsqueda de la llave va con contexto de sistema y de ahí en adelante la
+  sesión queda en el contexto del cliente). Formato en
+  [`docs/integracion/lecturas_medidor.md`](docs/integracion/lecturas_medidor.md).
+- **Depreciación por unidades (§6.9.4, ACT-8.3)**: `activos_service.libros_con_unidades` lee del medidor configurado
+  las unidades desde `fecha_inicio` y las del período. Sin medidor elegido avisa `MEDIDOR_NO_CONFIGURADO` y usa el
+  campo manual de P09; sin vida útil en unidades, `SIN_VIDA_UTIL_EN_UNIDADES`.
+- **Alertas**: `MEDIDOR_PROXIMO_PM` pasó a fase 1 con su 10 % literal (se mide contra el intervalo del propio
+  trigger, así que «10 %» significa lo mismo en un plan de 500 h que en uno de 10,000 ciclos) y lleva la fecha
+  estimada; nuevas `MEDIDOR_LECTURA_ANOMALA` y `MEDIDOR_SIN_LECTURA` (30 días). Las tres se disparan con
+  `prestador_id` resuelto por `medidores_service.prestador_responsable`, porque el panel de un usuario del prestador
+  solo muestra las de **su** prestador y la lectura la puede capturar el operador del cliente.
+- **Endpoints**: `/api/medidores` (tipos, medidores por equipo, lecturas con filtros, registro individual, lote,
+  bandeja de revisión, cambios, estimaciones, llaves y la pantalla del operador) y en planes
+  `GET /api/planes/eventos-catalogo` y `GET /api/planes/{id}/simulacion`.
+- **Frontend**: módulo `medidores` (`/medidores`: bandeja, catálogo, llaves), pestaña «Medidores» de la ficha del
+  equipo (`pages/activos/PestanaMedidores.tsx`), `ConstructorTriggers.tsx` (los seis triggers en lenguaje claro, con
+  el combinado y la simulación), `/campo/lectura` del operador y la columna de origen del calendario.
+- **Seed** (`scripts/seed_medidores.py`): los seis tipos globales de §6.9.2, seis equipos industriales (familia
+  «Equipos industriales») con 60 días de lecturas de los cuatro métodos, una anómala en revisión, un reinicio de
+  odómetro, cuatro planes nuevos (uno a punto de dispararse) y la línea de producción depreciándose por unidades.
+- **A tener presente**: el salto se mide contra el promedio **real** en cuanto hay dos lecturas reales, así que la
+  estimación configurada deja de pesar. Es el comportamiento deseado (el uso medido es mejor referencia que el
+  supuesto), pero conviene recordarlo al leer una alerta de anomalía. Las decisiones 38 a 42 esperan validación.
+- **Hoja «Dónde se ve en el sistema» (Excel, no se edita)**: quedan obsoletas las filas que marcan como «Fase 2» los
+  **medidores de activos**, los **planes por medidor, por evento y combinados**, la **depreciación por unidades de
+  producción** y la alerta **MEDIDOR_PROXIMO_PM**. Sigue vigente lo que depende de otros bloques: la **criticidad
+  automática A/B/C/D**, el **FMEA**, el **MTBF/MTTR** y los **adaptadores de ERP** (la importación de lecturas por
+  archivo y por API propia sí existe; lo que no hay es conexión directa a un ERP de terceros).
+
 ### Frontend
-- `src/config/modulos.ts` define los 27 módulos de Fase 1, su prompt y los roles que los ven. Desde P10 **todos tienen
+- `src/config/modulos.ts` define los 28 módulos con pantalla (27 de Fase 1 + `medidores` de F2-04), su prompt y los
+  roles que los ven. Desde P10 **todos tienen
   `ruta`**: no queda ninguno con la etiqueta «Disponible en el prompt Pxx».
 - Gráficas con Recharts 3.10.1; cada valor va también en texto junto a la gráfica (accesibilidad).
 - `src/services/api.ts`: cliente con refresh single-flight y `ErrorAPI`. `useRecurso` para listados.
@@ -1531,6 +1634,27 @@ automática por FMEA, descuento de penalizaciones en el CFDI, ETA y ruta). No ha
 168. **El WebSocket del tablero vive en `/ws/operacion`, fuera de `/api`.** El proxy del servidor de desarrollo
     solo levanta la conexión en `/ws` (como el chat de P05), así que dejarlo dentro de `/api` lo habría empujado
     siempre al respaldo SSE sin que se notara.
+169. **Los planes por uso miran el acumulado, no el marcador.** `valor_acumulado` corrige reinicios y reemplazos con
+    `acumulado_offset` y `ciclo_inicio`; el marcador se guarda solo para que la persona reconozca lo que ve en el
+    equipo. Sin esto, un odómetro que vuelve a cero borraría la vida del equipo y el intervalo se recalcularía mal.
+170. **Una lectura anómala va a revisión, no se rechaza** (decisión 38), y mientras esté en revisión **no mueve el
+    medidor ni dispara planes**. La de fecha futura sí se rechaza con 422: no es una duda, es un dato mal capturado.
+171. **La lectura duplicada se devuelve, no se vuelve a escribir.** Clave: (medidor, instante del dispositivo,
+    valor). Es lo que necesitan la cola sin señal de P05 y un SCADA que reintenta un lote.
+172. **`medidor_umbral` es un hito; `medidor_intervalo` es un ciclo** (decisión 40). «A las 500 h» se atiende una vez
+    y no vuelve; «cada 10,000 ciclos» se cuenta desde `equipo_planes.ultimo_valor_medidor`.
+173. **Una condición hija de un combinado no dispara por sí sola.** Es la diferencia entre «dos reglas» y «una regla
+    con dos condiciones»; `triggers_service.claves_hijas()` las excluye de la generación y de la próxima fecha, y la
+    pantalla lo dice.
+174. **El último PM sin lectura en el folio usa la última válida** (decisión 41), y si no hay ninguna no se mueve
+    nada: el plan sigue esperando la primera lectura.
+175. **El incremento diario para proyectar y para medir saltos sale primero del promedio real medido**, después de la
+    estimación configurada y al final del historial. El uso medido es mejor referencia que el supuesto, pero eso
+    hace que la estimación configurada deje de pesar en cuanto hay dos lecturas reales.
+176. **La llave de API del cliente solo registra lecturas** (decisión 42): un permiso (`medidores.lecturas`), atada a
+    un cliente, hasheada, revocable sin borrarse y con cada uso en la auditoría. Nunca da contexto de plataforma.
+177. **El medidor de la depreciación por unidades se elige explícitamente** (`activo_depreciacion.equipo_medidor_id`)
+    y tiene que ser del propio equipo. Sin medidor el método calcula igual, con el campo manual de P09, y lo avisa.
 
 ## Notas de entorno (esta máquina)
 

@@ -2,6 +2,56 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-11 · F2-04 Medidores de activos y planes de mantenimiento por uso
+
+El bloque que cierra §6.9.1 y §6.9.2: ahora un plan puede dispararse por el **uso real** del equipo y no solo por el
+calendario. Migración `0016`, las cuatro tablas literales de §6.9.2 más `medidor_cambios`, el catálogo cerrado de
+eventos y las llaves de API del cliente.
+
+**La idea que ordena todo el bloque:** un medidor tiene dos números. `valor_actual` es lo que dice el marcador y
+`valor_acumulado` es lo que el equipo lleva de verdad. Cuando el marcador da la vuelta (99,999 → 0) o cuando se
+cambia el medidor físico, se registra el cambio y el acumulado **sigue su cuenta**. Los planes miran el acumulado,
+nunca el marcador; sin eso, un odómetro que se reinicia borraría media vida del equipo y el mantenimiento por
+intervalo se volvería loco.
+
+**Los cuatro triggers que faltaban** (`medidor_umbral`, `medidor_intervalo`, `evento`, `combinado`) se resuelven con
+un solo predicado: «desde la última ejecución del plan en este equipo, ¿pasó X?». Los cinco eventos del catálogo
+cerrado también se leen así, y por eso la evaluación **inmediata** (al entrar una lectura, al cerrarse un correctivo
+grave) y la **nocturna** dan el mismo resultado sin duplicar folios: las dos pasan por el mismo candado, «no hay
+folio abierto de este plan en este equipo».
+
+Tres cosas que salieron de hacerlo y no estaban en el prompt:
+
+- **`plan_triggers` necesitaba una `clave`.** El trigger combinado apunta a otros triggers del plan, pero una
+  edición los borraba y los recreaba, así que sus id cambiaban: el combinado se quedaba apuntando a nada. Ahora cada
+  condición tiene `t1`, `t2`… estable y la edición hace upsert por clave. Por fuera la API sigue hablando de
+  `triggers_ids`, que es lo que maneja la interfaz.
+- **El folio preventivo lo tiene que crear el sistema.** La lectura la captura el operador del cliente y el cierre
+  del correctivo lo hace el técnico del prestador; ninguno de los dos puede escribir `folios` por la RLS de P04. La
+  generación fija el contexto de sistema dentro de la misma transacción y lo restaura, como el alta de equipos de
+  P08.
+- **Las alertas necesitaban dueño.** El panel de un usuario del prestador solo muestra las alertas de **su**
+  prestador, y estas las puede disparar una lectura capturada por el cliente. Se resuelve el prestador que atiende a
+  ese cliente al disparar; con varios vinculados se usa el primero, porque `alertas_historial` guarda uno solo.
+
+**Reglas que elegí donde el diseño no las fijaba** (las cinco están en `docs/decisiones_para_validar.md`, 38 a 42):
+una lectura que retrocede o que salta más de 3× el uso diario va a **revisión**, no se rechaza (el marcador pudo
+reiniciarse y eso lo sabe la persona); la de fecha futura sí se rechaza; la duplicada se devuelve tal cual, que es lo
+que necesitan la cola sin señal y el SCADA para reintentar; `medidor_umbral` es un **hito** y no se repite tras
+atenderse; y si el folio del preventivo no trajo lectura, el último PM se fija con la última válida.
+
+Demo sembrada: seis equipos industriales con 60 días de lecturas de los cuatro métodos, una lectura anómala del
+motor esperando revisión, un odómetro que dio la vuelta a los 1,000 km y cuatro planes nuevos con los ejemplos
+literales del documento. El del compresor está **a 20 h de dispararse**, así que `MEDIDOR_PROXIMO_PM` ya avisa con
+la fecha estimada.
+
+**588 pytest** en verde con los servidores apagados (28:45), 1 saltado a propósito, y **137 vitest** con `tsc` y
+`npm run build` limpios. De la primera corrida completa salieron dos fallas, las dos de las pruebas guardián de
+P11a y las dos legítimas: `test_acceso_cruzado` exigió declarar de dónde sacar un `medidor_id` real para barrer la
+ruta nueva con usuarios ajenos, y `test_permisos_roles` acusó que el catálogo de alertas pasó de 62 a 64. En la
+corrida completa de vitest, `biblioteca.test.tsx` falló una vez por tiempo y pasó sola y en la repetición: es la
+flaquera de tiempos que ya está anotada en las notas de entorno, no algo que haya tocado este bloque.
+
 ## 2026-11-11 · Tres detalles del tablero vistos en el navegador
 
 Revisando `/operaciones` con el despachador demo, contra la base de desarrollo:

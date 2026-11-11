@@ -273,7 +273,8 @@ describe('Configuración central de alertas', () => {
     const user = userEvent.setup()
     await user.click(await within(tabla).findByRole('button', { name: 'Ver' }))
     const form = await screen.findByTestId('form-alerta')
-    expect(within(form).getByText(/llega en Fase 2/)).toBeInTheDocument()
+    // F2-04: la única que queda sin fuente de datos es el desvío de ruta, que espera el bloque de rutas.
+    expect(within(form).getByText(/bloque de optimización de rutas/)).toBeInTheDocument()
     expect(within(form).getByLabelText(/Alerta activa/)).toBeDisabled()
   })
 

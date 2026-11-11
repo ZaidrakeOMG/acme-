@@ -155,8 +155,9 @@ function FormularioAlerta({ alerta, params, alGuardar }: { alerta: AlertaEfectiv
   return (
     <div className="space-y-4" data-testid="form-alerta">
       <p className="text-sm text-slate-600">{alerta.descripcion}</p>
-      {fase2 && <Aviso tipo="info">La fuente de datos de esta alerta (GPS o medidores) llega en Fase 2:
-        puedes dejar su umbral preparado, pero no se puede activar.</Aviso>}
+      {/* F2-04: de las de Fase 2 solo queda el desvío de ruta, que necesita la ruta planeada del bloque de rutas. */}
+      {fase2 && <Aviso tipo="info">La fuente de datos de esta alerta (la ruta planeada del técnico) llega con el
+        bloque de optimización de rutas: puedes dejar su umbral preparado, pero no se puede activar.</Aviso>}
       {alerta.escalacion_de && <Aviso tipo="info">Escala desde <strong>{alerta.escalacion_de}</strong>: el umbral se mide
         desde que esa alerta se disparó, no desde el hecho original.</Aviso>}
       {error && <Aviso>{error}</Aviso>}

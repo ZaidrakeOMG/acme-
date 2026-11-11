@@ -235,8 +235,11 @@ async def test_catalogo_tiene_los_20_tipos_mas_los_de_cada_modulo(cliente, auth)
     # (CERTIFICACION_VENCIDA_HABILIDAD_RETIRADA; CERTIFICACION_VENCIDA ya existia desde P01)
     # + 2 de F2-02 (MENSAJERIA_CONSUMO_ALTO y MENSAJERIA_PLANTILLA_RECHAZADA). F2-03 no agrego claves: activo dos
     # que ya existian desde P01 (TECNICO_TIEMPO_MUERTO y TECNICO_SIN_SENAL).
-    assert len(catalogo) == 62
-    assert {"SLA_RESPUESTA_EN_RIESGO", "COTIZACION_ESCALADA_DIRECCION", "TECNICO_SIN_SENAL"} <= {a["clave"] for a in catalogo}
+    # + 2 de F2-04 (MEDIDOR_LECTURA_ANOMALA y MEDIDOR_SIN_LECTURA; MEDIDOR_PROXIMO_PM ya existia desde P01 y lo que
+    # hizo F2-04 fue activarla).
+    assert len(catalogo) == 64
+    assert {"SLA_RESPUESTA_EN_RIESGO", "COTIZACION_ESCALADA_DIRECCION", "TECNICO_SIN_SENAL",
+            "MEDIDOR_SIN_LECTURA"} <= {a["clave"] for a in catalogo}
 
 
 async def test_umbral_por_tenant_dentro_de_rango(cliente, auth, datos):

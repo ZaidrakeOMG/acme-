@@ -57,6 +57,8 @@ FUENTES: dict[str, str | None] = {
     # F2-02: las plantillas de mensajería del prestador demo. Las base de plataforma (prestador_id NULL) son
     # compartidas a propósito, como las plantillas base de formularios, así que el barrido usa una propia.
     "plantilla_id": "SELECT id FROM mensajeria_plantillas WHERE prestador_id IS NOT NULL ORDER BY created_at LIMIT 1",
+    # F2-04: un medidor de un equipo del cliente demo (su historial de reinicios y reemplazos).
+    "medidor_id": "SELECT id FROM equipo_medidores WHERE activo ORDER BY created_at LIMIT 1",
     # No son identificadores de recursos de un cliente: el valor no revela datos ajenos.
     "catalogo": None,
     "modulo": None,
