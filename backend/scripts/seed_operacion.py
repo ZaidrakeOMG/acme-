@@ -158,12 +158,15 @@ async def sembrar_operacion(db) -> bool:
             ultima = (lat, lng, momento)
         if ultima is not None:
             lat, lng, momento = ultima
+            # Desde cuándo lleva ese estatus: el tablero muestra «X min en este estatus» y, si no lo fijamos,
+            # se queda el de la siembra anterior y la columna miente con horas de más.
+            desde_estatus = {"centro": ahora - timedelta(minutes=25), "sin_senal": momento}.get(guion, inicio)
             await db.execute(text(
                 "UPDATE tecnicos SET ultima_posicion = ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, "
                 "ultima_posicion_at = :at, ultima_precision_m = 12.0, ultima_bateria_pct = :bat, "
-                "estatus_operativo = :estatus WHERE id = :id"),
+                "estatus_operativo = :estatus, estatus_operativo_desde = :desde WHERE id = :id"),
                 {"lng": lng, "lat": lat, "at": momento, "bat": random.randint(35, 95),
-                 "estatus": estatus.value, "id": str(tecnico.id)})
+                 "estatus": estatus.value, "desde": desde_estatus, "id": str(tecnico.id)})
             jornada.posiciones = len(puntos)
         creadas += 1
 

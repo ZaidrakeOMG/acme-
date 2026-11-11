@@ -2,6 +2,23 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-11 · Tres detalles del tablero vistos en el navegador
+
+Revisando `/operaciones` con el despachador demo, contra la base de desarrollo:
+
+- **La hora de las alertas salía en UTC.** El feed decía «Sin señal desde 15:07» mientras el renglón de al lado,
+  que la arma el navegador, decía «9:07 a.m.»: seis horas de diferencia en la misma pantalla, y el mismo texto se
+  iba en el aviso al despachador (y de ahí al WhatsApp). `operacion_service.hora_local()` formatea en la zona de
+  la operación y el evaluador la usa; la prueba de «sin señal» ahora compara contra la hora local esperada.
+- **La alerta de tiempo muerto no decía nada debajo del nombre.** El feed pinta `datos.etiqueta` y esa alerta no
+  la traía: solo se leía «Técnico detenido · Tadeo Técnico». Ahora lleva «Sin moverse desde las HH:MM».
+- **«X min en este estatus» mentía con horas de más** después de resembrar: el seed escribía `estatus_operativo`
+  sin tocar `estatus_operativo_desde`, así que se quedaba la marca de la siembra anterior. El producto está bien
+  —la marca se fija cuando el estatus cambia—; era el seed. Ahora la fija con el momento del guion.
+
+Verificado en el navegador después de resembrar: Tania «sin señal» hace 21 min, Tomás «en servicio» hace 25 min,
+Tadeo «en ruta» con su alerta de detenido, y las dos alertas con la hora de la gente.
+
 ## 2026-11-11 · Tablero coherente y una decisión nueva (37)
 
 Al volver a encender todo (la máquina se reinició y se quedaron solo los contenedores) y resembrar la demo, el

@@ -1,6 +1,7 @@
 """Detección automática de §6.8.4: tiempo muerto con push al técnico y escalación, sin señal sin emergencia, y el
 desvío de ruta que sigue en Fase 2. F2-03."""
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, text
 
@@ -37,6 +38,8 @@ async def test_el_tiempo_muerto_dispara_con_push_al_tecnico_y_aviso_al_despachad
     ficha = await tecnico_de(TEC4)
     historial = await alertas_de("TECNICO_TIEMPO_MUERTO", ficha["id"])
     assert historial and historial[0]["datos"]["radio_m"] == 50
+    # El feed del tablero pinta esta línea debajo del nombre, con la hora de la gente.
+    assert historial[0]["datos"]["etiqueta"].startswith("Sin moverse desde las ")
     seguimiento = (await seguimientos(TEC4, "TECNICO_TIEMPO_MUERTO"))[0]
     assert seguimiento["push_at"] is not None and seguimiento["respuesta"] is None
     # El despachador recibió el aviso en su bandeja.
@@ -169,6 +172,9 @@ async def test_sin_senal_avisa_pero_no_genera_emergencia(cliente, auth, datos):
     assert ficha["estatus"] == "sin_senal"
     historial = await alertas_de("TECNICO_SIN_SENAL", ficha["id"])
     assert historial and historial[0]["datos"]["etiqueta"].startswith("Sin señal desde ")
+    # La hora de la etiqueta es la de la gente, no UTC: en el tablero se leía seis horas adelantada.
+    esperada = (datetime.now(UTC) - timedelta(minutes=40)).astimezone(ZoneInfo("America/Mexico_City"))
+    assert historial[0]["datos"]["etiqueta"].endswith(esperada.strftime("%H:%M"))
     seguimiento = (await seguimientos(TEC2, "TECNICO_SIN_SENAL"))[0]
     assert seguimiento["push_at"] is None, "no se le manda push: puede estar sin red, no en peligro"
     avisos = [n for n in await bandeja(cliente, auth, DES) if n["datos"].get("alerta") == "TECNICO_SIN_SENAL"]

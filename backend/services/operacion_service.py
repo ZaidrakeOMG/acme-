@@ -17,6 +17,7 @@ necesitan la ruta planeada del bloque de optimización de rutas. `TECNICO_DESVIO
 """
 import logging
 from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -392,6 +393,15 @@ async def _fijar_estatus(db: AsyncSession, tecnico: Tecnico, estatus: EstatusOpe
         tecnico.estatus_operativo = estatus
         tecnico.estatus_operativo_desde = datetime.now(UTC)
         await db.flush()
+
+
+ZONA_OPERACION = "America/Mexico_City"
+
+
+def hora_local(momento: datetime, zona: str | None = None) -> str:
+    """HH:MM en la zona donde trabaja la gente. Las etiquetas de las alertas las lee el despachador en el piso:
+    en UTC leía seis horas adelantadas («sin señal desde las 15:07» cuando eran las 9:07 de la mañana)."""
+    return momento.astimezone(ZoneInfo(zona or ZONA_OPERACION)).strftime("%H:%M")
 
 
 async def recalcular_estatus(db: AsyncSession, tecnico: Tecnico, *, ahora: datetime | None = None,

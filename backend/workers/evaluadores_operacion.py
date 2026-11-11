@@ -101,7 +101,9 @@ async def tecnico_tiempo_muerto(db: AsyncSession, alerta: AlertaCatalogo) -> int
             db, alerta.clave, tenant_id=None, prestador_id=tecnico.prestador_id, entidad_tipo="tecnico",
             entidad_id=tecnico.id,
             datos={"minutos": int(minutos), "radio_m": radio, "folio_id": str(folio.id) if folio else None,
-                   "ultima_posicion_at": tecnico.ultima_posicion_at.isoformat() if tecnico.ultima_posicion_at else None})
+                   "ultima_posicion_at": tecnico.ultima_posicion_at.isoformat() if tecnico.ultima_posicion_at else None,
+                   # El feed del tablero muestra esta línea: sin ella la alerta solo decía el nombre.
+                   "etiqueta": f"Sin moverse desde las {operacion_service.hora_local(ahora - timedelta(minutes=minutos))}"})
         if historial is None:
             continue
         usuario = await db.get(Usuario, tecnico.usuario_id)
@@ -162,7 +164,7 @@ async def tecnico_sin_senal(db: AsyncSession, alerta: AlertaCatalogo) -> int:
         if await _seguimiento_abierto(db, tecnico.id, alerta.clave) is not None:
             continue
         usuario = await db.get(Usuario, tecnico.usuario_id)
-        desde_hhmm = referencia.astimezone(UTC).strftime("%H:%M")
+        desde_hhmm = operacion_service.hora_local(referencia)
         historial = await alertas_service.disparar(
             db, alerta.clave, tenant_id=None, prestador_id=tecnico.prestador_id, entidad_tipo="tecnico",
             entidad_id=tecnico.id,
