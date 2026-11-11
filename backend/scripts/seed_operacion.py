@@ -2,7 +2,8 @@
 unidades del cliente demo, uno por cada caso que la pantalla tiene que saber contar (§6.8.4):
 
 * **Tomás** en servicio: dentro de la geocerca de la unidad de su folio en ejecución.
-* **Teresa** en ruta: moviéndose de Polanco hacia Coyoacán, con posiciones cada 30 segundos.
+* **Teresa** en camino a la unidad de su folio, con posiciones cada 30 segundos. Su folio ya está en
+  ejecución, así que el tablero la pinta «en servicio»: el estatus lo manda el folio, no el mapa.
 * **Tadeo** detenido 25 minutos a media avenida, lejos de cualquier unidad: es el caso de tiempo muerto.
 * **Tania** sin señal: su última posición es de hace 20 minutos.
 
@@ -124,9 +125,13 @@ async def sembrar_operacion(db) -> bool:
                 momento = ahora - timedelta(minutes=50 - i)
                 puntos.append((_interpolar(origen, destino, t) if t < 1 else _alrededor(destino, 40), momento))
         elif guion == "ruta":
+            # Va hacia la unidad de su propio folio y le falta un tramo: queda fuera de la geocerca, para que
+            # el mapa y el folio cuenten lo mismo.
+            destino = await _destino_del_folio(db, tecnico) or COYOACAN
+            origen = _mas_lejana(destino)
             for i in range(60):
                 momento = ahora - timedelta(seconds=30 * (60 - i))
-                puntos.append((_interpolar(POLANCO, COYOACAN, i / 60), momento))
+                puntos.append((_interpolar(origen, destino, (i / 60) * 0.85), momento))
         elif guion == "detenido":
             # Llegó a la avenida y lleva 25 minutos ahí, a 20 m a la redonda. Los puntos tienen que llegar
             # hasta ahora: el evaluador de tiempo muerto mira los últimos 20 minutos, y si el recorrido se

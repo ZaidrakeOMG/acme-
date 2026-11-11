@@ -2,6 +2,24 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-11 · Tablero coherente y una decisión nueva (37)
+
+Al volver a encender todo (la máquina se reinició y se quedaron solo los contenedores) y resembrar la demo, el
+técnico «en ruta» aparecía **en servicio** aunque su marcador iba por la avenida: el estatus lo manda el folio
+—`en_servicio` con un folio en ejecución— y no la distancia. La regla está así por diseño y es la que documenta
+CONTEXTO.md; lo que no cuadraba era el guion del seed, que lo mandaba de Polanco a Coyoacán mientras su folio en
+ejecución estaba en la Sucursal Centro, al otro lado de la ciudad.
+
+- `seed_operacion.py`: el guion «ruta» ahora lo lleva **hacia la unidad de su propio folio** y lo deja a ~1.6 km,
+  fuera de la geocerca: el mapa y el folio cuentan lo mismo.
+- **Decisión 37** en `docs/decisiones_para_validar.md`: ¿«en servicio» debería exigir estar dentro de la geocerca
+  de la unidad? Hoy no la exige, y el caso en que se separa es el técnico que termina y se va **sin cerrar el
+  folio**: sigue pintado «en servicio» mientras ya va manejando. No lo cambié por mi cuenta porque mueve los
+  conteos del tablero y el tiempo atribuido a cada estatus.
+
+Demo verificada después de resembrar: Tomás en servicio a 16 m de su unidad, Teresa en servicio llegando a la suya
+a 1.6 km, Tadeo con **TECNICO_TIEMPO_MUERTO** y Tania con **TECNICO_SIN_SENAL**.
+
 ## 2026-11-10 · Arreglo a los datos demo de operaciones (`seed_operacion.py`)
 
 Al dejar el tablero listo para la revisión, los cuatro casos que el seed promete no se veían:

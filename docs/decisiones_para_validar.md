@@ -6,7 +6,7 @@ funciona hoy con la opción marcada.** Esta lista es para que alguien del negoci
 Cómo leerla: cada punto trae **la pregunta**, **lo que ACMA hace hoy** y **qué cambia si responde distinto**. No hace
 falta saber nada técnico. Lo que no se cambie se queda como está.
 
-Hay 36 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
+Hay 37 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
 y a lo que se le cobra o se le descuenta al prestador.
 
 ---
@@ -339,6 +339,20 @@ Dirección del prestador; el técnico ve la suya.
 **Si responde distinto:** el diseño contempla para más adelante un «ETA al operador» —decirle al cliente a qué hora
 llega el técnico, sin mostrarle el mapa— que llega con el bloque de optimización de rutas. Mostrarle el mapa en
 vivo al cliente sería otra decisión, y conviene que la tomen las dos partes del contrato.
+
+### 37. ¿«En servicio» debería exigir que el técnico esté en la unidad, o basta con que su folio esté en ejecución?
+
+**Hoy:** basta el folio. El tablero pinta **en servicio** a quien tiene un folio en ejecución, sin mirar dónde está
+su marcador; **en ruta** es el resto. En la operación normal eso coincide, porque un folio solo pasa a ejecución
+cuando el técnico confirma su llegada. Donde se separa es cuando el técnico **termina el trabajo y se va sin cerrar
+el folio**: queda «en servicio» mientras ya va manejando a otra parte, y el despachador lo lee como que todavía
+está atendiendo.
+
+**Si responde distinto:** se le agrega al estatus la condición de estar dentro de la geocerca de la unidad del
+folio (los mismos 150 m de la llegada), y quien tenga folio en ejecución pero esté lejos y moviéndose saldría
+**en ruta**. Es un cambio chico y no toca la base de datos; lo que cambia es el conteo del tablero y el tiempo que
+se le atribuye a cada estatus, así que conviene decidirlo antes de que esos números se empiecen a comparar entre
+meses.
 
 ## Dos cosas que no son preguntas de negocio pero hay que decidir antes de publicar
 
