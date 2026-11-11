@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { Aviso, Boton, Campo, Encabezado, Insignia, Modal, Selector, Tabla, Tarjeta } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { mensajeDeError } from '../../services/api'
 import { decidirReemplazo, fichaActivo, guardarDatosEconomicos, guardarDepreciacion, recalcularActivo } from '../../services/inventario'
 import type { FichaActivo, MetodoDepreciacion } from '../../types/inventario'
 import { DESCRIPCION_METODO, NOMBRE_METODO, ROLES_ESCRIBEN_PRESUPUESTO } from '../../types/inventario'
+import { ROLES_MEDIDORES, formatoValor } from '../../types/medidores'
 import { fecha as fmtFecha } from '../folios/comunes'
+import { PestanaMedidores } from './PestanaMedidores'
 
 function moneda(v: string | null | undefined) {
   return v == null ? '—' : `$${Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
@@ -16,6 +18,8 @@ function moneda(v: string | null | undefined) {
 export function FichaEquipo() {
   const { equipoId } = useParams()
   const { usuario } = useAuth()
+  const [params] = useSearchParams()
+  const [vista, setVista] = useState<'ficha' | 'medidores'>(params.get('vista') === 'medidores' ? 'medidores' : 'ficha')
   const [f, setF] = useState<FichaActivo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -43,15 +47,31 @@ export function FichaEquipo() {
     <div className="space-y-4">
       <Link to="/activos" className="text-xs text-primario underline">← Equipos y activos</Link>
       <Encabezado titulo={`${e.codigo} · ${e.nombre}`} descripcion={`${e.un_codigo ?? ''} ${e.un_nombre ?? ''} · ${e.tipo_equipo ?? ''}`}
-        acciones={configura ? (
-          <div className="flex flex-wrap gap-2">
-            <Boton variante="secundario" onClick={() => setModal('economicos')}>Datos económicos</Boton>
-            <Boton variante="secundario" onClick={() => setModal('depreciacion')}>Depreciación</Boton>
-            <Boton onClick={() => void ejecutar(() => recalcularActivo(equipoId!), 'TCO y depreciación recalculados')}>Recalcular TCO</Boton>
+        acciones={
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1">
+              {(['ficha', 'medidores'] as const).map((v) => (
+                <button key={v} className={`rounded-lg px-3 py-1.5 text-sm ${vista === v ? 'bg-primario text-white' : 'border border-slate-300'}`} onClick={() => setVista(v)}>
+                  {v === 'ficha' ? 'Ficha y TCO' : `Medidores${f.medidores?.length ? ` (${f.medidores.length})` : ''}`}
+                </button>
+              ))}
+            </div>
+            {configura && vista === 'ficha' && (
+              <>
+                <Boton variante="secundario" onClick={() => setModal('economicos')}>Datos económicos</Boton>
+                <Boton variante="secundario" onClick={() => setModal('depreciacion')}>Depreciación</Boton>
+                <Boton onClick={() => void ejecutar(() => recalcularActivo(equipoId!), 'TCO y depreciación recalculados')}>Recalcular TCO</Boton>
+              </>
+            )}
           </div>
-        ) : undefined} />
+        } />
       {error && <Aviso>{error}</Aviso>}
       {aviso && <Aviso tipo="exito">{aviso}</Aviso>}
+
+      {vista === 'medidores' && equipoId && (
+        <PestanaMedidores equipoId={equipoId} puedeAdministrar={ROLES_MEDIDORES.includes(usuario.rol)} />
+      )}
+      {vista === 'medidores' ? null : (<>
 
       {f.alerta_reemplazo && f.alerta_reemplazo.decision === null && (
         <Tarjeta titulo="Reemplazo recomendado" acciones={<Insignia tono="alerta">{Number(f.alerta_reemplazo.porcentaje_alcanzado).toFixed(1)}% del valor de reposición</Insignia>}>
@@ -95,7 +115,21 @@ export function FichaEquipo() {
           <>
             <p className="text-sm">{NOMBRE_METODO[f.depreciacion.metodo]} · vida útil {f.depreciacion.vida_util_anios} años · salvamento {moneda(f.depreciacion.valor_salvamento)} · desde {f.depreciacion.fecha_inicio}</p>
             <p className="text-xs text-slate-500">{DESCRIPCION_METODO[f.depreciacion.metodo]}</p>
-            {f.depreciacion.aviso && <div className="mt-2"><Aviso tipo="info">{f.depreciacion.aviso}: los medidores de activos llegan en Fase 2; mientras tanto se conserva el último valor en libros capturado.</Aviso></div>}
+            {f.depreciacion.metodo === 'unidades_produccion' && f.depreciacion.equipo_medidor_id && (
+              <p className="text-sm" data-testid="depreciacion-unidades">
+                {formatoValor(f.depreciacion.unidades_acumuladas, 0)} de {formatoValor(f.depreciacion.unidades_vida_util, 0)} unidades de vida útil
+                {f.depreciacion.unidades_periodo && <> · {formatoValor(f.depreciacion.unidades_periodo, 0)} en el período</>}
+              </p>
+            )}
+            {f.depreciacion.aviso === 'MEDIDOR_NO_CONFIGURADO' && (
+              <div className="mt-2"><Aviso tipo="info">
+                El método reparte el costo según el uso medido, pero este activo todavía no tiene medidor elegido: se
+                está usando el campo de unidades acumuladas capturado a mano. Elígele uno en «Depreciación».
+              </Aviso></div>
+            )}
+            {f.depreciacion.aviso === 'SIN_VIDA_UTIL_EN_UNIDADES' && (
+              <div className="mt-2"><Aviso tipo="info">Falta la vida útil total en unidades: sin ella no hay cómo repartir el costo.</Aviso></div>
+            )}
             {f.depreciacion_historial.length > 0 && (
               <div className="mt-3" data-testid="grafica-depreciacion">
                 <p className="text-xs font-semibold uppercase text-slate-500">Valor en libros por período</p>
@@ -138,6 +172,7 @@ export function FichaEquipo() {
       <Tarjeta titulo="Disponible en Fase 2">
         <ul className="list-disc pl-5 text-sm text-slate-600">{f.fase_2.map((x) => <li key={x}>{x}</li>)}</ul>
       </Tarjeta>
+      </>)}
 
       {modal === 'economicos' && <FormEconomicos ficha={f} alCerrar={() => setModal(null)}
         alGuardar={(d) => ejecutar(() => guardarDatosEconomicos(equipoId!, d), 'Datos económicos guardados')} />}
@@ -206,21 +241,36 @@ function FormDepreciacion({ ficha, alCerrar, alGuardar }: { ficha: FichaActivo; 
   const [d, setD] = useState({ metodo: (dep?.metodo ?? 'linea_recta') as MetodoDepreciacion, vida_util_anios: String(dep?.vida_util_anios ?? 10),
                                valor_salvamento: dep?.valor_salvamento ?? '0', valor_reposicion: dep?.valor_reposicion ?? '',
                                unidades_vida_util: dep?.unidades_vida_util ?? '', unidades_acumuladas: dep?.unidades_acumuladas ?? '',
-                               valor_en_libros_manual: dep?.valor_en_libros_manual ?? '', fecha_inicio: dep?.fecha_inicio ?? '' })
+                               valor_en_libros_manual: dep?.valor_en_libros_manual ?? '', fecha_inicio: dep?.fecha_inicio ?? '',
+                               // F2-04: de qué medidor del equipo salen las unidades producidas (§6.9.4).
+                               equipo_medidor_id: dep?.equipo_medidor_id ?? '', unidades_al_inicio: dep?.unidades_al_inicio ?? '' })
   return (
     <Modal titulo="Método de depreciación" abierto alCerrar={alCerrar}>
       <div className="space-y-3" data-testid="form-depreciacion">
         <Selector etiqueta="Método" value={d.metodo} onChange={(e) => setD({ ...d, metodo: e.target.value as MetodoDepreciacion })}
           opciones={(Object.keys(NOMBRE_METODO) as MetodoDepreciacion[]).map((m) => ({ valor: m, texto: NOMBRE_METODO[m] }))} />
         <p className="text-xs text-slate-600">{DESCRIPCION_METODO[d.metodo]}</p>
-        {d.metodo === 'unidades_produccion' && <Aviso tipo="info">Los medidores de activos llegan en Fase 2: el sistema conserva el último valor en libros capturado.</Aviso>}
+        {d.metodo === 'unidades_produccion' && (
+          <Aviso tipo="info">
+            Elige de qué medidor del equipo salen las unidades: ACMA toma las del período de sus lecturas válidas. Sin
+            medidor se usa el campo de unidades acumuladas capturado a mano.
+          </Aviso>
+        )}
         <div className="grid gap-2 sm:grid-cols-2">
           {d.metodo !== 'manual' && <Campo etiqueta="Vida útil (años)" type="number" value={d.vida_util_anios} onChange={(e) => setD({ ...d, vida_util_anios: e.target.value })} />}
           {d.metodo !== 'manual' && <Campo etiqueta="Valor de salvamento" type="number" value={d.valor_salvamento} onChange={(e) => setD({ ...d, valor_salvamento: e.target.value })} />}
           <Campo etiqueta="Valor de reposición" type="number" value={d.valor_reposicion} onChange={(e) => setD({ ...d, valor_reposicion: e.target.value })} />
           <Campo etiqueta="Inicio de la depreciación" type="date" value={d.fecha_inicio} onChange={(e) => setD({ ...d, fecha_inicio: e.target.value })} />
           {d.metodo === 'unidades_produccion' && <Campo etiqueta="Unidades de vida útil" type="number" value={d.unidades_vida_util} onChange={(e) => setD({ ...d, unidades_vida_util: e.target.value })} />}
-          {d.metodo === 'unidades_produccion' && <Campo etiqueta="Unidades acumuladas" type="number" value={d.unidades_acumuladas} onChange={(e) => setD({ ...d, unidades_acumuladas: e.target.value })} />}
+          {d.metodo === 'unidades_produccion' && (
+            <Selector etiqueta="Medidor del que salen las unidades" value={d.equipo_medidor_id}
+              onChange={(e) => setD({ ...d, equipo_medidor_id: e.target.value })}
+              opciones={[{ valor: '', texto: 'Sin medidor (capturar a mano)' },
+                         ...(ficha.medidores ?? []).map((m) => ({ valor: m.id, texto: `${m.tipo} (${m.unidad})` }))]} />
+          )}
+          {d.metodo === 'unidades_produccion' && <Campo etiqueta={d.equipo_medidor_id ? 'Unidades que ya traía al inicio' : 'Unidades acumuladas'} type="number"
+            value={d.equipo_medidor_id ? d.unidades_al_inicio : d.unidades_acumuladas}
+            onChange={(e) => setD(d.equipo_medidor_id ? { ...d, unidades_al_inicio: e.target.value } : { ...d, unidades_acumuladas: e.target.value })} />}
           {(d.metodo === 'manual' || d.metodo === 'unidades_produccion') && <Campo etiqueta="Valor en libros" type="number" value={d.valor_en_libros_manual} onChange={(e) => setD({ ...d, valor_en_libros_manual: e.target.value })} />}
         </div>
         <div className="flex gap-2">

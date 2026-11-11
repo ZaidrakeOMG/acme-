@@ -49,10 +49,18 @@ export function mesDe(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-/** Parámetros legibles de un trigger de Fase 1. */
+/**
+ * Parámetros legibles de un trigger, sin consultar nada. Los seis tipos de §6.9.1; para el texto completo de los
+ * de medidor y los combinados (con el nombre del medidor y sus unidades) está `describirTriggerUso` en
+ * `services/medidores`.
+ */
 export function describirTrigger(t: { tipo_trigger: string; parametros_json: Record<string, unknown> }): string {
   const p = t.parametros_json
   if (t.tipo_trigger === 'tiempo_fijo') return 'cada_dias' in p ? `cada ${String(p.cada_dias)} días` : `cada ${String(p.cada)} ${String(p.unidad)}`
   if (t.tipo_trigger === 'calendario') return 'fechas' in p ? `fechas: ${(p.fechas as string[]).join(', ')}` : `cada ${String(p.dia)}/${String(p.mes)}`
-  return `${t.tipo_trigger} (Fase 2)`
+  if (t.tipo_trigger === 'medidor_umbral') return `al llegar a ${String(p.umbral)} del medidor`
+  if (t.tipo_trigger === 'medidor_intervalo') return `cada ${String(p.intervalo)} del medidor`
+  if (t.tipo_trigger === 'evento') return `al ocurrir: ${String(p.evento ?? '').replace(/_/g, ' ')}`
+  if (t.tipo_trigger === 'combinado') return `combinado ${String(p.logica ?? 'OR') === 'AND' ? 'Y' : 'O'} (${((p.triggers_claves as string[]) ?? []).join(' + ')})`
+  return t.tipo_trigger
 }

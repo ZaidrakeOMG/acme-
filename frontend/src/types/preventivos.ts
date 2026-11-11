@@ -5,28 +5,36 @@ import type { CanalAprobacion, EstadoFolio } from './folios'
 export type TipoTrigger = 'tiempo_fijo' | 'calendario' | 'medidor_umbral' | 'medidor_intervalo' | 'evento' | 'combinado'
 export type EstadoPlan = 'activo' | 'inactivo'
 export type EstadoPreventivo = 'programado' | 'generado' | 'ejecutado' | 'reprogramado' | 'cancelado'
-export type OrigenPreventivo = 'manual' | 'plan'
+export type OrigenPreventivo = 'manual' | 'plan' | 'medidor' | 'evento'
 export type TipoAutorizacion = 'reprogramacion' | 'cancelacion'
 export type EstadoAutorizacion = 'pendiente' | 'autorizada' | 'rechazada'
 
-/** Triggers de Fase 1 (los demás se muestran deshabilitados: Fase 2, decisión del Anexo de alcance). */
-export const TRIGGERS: { valor: TipoTrigger; texto: string; fase: 1 | 2 }[] = [
-  { valor: 'tiempo_fijo', texto: 'Tiempo fijo (cada N días / semanas / meses)', fase: 1 },
-  { valor: 'calendario', texto: 'Calendario (fecha fija anual o lista de fechas)', fase: 1 },
-  { valor: 'medidor_umbral', texto: 'Medidor por umbral (horas de uso, ciclos)', fase: 2 },
-  { valor: 'medidor_intervalo', texto: 'Medidor por intervalo', fase: 2 },
-  { valor: 'evento', texto: 'Evento (falla, alarma de sensor)', fase: 2 },
-  { valor: 'combinado', texto: 'Combinado (AND / OR)', fase: 2 },
+/** De dónde salió el folio preventivo, para el calendario (§6.9.1). F2-04 agregó medidor y evento. */
+export const NOMBRE_ORIGEN: Record<OrigenPreventivo, string> = {
+  manual: 'Manual', plan: 'Por tiempo o calendario', medidor: 'Por medidor', evento: 'Por evento',
+}
+
+/** Los seis tipos de trigger de §6.9.1. F2-04 habilitó los cuatro que faltaban. */
+export const TRIGGERS: { valor: TipoTrigger; texto: string }[] = [
+  { valor: 'tiempo_fijo', texto: 'Cada N días, semanas o meses' },
+  { valor: 'calendario', texto: 'En una fecha fija del año' },
+  { valor: 'medidor_umbral', texto: 'Al llegar a un valor del medidor' },
+  { valor: 'medidor_intervalo', texto: 'Cada N unidades del medidor' },
+  { valor: 'evento', texto: 'Cuando ocurra un evento' },
+  { valor: 'combinado', texto: 'Combinado (O / Y)' },
 ]
 
 export const NOMBRE_ESTADO_PREVENTIVO: Record<EstadoPreventivo, string> = {
   programado: 'Programado', generado: 'Folio generado', ejecutado: 'Ejecutado', reprogramado: 'Reprogramado', cancelado: 'Cancelado',
 }
 
-export interface Trigger { id?: string; tipo_trigger: TipoTrigger; parametros_json: Record<string, unknown>; logica_combinacion: string | null }
+/** `clave` (F2-04): identidad estable dentro del plan (`t1`, `t2`, …) a la que apunta el combinado. */
+export interface Trigger { id?: string; clave?: string; tipo_trigger: TipoTrigger; parametros_json: Record<string, unknown>; logica_combinacion: string | null }
 export interface TareaPlan { id?: string; orden: number | null; descripcion: string; tiempo_estimado_min: number; habilidad_requerida_id: string | null }
 export interface MaterialPlan { id?: string; articulo_id: string | null; descripcion: string; cantidad_estandar: string; unidad: string }
-export interface EquipoPlan { id: string; equipo_id: string; tenant_id: string; activo: boolean; fecha_proxima_ejecucion: string | null; fecha_ultima_ejecucion: string | null; fecha_alta: string }
+export interface EquipoPlan { id: string; equipo_id: string; tenant_id: string; activo: boolean; fecha_proxima_ejecucion: string | null; fecha_ultima_ejecucion: string | null; fecha_alta: string
+  /** F2-04: acumulado del medidor en el último mantenimiento de este plan en ese equipo. */
+  ultimo_valor_medidor?: string | null }
 
 export interface Plan {
   id: string
@@ -97,6 +105,9 @@ export interface FilaCalendario {
   descripcion: string
   cargado_por: string | null
   reprogramado_desde_id: string | null
+  /** F2-04: qué trigger lo generó y con qué acumulado del medidor. */
+  plan_trigger_id?: string | null
+  valor_medidor?: string | null
 }
 
 export interface FilaCalendarioEntrada { un_id: string; equipo_id?: string | null; plan_id?: string | null; tecnico_id?: string | null; fecha_programada: string; descripcion?: string }

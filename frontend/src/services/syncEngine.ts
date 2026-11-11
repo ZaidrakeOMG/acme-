@@ -293,6 +293,13 @@ class MotorSincronizacion {
         total += 1
       }
     }
+    // F2-04: los medidores que lee el operador se identifican por `equipo_medidor_id`, no por `id`, así que van
+    // aparte del bucle de arriba. Con esto la pantalla «Registrar lectura» también funciona sin señal.
+    for (const m of (paquete.medidores as Record<string, unknown>[] | undefined) ?? []) {
+      const id = String(m.equipo_medidor_id)
+      await baseLocal.catalogos_cache.put({ clave: `medidores:${id}`, entidad: 'medidores', id, updated_at: String(m.fecha_ultima_lectura ?? ''), activo: true, datos: m })
+      total += 1
+    }
     for (const f of (paquete.formularios as Record<string, unknown>[] | undefined) ?? []) {
       await baseLocal.formularios_cache.put({ id: String(f.id), tipo: String(f.tipo), updated_at: String(f.updated_at ?? ''), datos: f })
       total += 1

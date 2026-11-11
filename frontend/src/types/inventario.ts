@@ -1,5 +1,6 @@
 /** Inventario, caja chica, costos del folio, presupuestos, ERP y activos (§6.4–§6.6, §6.8.5, §6.9.4). P09. */
 import type { Rol } from './api'
+import type { MedidorEquipo } from './medidores'
 
 // ------------------------------------------------------------- inventario
 export type TipoUbicacion = 'almacen' | 'vehiculo'
@@ -125,7 +126,7 @@ export const NOMBRE_METODO: Record<MetodoDepreciacion, string> = {
 export const DESCRIPCION_METODO: Record<MetodoDepreciacion, string> = {
   linea_recta: 'El activo pierde el mismo valor cada año; para equipos con desgaste uniforme.',
   doble_saldo_decreciente: 'Mayor depreciación en los primeros años; para equipos tecnológicos o de alto uso inicial.',
-  unidades_produccion: 'Proporcional al uso medido; requiere medidores de activos (Fase 2).',
+  unidades_produccion: 'Proporcional al uso medido: toma las unidades del medidor que se le configure (§6.9.4).',
   manual: 'El Admin empresa captura el valor en libros; cuando el ERP del cliente ya lo gestiona.',
 }
 
@@ -152,8 +153,12 @@ export interface FichaActivo {
   contrato: Record<string, string | null> | null
   historial_folios: { id: string; numero_folio: string; tipo_folio: string; estado: string; tipo_falla: string | null; descripcion: string; capturado_at: string; fecha_cierre: string | null; tecnico_nombre: string | null; costo_total: string | null; costo_validado: boolean; plan_nombre: string | null; desvio: string | null }[]
   refacciones: { id: string; descripcion: string; cantidad: string; origen: string; costo_unitario: string | null; folio_id: string; importe: string | null }[]
-  depreciacion: { metodo: MetodoDepreciacion; vida_util_anios: number; valor_salvamento: string; valor_reposicion: string | null; unidades_vida_util: string | null; unidades_acumuladas: string; valor_en_libros_manual: string | null; fecha_inicio: string; aviso: string } | null
-  depreciacion_historial: { periodo: string; valor_en_libros: string; depreciacion_periodo: string; depreciacion_acumulada: string; metodo_aplicado: string }[]
+  depreciacion: { metodo: MetodoDepreciacion; vida_util_anios: number; valor_salvamento: string; valor_reposicion: string | null; unidades_vida_util: string | null; unidades_acumuladas: string; valor_en_libros_manual: string | null; fecha_inicio: string; aviso: string
+                  /** F2-04 (§6.9.4): medidor del que salen las unidades y lo que el activo traía al empezar. */
+                  equipo_medidor_id?: string | null; unidades_al_inicio?: string | null; unidades_periodo?: string | null } | null
+  depreciacion_historial: { periodo: string; valor_en_libros: string; depreciacion_periodo: string; depreciacion_acumulada: string; metodo_aplicado: string; unidades_periodo?: string | null; unidades_acumuladas?: string | null }[]
+  /** F2-04: medidores del equipo, para la pestaña «Medidores» y el selector de la depreciación por unidades. */
+  medidores?: MedidorEquipo[]
   tco: ComponentesTCO
   tco_historial: { periodo: string; tco_total: string; porcentaje_vs_reposicion: string; costo_preventivos: string; costo_correctivos: string; costo_refacciones: string; costo_downtime: string; valor_residual: string }[]
   alerta_reemplazo: AlertaReemplazo | null

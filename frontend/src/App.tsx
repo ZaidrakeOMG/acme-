@@ -14,6 +14,7 @@ import { CierreOperador } from './pages/campo/operador/CierreOperador'
 import { DetalleOperador } from './pages/campo/operador/DetalleOperador'
 import { AtencionTecnico } from './pages/campo/tecnico/AtencionTecnico'
 import { MisManuales } from './pages/campo/tecnico/MisManuales'
+import { RegistrarLectura } from './pages/campo/operador/RegistrarLectura'
 import { Biblioteca } from './pages/biblioteca/Biblioteca'
 import { Capacitacion } from './pages/capacitacion/Capacitacion'
 import { Catalogos } from './pages/catalogos/Catalogos'
@@ -39,6 +40,7 @@ import { Minutas } from './pages/minutas/Minutas'
 import { ResponderMinuta } from './pages/minutas/ResponderMinuta'
 import { EnlaceCorto } from './pages/EnlaceCorto'
 import { Notificaciones } from './pages/Notificaciones'
+import { Medidores } from './pages/medidores/Medidores'
 import { Mensajeria } from './pages/mensajeria/Mensajeria'
 import { Operaciones } from './pages/operaciones/Operaciones'
 import { Activos } from './pages/activos/Activos'
@@ -79,6 +81,7 @@ const PAGINAS: Record<string, ReactNode> = {
   clasificacion: <Clasificacion />,
   notificaciones: <Notificaciones />,
   mensajeria: <Mensajeria />,
+  medidores: <Medidores />,
   operaciones: <Operaciones />,
   trabajos_especiales: <TrabajosEspeciales />,
   oc_activos: <OcActivos />,
@@ -144,6 +147,8 @@ export function App() {
         <Route path="preventivos/planes" element={ROLES_PLANES.includes(usuario.rol) || ['admin_empresa', 'admin_un', 'mesa_control'].includes(usuario.rol) ? <Planes /> : <SinPermiso />} />
         <Route path="preventivos/autorizaciones" element={ROLES_CALENDARIO.includes(usuario.rol) ? <Autorizaciones /> : <SinPermiso />} />
         <Route path="campo/manuales" element={usuario.rol === 'tecnico' ? <MisManuales /> : <SinPermiso />} />
+        {/* F2-04 (§6.9.2): «Registrar lectura» del operador y del Admin UN de la unidad. */}
+        <Route path="campo/lectura" element={['operador', 'admin_un', 'supervisor_operadores', 'superadmin'].includes(usuario.rol) ? <RegistrarLectura /> : <SinPermiso />} />
         <Route path="campo/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio modoCampo /> : <SinPermiso />} />
         <Route path="campo/folio/:folioId/cierre" element={['operador', 'admin_un', 'superadmin'].includes(usuario.rol) ? <CierreOperador /> : <SinPermiso />} />
         <Route path="campo/folio/:folioId" element={usuario.rol === 'tecnico' ? <AtencionTecnico /> : <DetalleOperador />} />

@@ -5,8 +5,10 @@
 import { api, mensajeDeError } from './api'
 import { baseLocal } from './db'
 import { capturarFolio, listarFolios, obtenerFolio } from './folios'
+import { equiposConMedidorDelOperador, registrarLectura } from './medidores'
 import { conRespaldoOffline, dispositivoId, esSinConexion, nuevoIdCliente, syncEngine } from './syncEngine'
 import type { EstadoFolio, FolioDetalle, FolioEntrada, FolioResumen } from '../types/folios'
+import type { EquipoDelOperador } from '../types/medidores'
 
 export type FolioLocal = FolioResumen & { pendiente?: boolean; id_cliente?: string }
 
@@ -129,4 +131,25 @@ export async function registrarPush(): Promise<'registrada' | 'sin_soporte' | 's
     console.info('Push no registrado:', mensajeDeError(e))
     return 'error'
   }
+}
+
+// -------------------------------------------------- medidores (F2-04, §6.9.2)
+
+/** Equipos de la unidad del operador con medidor que él lee. Con señal, del servidor; sin señal, del caché. */
+export async function medidoresDelOperador(): Promise<EquipoDelOperador[]> {
+  return catalogoCampo<EquipoDelOperador>('medidores', () => equiposConMedidorDelOperador())
+}
+
+/**
+ * Registra la lectura del marcador con respaldo sin señal. Devuelve el resultado del servidor, o `null` con la
+ * mutación encolada: la cola la aplica con la hora del dispositivo, que es la que vale para el acumulado y para
+ * detectar saltos (§6.2).
+ */
+export async function registrarLecturaCampo(equipoMedidorId: string, valor: string, etiqueta: string) {
+  return conRespaldoOffline(
+    () => registrarLectura({ equipo_medidor_id: equipoMedidorId, valor }),
+    'registrar_lectura',
+    { equipo_medidor_id: equipoMedidorId, valor },
+    `Lectura de ${etiqueta}: ${valor}`,
+  )
 }

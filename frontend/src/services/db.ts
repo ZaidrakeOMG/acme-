@@ -71,6 +71,8 @@ export interface EvidenciaPendiente {
 }
 
 export type TipoMutacion = 'crear_folio' | 'transicion' | 'guardar_respuesta' | 'enviar_respuesta' | 'subir_evidencia' | 'agregar_refaccion' | 'mensaje_chat'
+  /** F2-04 (§6.9.2): el operador y el técnico leen el marcador con o sin señal. */
+  | 'registrar_lectura'
 
 export interface MutacionPendiente {
   id_cliente: string

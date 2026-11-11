@@ -7,38 +7,23 @@ import { api, mensajeDeError } from '../../services/api'
 import { asignarPlanAEquipo, crearPlan, describirTrigger, editarPlan, quitarPlanDeEquipo } from '../../services/preventivos'
 import type { Equipo, Habilidad, TipoEquipo } from '../../types/api'
 import type { Formulario } from '../../types/formularios'
-import type { MaterialPlan, Plan, PlanEntrada, TareaPlan, TipoTrigger, Trigger } from '../../types/preventivos'
-import { ROLES_PLANES, TRIGGERS } from '../../types/preventivos'
+import { simularPlan } from '../../services/medidores'
+import type { FilaSimulacion } from '../../types/medidores'
+import type { MaterialPlan, Plan, PlanEntrada, TareaPlan, Trigger } from '../../types/preventivos'
+import { ROLES_PLANES } from '../../types/preventivos'
+import { ConstructorTriggers, conClaves } from './ConstructorTriggers'
 
 type Borrador = { nombre: string; descripcion: string; tipo_equipo_id: string; tiempo_ventana_dias: string; formulario_id: string; estado: 'activo' | 'inactivo'
-  trigger: { tipo: TipoTrigger; modo: 'cada_dias' | 'cada_unidad' | 'mes_dia' | 'fechas'; cada_dias: string; cada: string; unidad: 'dias' | 'semanas' | 'meses'; mes: string; dia: string; fechas: string }
-  tareas: TareaPlan[]; materiales: MaterialPlan[] }
+  triggers: Trigger[]; tareas: TareaPlan[]; materiales: MaterialPlan[] }
 
 const VACIO: Borrador = { nombre: '', descripcion: '', tipo_equipo_id: '', tiempo_ventana_dias: '7', formulario_id: '', estado: 'activo',
-  trigger: { tipo: 'tiempo_fijo', modo: 'cada_dias', cada_dias: '30', cada: '3', unidad: 'meses', mes: '1', dia: '15', fechas: '' }, tareas: [], materiales: [] }
+  triggers: [{ clave: 't1', tipo_trigger: 'tiempo_fijo', parametros_json: { cada_dias: 30 }, logica_combinacion: null }], tareas: [], materiales: [] }
 
-function aTrigger(t: Borrador['trigger']): Trigger {
-  if (t.tipo === 'tiempo_fijo') {
-    return { tipo_trigger: 'tiempo_fijo', logica_combinacion: null, parametros_json: t.modo === 'cada_dias' ? { cada_dias: Number(t.cada_dias) } : { cada: Number(t.cada), unidad: t.unidad } }
-  }
-  return { tipo_trigger: 'calendario', logica_combinacion: null, parametros_json: t.modo === 'fechas' ? { fechas: t.fechas.split(/[,;\s]+/).filter(Boolean) } : { mes: Number(t.mes), dia: Number(t.dia) } }
-}
-
-function deTrigger(tr: Trigger | undefined): Borrador['trigger'] {
-  const b = { ...VACIO.trigger }
-  if (!tr) return b
-  const p = tr.parametros_json
-  if (tr.tipo_trigger === 'tiempo_fijo') {
-    b.tipo = 'tiempo_fijo'
-    if ('cada_dias' in p) { b.modo = 'cada_dias'; b.cada_dias = String(p.cada_dias) } else { b.modo = 'cada_unidad'; b.cada = String(p.cada); b.unidad = p.unidad as Borrador['trigger']['unidad'] }
-  } else if (tr.tipo_trigger === 'calendario') {
-    b.tipo = 'calendario'
-    if ('fechas' in p) { b.modo = 'fechas'; b.fechas = (p.fechas as string[]).join(', ') } else { b.modo = 'mes_dia'; b.mes = String(p.mes); b.dia = String(p.dia) }
-  }
-  return b
-}
-
-/** Planes de mantenimiento (§6.9.1): triggers de Fase 1 (tiempo fijo y calendario), tareas con habilidad, materiales y equipos. */
+/**
+ * Planes de mantenimiento (§6.9.1): los seis triggers (tiempo fijo, calendario, medidor por umbral, medidor por
+ * intervalo, evento del catálogo cerrado y combinados O/Y), tareas con habilidad, materiales, equipos y la
+ * simulación de cuándo se dispararía con las lecturas actuales.
+ */
 export function Planes() {
   const { usuario } = useAuth()
   const puedeEditar = !!usuario && ROLES_PLANES.includes(usuario.rol)
@@ -51,7 +36,7 @@ export function Planes() {
     <div>
       <Encabezado
         titulo="Planes de mantenimiento"
-        descripcion="Cada plan define el trigger (Fase 1: tiempo fijo o calendario), la ventana de ejecución, las tareas con su habilidad requerida y los materiales estándar. La tarea nocturna genera los folios preventivos y los deja en Autorizado."
+        descripcion="Cada plan define cuándo se ejecuta —por tiempo, por calendario, por lo que marca un medidor, cuando ocurre un evento, o combinando condiciones con «lo que ocurra primero»—, la ventana de ejecución, las tareas con su habilidad requerida y los materiales estándar. Los folios preventivos nacen solos, en Autorizado: con una lectura que cruza el umbral, en el momento; por fecha, en la tarea nocturna."
         acciones={<div className="flex gap-2"><Link to="/preventivos/calendario"><Boton variante="secundario">Calendario</Boton></Link>{puedeEditar && <Boton onClick={() => setEditando('nuevo')}>Nuevo plan</Boton>}</div>}
       />
       {error && <div className="mb-3"><Aviso>{error}</Aviso></div>}
@@ -62,7 +47,7 @@ export function Planes() {
           columnas={[
             { titulo: 'Plan', celda: (p) => <button className="text-left font-medium text-primario underline" onClick={() => setSeleccionado(p)}>{p.nombre}</button> },
             { titulo: 'Tipo de equipo', celda: (p) => p.tipo_equipo_nombre ?? '—' },
-            { titulo: 'Trigger', celda: (p) => <span className="text-xs">{p.triggers.map((t) => describirTrigger(t)).join(' · ') || '—'}</span> },
+            { titulo: 'Cuándo', celda: (p) => <span className="text-xs">{p.triggers.map((t) => describirTrigger(t)).join(' · ') || '—'}</span> },
             { titulo: 'Ventana', celda: (p) => `${p.tiempo_ventana_dias} días` },
             { titulo: 'Tareas / materiales', celda: (p) => `${p.tareas.length} / ${p.materiales.length}` },
             { titulo: 'Equipos', celda: (p) => String(p.equipos.filter((e) => e.activo).length) },
@@ -78,19 +63,17 @@ export function Planes() {
 }
 
 function EditorPlan({ plan, alCerrar, alGuardar }: { plan: Plan | null; alCerrar: () => void; alGuardar: () => Promise<void> }) {
-  const [b, setB] = useState<Borrador>(plan ? { nombre: plan.nombre, descripcion: plan.descripcion, tipo_equipo_id: plan.tipo_equipo_id, tiempo_ventana_dias: String(plan.tiempo_ventana_dias), formulario_id: plan.formulario_id ?? '', estado: plan.estado, trigger: deTrigger(plan.triggers[0]), tareas: plan.tareas, materiales: plan.materiales } : VACIO)
+  const [b, setB] = useState<Borrador>(plan ? { nombre: plan.nombre, descripcion: plan.descripcion, tipo_equipo_id: plan.tipo_equipo_id, tiempo_ventana_dias: String(plan.tiempo_ventana_dias), formulario_id: plan.formulario_id ?? '', estado: plan.estado, triggers: conClaves(plan.triggers), tareas: plan.tareas, materiales: plan.materiales } : VACIO)
   const [error, setError] = useState<string | null>(null)
   const tipos = useRecurso<TipoEquipo[]>('/catalogos/tipos-equipo')
   const habilidades = useRecurso<Habilidad[]>('/catalogos/habilidades')
   const formularios = useRecurso<Formulario[]>('/formularios', { tipo: 'preventivo' })
-  const t = b.trigger
 
-  function setTrigger(c: Partial<Borrador['trigger']>) { setB({ ...b, trigger: { ...b.trigger, ...c } }) }
   async function guardar() {
     setError(null)
     try {
       const datos: PlanEntrada = { nombre: b.nombre, descripcion: b.descripcion, tipo_equipo_id: b.tipo_equipo_id, tiempo_ventana_dias: Number(b.tiempo_ventana_dias), formulario_id: b.formulario_id || null, estado: b.estado,
-        triggers: [aTrigger(t)], tareas: b.tareas.map((x, i) => ({ ...x, orden: i + 1, tiempo_estimado_min: Number(x.tiempo_estimado_min) || 0, habilidad_requerida_id: x.habilidad_requerida_id || null })),
+        triggers: conClaves(b.triggers), tareas: b.tareas.map((x, i) => ({ ...x, orden: i + 1, tiempo_estimado_min: Number(x.tiempo_estimado_min) || 0, habilidad_requerida_id: x.habilidad_requerida_id || null })),
         materiales: b.materiales.map((m) => ({ ...m, articulo_id: null, cantidad_estandar: String(m.cantidad_estandar || '1') })) }
       if (plan) await editarPlan(plan.id, datos)
       else await crearPlan(datos)
@@ -114,33 +97,7 @@ function EditorPlan({ plan, alCerrar, alGuardar }: { plan: Plan | null; alCerrar
           {plan && <Selector etiqueta="Estado" value={b.estado} onChange={(e) => setB({ ...b, estado: e.target.value as 'activo' | 'inactivo' })} opciones={[{ valor: 'activo', texto: 'Activo' }, { valor: 'inactivo', texto: 'Inactivo' }]} />}
         </div>
 
-        <fieldset className="rounded-lg border border-slate-200 p-3">
-          <legend className="px-1 text-sm font-medium text-slate-700">Trigger</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {TRIGGERS.map((x) => (
-              <label key={x.valor} className={`flex items-start gap-2 rounded-lg border p-2 text-sm ${x.fase === 2 ? 'cursor-not-allowed border-dashed border-slate-200 text-slate-400' : t.tipo === x.valor ? 'border-primario bg-primario/5' : 'border-slate-200'}`}>
-                <input type="radio" name="trigger" value={x.valor} disabled={x.fase === 2} checked={t.tipo === x.valor} onChange={() => setTrigger({ tipo: x.valor, modo: x.valor === 'calendario' ? 'mes_dia' : 'cada_dias' })} aria-label={x.texto} />
-                <span>{x.texto}{x.fase === 2 && <span className="block text-xs">Fase 2 (medidores, eventos, combinados)</span>}</span>
-              </label>
-            ))}
-          </div>
-          {t.tipo === 'tiempo_fijo' ? (
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <Selector etiqueta="Modo" value={t.modo} onChange={(e) => setTrigger({ modo: e.target.value as Borrador['trigger']['modo'] })} opciones={[{ valor: 'cada_dias', texto: 'Cada N días' }, { valor: 'cada_unidad', texto: 'Cada N semanas/meses' }]} />
-              {t.modo === 'cada_dias' ? <Campo etiqueta="Cada (días)" type="number" min={1} value={t.cada_dias} onChange={(e) => setTrigger({ cada_dias: e.target.value })} /> : (
-                <><Campo etiqueta="Cada" type="number" min={1} value={t.cada} onChange={(e) => setTrigger({ cada: e.target.value })} />
-                  <Selector etiqueta="Unidad" value={t.unidad} onChange={(e) => setTrigger({ unidad: e.target.value as Borrador['trigger']['unidad'] })} opciones={[{ valor: 'dias', texto: 'días' }, { valor: 'semanas', texto: 'semanas' }, { valor: 'meses', texto: 'meses' }]} /></>
-              )}
-            </div>
-          ) : (
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <Selector etiqueta="Modo" value={t.modo} onChange={(e) => setTrigger({ modo: e.target.value as Borrador['trigger']['modo'] })} opciones={[{ valor: 'mes_dia', texto: 'Fecha fija anual' }, { valor: 'fechas', texto: 'Lista de fechas' }]} />
-              {t.modo === 'mes_dia' ? (
-                <><Campo etiqueta="Mes (1-12)" type="number" min={1} max={12} value={t.mes} onChange={(e) => setTrigger({ mes: e.target.value })} /><Campo etiqueta="Día (1-31)" type="number" min={1} max={31} value={t.dia} onChange={(e) => setTrigger({ dia: e.target.value })} /></>
-              ) : <Campo etiqueta="Fechas (MM-DD o AAAA-MM-DD, separadas por coma)" value={t.fechas} onChange={(e) => setTrigger({ fechas: e.target.value })} />}
-            </div>
-          )}
-        </fieldset>
+        <ConstructorTriggers triggers={b.triggers} alCambiar={(triggers) => setB({ ...b, triggers })} />
 
         <fieldset className="rounded-lg border border-slate-200 p-3">
           <legend className="px-1 text-sm font-medium text-slate-700">Tareas ({b.tareas.length})</legend>
@@ -195,7 +152,10 @@ function DetallePlan({ plan, puedeEditar, alCerrar, alCambiar }: { plan: Plan; p
       {error && <div className="mb-3"><Aviso>{error}</Aviso></div>}
       <div className="space-y-3 text-sm">
         <p className="text-slate-600">{plan.descripcion || 'Sin descripción'} · {plan.tipo_equipo_nombre} · ventana {plan.tiempo_ventana_dias} días · formulario {plan.formulario_nombre ?? 'por resolver'} · v{plan.version}</p>
-        <p><strong>Trigger:</strong> {plan.triggers.map((t) => describirTrigger(t)).join(' · ')}</p>
+        <ul className="text-sm"><strong>Cuándo se ejecuta:</strong>
+          {plan.triggers.map((t) => <li key={t.id ?? t.clave}><Insignia tono="acento">{t.clave}</Insignia> {describirTrigger(t)}</li>)}
+        </ul>
+        <Simulacion plan={plan} />
         <Tarjeta titulo={`Tareas (${plan.tareas.length})`}>
           <ol className="list-decimal pl-5">{plan.tareas.map((t) => <li key={t.id ?? t.descripcion}>{t.descripcion} <span className="text-xs text-slate-500">· {t.tiempo_estimado_min} min{t.habilidad_requerida_id && ' · habilidad requerida'}</span></li>)}</ol>
         </Tarjeta>
@@ -206,7 +166,7 @@ function DetallePlan({ plan, puedeEditar, alCerrar, alCambiar }: { plan: Plan; p
           <ul className="divide-y divide-slate-100">
             {plan.equipos.map((e) => (
               <li key={e.id} className="flex items-center justify-between py-1">
-                <span>{nombres[e.equipo_id] ?? e.equipo_id} <span className="text-xs text-slate-500">· próxima {e.fecha_proxima_ejecucion ?? '—'} · última {e.fecha_ultima_ejecucion ?? '—'}</span> {!e.activo && <Insignia>inactivo</Insignia>}</span>
+                <span>{nombres[e.equipo_id] ?? e.equipo_id} <span className="text-xs text-slate-500">· próxima {e.fecha_proxima_ejecucion ?? '—'} · última {e.fecha_ultima_ejecucion ?? '—'}{e.ultimo_valor_medidor ? ` · último PM al medidor ${Number(e.ultimo_valor_medidor)}` : ''}</span> {!e.activo && <Insignia>inactivo</Insignia>}</span>
                 {puedeEditar && e.activo && <Boton variante="fantasma" onClick={async () => { try { await quitarPlanDeEquipo(plan.id, e.equipo_id); await alCambiar() } catch (err) { setError(mensajeDeError(err)) } }}>Quitar</Boton>}
               </li>
             ))}
@@ -221,5 +181,47 @@ function DetallePlan({ plan, puedeEditar, alCerrar, alCambiar }: { plan: Plan; p
         </Tarjeta>
       </div>
     </Modal>
+  )
+}
+
+/**
+ * «¿Cuándo se dispararía este plan con las lecturas actuales?» (§6.9.1): una fila por equipo asignado con la fecha
+ * estimada y el detalle de cada condición. Es lo que permite revisar un plan por medidor antes de confiar en él.
+ */
+function Simulacion({ plan }: { plan: Plan }) {
+  const [filas, setFilas] = useState<FilaSimulacion[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [abierto, setAbierto] = useState(false)
+  async function cargar() {
+    setAbierto(true)
+    try { setFilas(await simularPlan(plan.id)) } catch (e) { setError(mensajeDeError(e)) }
+  }
+  if (!abierto) return <Boton variante="secundario" onClick={() => void cargar()}>Simular: ¿cuándo se dispararía?</Boton>
+  return (
+    <Tarjeta titulo="Simulación con las lecturas actuales">
+      {error && <Aviso>{error}</Aviso>}
+      {!filas && !error && <p className="text-sm text-slate-500">Calculando…</p>}
+      {filas && filas.length === 0 && <p className="text-sm text-slate-500">El plan no está asignado a ningún equipo todavía.</p>}
+      <div className="space-y-2" data-testid="simulacion">
+        {(filas ?? []).map((f) => (
+          <article key={f.equipo_id} className="rounded-lg border border-slate-200 p-2">
+            <p className="text-sm font-medium">
+              {f.equipo_codigo} · {f.equipo}
+              {f.fecha_estimada ? <> → <strong>{f.fecha_estimada}</strong></> : <span className="text-slate-500"> → sin fecha estimada</span>}
+              {f.folio_abierto && <> <Insignia tono="alerta">ya tiene el folio {f.folio_abierto.numero_folio} abierto</Insignia></>}
+            </p>
+            <ul className="mt-1 text-xs text-slate-600">
+              {f.triggers.map((t) => (
+                <li key={t.clave}>
+                  <Insignia>{t.clave}</Insignia> {t.fecha_estimada ?? 'sin fecha'}
+                  {t.valor_actual !== null && <> · va en {Number(t.valor_actual)} de {Number(t.valor_objetivo)} {t.unidad}</>}
+                  {t.motivo && <> · {t.motivo}</>}
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+    </Tarjeta>
   )
 }

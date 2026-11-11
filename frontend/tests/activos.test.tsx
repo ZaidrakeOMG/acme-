@@ -58,7 +58,8 @@ function ficha(extra: Partial<FichaActivo> = {}): FichaActivo {
       costo_refacciones: '8200.00', costo_downtime: '44700.00', valor_residual: '32400.00' }],
     alerta_reemplazo: alerta(),
     umbral_reemplazo_pct: '70',
-    fase_2: ['Criticidad automática por FMEA', 'MTBF y MTTR por equipo', 'Medidores de activos'],
+    // F2-04 saco los medidores de esta lista: ya tienen su propio modulo y su pestaña en la ficha.
+    fase_2: ['Criticidad automática por FMEA', 'MTBF y MTTR por equipo'],
     ...extra,
   }
 }
@@ -97,7 +98,9 @@ describe('Equipos y activos', () => {
     expect(screen.getByRole('link', { name: 'CD-000011' })).toHaveAttribute('href', '/folios/0f000000-0000-0000-0000-000000000001')
     expect(screen.getByText('validado')).toBeInTheDocument()
     expect(within(screen.getByTestId('refacciones-activo')).getByText(/Compresor 1\/3 HP — 1 · \$8,200\.00/)).toBeInTheDocument()
-    expect(screen.getByText('Medidores de activos')).toBeInTheDocument()
+    expect(screen.getByText('MTBF y MTTR por equipo')).toBeInTheDocument()
+    // F2-04: la ficha ahora tiene pestaña de medidores, y los medidores ya no son Fase 2.
+    expect(screen.getByRole('button', { name: 'Medidores' })).toBeInTheDocument()
   })
 
   it('el Admin empresa acepta el reemplazo desde la ficha y se genera el trabajo especial para cotizar', async () => {

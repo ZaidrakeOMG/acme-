@@ -29,7 +29,11 @@ export function InicioOperador() {
           <p className="text-xs uppercase tracking-wide text-slate-500">App del operador</p>
           <h1 className="text-xl font-semibold text-slate-900">Folios de mi unidad</h1>
         </div>
-        <Link to="/campo/nuevo"><Boton className="min-h-12 px-5 text-base">Nuevo folio</Boton></Link>
+        <div className="flex gap-2">
+          {/* F2-04 (§6.9.2): el operador lee el marcador de los equipos de su unidad, con o sin señal. */}
+          <Link to="/campo/lectura"><Boton variante="secundario" className="min-h-12 px-4 text-base">Registrar lectura</Boton></Link>
+          <Link to="/campo/nuevo"><Boton className="min-h-12 px-5 text-base">Nuevo folio</Boton></Link>
+        </div>
       </div>
       {!enLinea && <Aviso tipo="info">Sin conexión: ves la última información guardada y puedes capturar; se enviará al recuperar señal.</Aviso>}
       {error && <Aviso>{error}</Aviso>}

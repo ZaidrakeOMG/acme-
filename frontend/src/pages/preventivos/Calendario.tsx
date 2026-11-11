@@ -7,7 +7,7 @@ import { api, mensajeDeError } from '../../services/api'
 import { cargarCalendario, editarCalendario, generarAhora, listarCalendario, mesDe, publicaciones, publicarMes } from '../../services/preventivos'
 import type { Equipo, Tecnico, Tenant, UnidadNegocio } from '../../types/api'
 import type { EstadoPreventivo, FilaCalendario, FilaCalendarioEntrada, Plan, Publicacion } from '../../types/preventivos'
-import { NOMBRE_ESTADO_PREVENTIVO, ROLES_CARGAN_CALENDARIO, ROLES_PLANES } from '../../types/preventivos'
+import { NOMBRE_ESTADO_PREVENTIVO, NOMBRE_ORIGEN, ROLES_CARGAN_CALENDARIO, ROLES_PLANES } from '../../types/preventivos'
 import { EstadoInsignia } from '../folios/comunes'
 
 const TONO: Record<EstadoPreventivo, 'neutro' | 'ok' | 'alerta' | 'acento'> = { programado: 'neutro', generado: 'acento', ejecutado: 'ok', reprogramado: 'alerta', cancelado: 'alerta' }
@@ -118,7 +118,14 @@ export function Calendario() {
           columnas={[
             { titulo: 'Fecha', celda: (f) => <span className="font-mono text-xs">{f.fecha_programada}{f.fecha_programada_original && f.fecha_programada_original !== f.fecha_programada && <span className="block text-slate-400 line-through">{f.fecha_programada_original}</span>}</span> },
             { titulo: 'UN / Equipo', celda: (f) => <span>{f.un_codigo} <span className="text-xs text-slate-500">{f.un_nombre}</span>{f.equipo_codigo ? <span className="block">{f.equipo_codigo} <span className="text-xs text-slate-500">{f.equipo_nombre}</span></span> : <span className="block text-xs text-slate-500">UN completa</span>}</span> },
-            { titulo: 'Plan / descripción', celda: (f) => <span>{f.plan_nombre ?? <span className="text-xs text-slate-500">{f.origen === 'manual' ? 'Manual' : '—'}</span>}{f.descripcion && <span className="block text-xs text-slate-600">{f.descripcion}</span>}</span> },
+            { titulo: 'Plan / descripción', celda: (f) => <span>{f.plan_nombre ?? <span className="text-xs text-slate-500">—</span>}{f.descripcion && <span className="block text-xs text-slate-600">{f.descripcion}</span>}</span> },
+            // F2-04 (§6.9.1): el calendario dice de dónde salió cada preventivo, y con qué lectura si fue por uso.
+            { titulo: 'Origen', celda: (f) => (
+              <span data-testid={`origen-${f.id}`}>
+                <Insignia tono={f.origen === 'medidor' ? 'acento' : f.origen === 'evento' ? 'alerta' : 'neutro'}>{NOMBRE_ORIGEN[f.origen]}</Insignia>
+                {f.valor_medidor != null && <span className="block text-xs text-slate-500">con el medidor en {Number(f.valor_medidor)}</span>}
+              </span>
+            ) },
             { titulo: 'Técnico', celda: (f) => f.tecnico_nombre ?? <span className="text-xs text-slate-400">—</span> },
             { titulo: 'Estado', celda: (f) => <div className="flex flex-wrap gap-1"><Insignia tono={TONO[f.estado]}>{NOMBRE_ESTADO_PREVENTIVO[f.estado]}</Insignia>{f.estado_folio && <EstadoInsignia estado={f.estado_folio} />}</div> },
             { titulo: 'Folio', celda: (f) => f.folio_id ? <Link to={`/folios/${f.folio_id}`} className="font-mono text-xs text-primario underline">{f.numero_folio}</Link> : <span className="text-xs text-slate-400">—</span> },

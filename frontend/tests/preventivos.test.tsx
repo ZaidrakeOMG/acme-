@@ -91,7 +91,7 @@ describe('Preventivos', () => {
     expect(publicar).toBeTruthy()
   })
 
-  it('el editor de planes solo permite triggers de Fase 1 y envía tareas y materiales', async () => {
+  it('el editor de planes arma la condición en lenguaje claro y envía tareas y materiales', async () => {
     const llamadas = await entrar('admin_prestador', '/preventivos/planes', {
       'GET /api/planes': () => ({ json: [plan] }),
       'GET /api/catalogos/tipos-equipo': () => ({ json: [{ id: 'te1', familia_id: 'f1', tenant_id: null, nombre: 'Refrigerador vertical', descripcion: '', activa: true, es_global: true }] }),
@@ -105,14 +105,14 @@ describe('Preventivos', () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Nuevo plan' }))
     const dialogo = await screen.findByRole('dialog')
-    expect(within(dialogo).getByLabelText(/Medidor por umbral/)).toBeDisabled()
-    expect(within(dialogo).getByLabelText(/Evento/)).toBeDisabled()
-    expect(within(dialogo).getByLabelText(/Combinado/)).toBeDisabled()
-    expect(within(dialogo).getByLabelText(/Tiempo fijo/)).toBeEnabled()
-    expect(within(dialogo).getAllByText('Fase 2 (medidores, eventos, combinados)')).toHaveLength(4)
+    // F2-04: los seis tipos de §6.9.1 están disponibles; la condición nace como «Cada 30 días».
+    const tipoT1 = within(dialogo).getByLabelText('Tipo de la condición t1') as HTMLSelectElement
+    expect([...tipoT1.options].map((o) => o.value)).toEqual(['tiempo_fijo', 'calendario', 'medidor_umbral', 'medidor_intervalo', 'evento', 'combinado'])
+    expect(within(dialogo).getByTestId('resumen-t1')).toHaveTextContent('Cada 30 días')
     await user.type(within(dialogo).getByLabelText('Nombre'), 'Plan de prueba')
     await user.selectOptions(within(dialogo).getByLabelText('Tipo de equipo'), 'te1')
-    await user.click(within(dialogo).getByLabelText(/Calendario \(fecha fija/))
+    await user.selectOptions(tipoT1, 'calendario')
+    expect(within(dialogo).getByTestId('resumen-t1')).toHaveTextContent('Cada 15/1')
     await user.click(within(dialogo).getByRole('button', { name: '+ Tarea' }))
     await user.type(within(dialogo).getByLabelText('Tarea 1'), 'Revisar luminarias')
     await user.selectOptions(within(dialogo).getByLabelText('Habilidad tarea 1'), 'h1')
@@ -121,7 +121,7 @@ describe('Preventivos', () => {
     await user.click(within(dialogo).getByRole('button', { name: 'Crear plan' }))
     await waitFor(() => expect(llamadas.some((l) => l.clave === 'POST /api/planes')).toBe(true))
     const cuerpo = llamadas.find((l) => l.clave === 'POST /api/planes')!.cuerpo as { triggers: { tipo_trigger: string; parametros_json: Record<string, unknown> }[]; tareas: { descripcion: string; habilidad_requerida_id: string | null; orden: number }[]; materiales: { descripcion: string }[] }
-    expect(cuerpo.triggers).toEqual([{ tipo_trigger: 'calendario', logica_combinacion: null, parametros_json: { mes: 1, dia: 15 } }])
+    expect(cuerpo.triggers).toEqual([{ clave: 't1', tipo_trigger: 'calendario', logica_combinacion: null, parametros_json: { mes: 1, dia: 15 } }])
     expect(cuerpo.tareas).toEqual([{ orden: 1, descripcion: 'Revisar luminarias', tiempo_estimado_min: 15, habilidad_requerida_id: 'h1' }])
     expect(cuerpo.materiales[0]?.descripcion).toBe('Tubo LED')
   })
