@@ -176,7 +176,9 @@ async def test_severidades_cinco_niveles_por_prestador(cliente, auth, datos):
 
 async def test_familias_globales_y_propias(cliente, auth, datos):
     globales = (await cliente.get("/api/catalogos/familias-equipo", headers=await auth(AE))).json()
-    assert {f["nombre"] for f in globales if f["es_global"]} == {"Refrigeración", "Climatización", "Iluminación"}
+    # Las tres del seed de P02 más «Equipos industriales», que F2-04 agregó para los equipos con medidor (§6.9.2).
+    assert {f["nombre"] for f in globales if f["es_global"]} == {"Refrigeración", "Climatización", "Iluminación",
+                                                                 "Equipos industriales"}
     assert (await cliente.post("/api/catalogos/familias-equipo", headers=await auth(AE), json={"nombre": "Global X", "global": True})).status_code == 403
     nombre = f"Cocina {uuid.uuid4().hex[:4]}"
     propia = await cliente.post("/api/catalogos/familias-equipo", headers=await auth(AE), json={"nombre": nombre})

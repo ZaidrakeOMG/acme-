@@ -27,7 +27,9 @@ async def test_catalogos_y_plantillas(cliente, auth):
     assert {c["clave"] for c in lista} == {"tecnicos", "unidades_negocio", "severidades", "familias_equipo", "tipos_equipo", "calendario_preventivos",
                                            "tipos_falla", "equipos", "matriz_severidad",
                                            # F2-01: catalogo de cursos y historial de cursos por tecnico.
-                                           "cursos", "tecnico_cursos"}
+                                           "cursos", "tecnico_cursos",
+                                           # F2-04: lecturas de medidor por archivo (§6.9.2).
+                                           "lecturas_medidor"}
     for cat in lista:
         r = await cliente.get(f"/api/catalogos/importar/{cat['clave']}/plantilla", headers=await auth(AE))
         assert r.status_code == 200 and r.headers["content-type"].startswith(XLSX)
@@ -151,3 +153,38 @@ async def test_importar_matriz_y_severidades(cliente, auth, datos):
     await cliente.post(f"/api/catalogos/importar/{r.json()['id']}/confirmar", headers=hp)
     alta = next(n for n in (await cliente.get("/api/catalogos/severidades", headers=hp)).json() if n["clave"] == "alta")
     assert alta["nombre"] == "Alta prioridad" and alta["tiempo_respuesta_horas"] == 3 and alta["tiempo_resolucion_horas"] == 20
+
+
+async def test_importar_lecturas_de_medidor(cliente, auth, datos):
+    """F2-04 (§6.9.2): carga de lecturas por archivo, con la misma validación que la captura manual."""
+    from datetime import UTC, datetime, timedelta
+
+    from tests.medidores_utiles import equipo_con_medidor, estado_medidor, incremento_esperado
+
+    equipo, medidor, tipo = await equipo_con_medidor(cliente, auth, datos, metodo_actualizacion="importacion",
+                                                     factor_salto="100")
+    await incremento_esperado(cliente, auth, medidor, 100)
+    ayer = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
+    manana = (datetime.now(UTC) + timedelta(days=2)).strftime("%Y-%m-%d")
+    h = await auth(AE)
+    csv = ("equipo_codigo,tipo_medidor,valor,fecha\n"
+           f"{equipo['codigo']},{tipo['nombre']},1200.5,{ayer}\n"
+           f"NO-EXISTE,{tipo['nombre']},10,{ayer}\n"
+           f"{equipo['codigo']},Medidor fantasma,10,{ayer}\n"
+           f"{equipo['codigo']},{tipo['nombre']},50,{manana}\n"
+           f"{equipo['codigo']},{tipo['nombre']},-5,{ayer}\n")
+    r = await cliente.post("/api/catalogos/importar/lecturas_medidor", headers=h, files=_csv("l.csv", csv))
+    assert r.status_code == 201, r.text
+    cuerpo = r.json()
+    assert cuerpo["filas_ok"] == 1 and cuerpo["filas_error"] == 4, cuerpo
+    assert {e["columna"] for e in cuerpo["errores_json"]} == {"equipo_codigo", "tipo_medidor", "fecha", "valor"}
+    conf = await cliente.post(f"/api/catalogos/importar/{cuerpo['id']}/confirmar", headers=h)
+    assert conf.status_code == 200 and conf.json()["resultado"]["creados"] == 1, conf.text
+    resumen = (await estado_medidor(cliente, auth, equipo["id"]))[0]
+    assert str(resumen["valor_actual"]) == "1200.50" and resumen["metodo_actualizacion"] == "importacion"
+    # El mismo archivo otra vez: la fila queda como duplicada y no se vuelve a cargar.
+    r = await cliente.post("/api/catalogos/importar/lecturas_medidor", headers=h, files=_csv("l.csv", csv))
+    assert len(r.json()["duplicados_json"]) == 1 and r.json()["filas_ok"] == 0, r.json()
+    # El prestador no importa catálogos del cliente.
+    assert (await cliente.post("/api/catalogos/importar/lecturas_medidor", headers=await auth(AP),
+                               files=_csv("l.csv", csv))).status_code == 403

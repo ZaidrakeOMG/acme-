@@ -18,6 +18,9 @@ class DepreciacionEntrada(BaseModel):
     unidades_acumuladas: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
     valor_en_libros_manual: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
     fecha_inicio: date | None = None
+    # F2-04 (§6.9.4 «unidades de producción»): de qué medidor del equipo salen las unidades y cuántas traía ya.
+    equipo_medidor_id: UUID | None = None
+    unidades_al_inicio: Decimal | None = Field(default=None, ge=0, max_digits=16, decimal_places=2)
 
 
 class ActivoEntrada(BaseModel):

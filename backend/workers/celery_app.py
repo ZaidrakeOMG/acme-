@@ -10,7 +10,7 @@ from celery.signals import celeryd_init
 from core.config import config
 
 celery_app = Celery("acma", broker=config.celery_broker_url, backend=config.celery_result_backend, include=["workers.tareas", "workers.tareas.preventivos", "workers.tareas.notificaciones", "workers.tareas.minuta",
-                            "workers.tareas.costos", "workers.tareas.sla"])
+                            "workers.tareas.costos", "workers.tareas.sla", "workers.tareas.medidores"])
 celery_app.conf.update(
     timezone="America/Mexico_City",
     enable_utc=True,
@@ -52,6 +52,9 @@ celery_app.conf.update(
         "cerrar-jornadas-inactivas": {"task": "acma.cerrar_jornadas_inactivas", "schedule": 900.0},
         "particiones-posiciones": {"task": "acma.crear_particiones_posiciones", "schedule": crontab(hour=3, minute=5)},
         "purgar-posiciones": {"task": "acma.purgar_posiciones", "schedule": crontab(hour=3, minute=40)},
+        # F2-04: estimación del día y evaluación de los triggers por medidor y por evento. A la 01:30, antes de la
+        # generación de preventivos de las 02:00, para que un umbral alcanzado hoy no espere a la noche siguiente.
+        "ciclo-medidores": {"task": "acma.ciclo_medidores", "schedule": crontab(hour=1, minute=30)},
     },
 )
 

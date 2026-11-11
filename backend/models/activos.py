@@ -41,6 +41,10 @@ class ActivoDepreciacion(ConVersion, Base):
     valor_en_libros_manual: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     fecha_inicio: Mapped[date] = mapped_column(Date, default=date.today)
     configurado_por: Mapped[uuid.UUID | None] = _fk("usuarios", True)
+    # F2-04 (§6.9.4 «unidades de producción»): de qué medidor salen las unidades y cuántas traía el activo cuando
+    # empezó a depreciarse (un equipo usado no empieza en cero).
+    equipo_medidor_id: Mapped[uuid.UUID | None] = _fk("equipo_medidores", True)
+    unidades_al_inicio: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))
 
 
 class ActivoDepreciacionHistorial(Base):
@@ -57,6 +61,8 @@ class ActivoDepreciacionHistorial(Base):
     depreciacion_acumulada: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     metodo_aplicado: Mapped[MetodoDepreciacion] = mapped_column(pg_enum(MetodoDepreciacion, "metodo_depreciacion"), default=MetodoDepreciacion.linea_recta)
     calculado_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    unidades_periodo: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))      # F2-04
+    unidades_acumuladas: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))   # F2-04
 
 
 class ActivoTCOSnapshot(ConVersion, Base):

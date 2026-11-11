@@ -1,5 +1,6 @@
-"""Planes de mantenimiento (§6.9.1): CRUD con triggers de Fase 1, 403 para triggers de Fase 2, cálculo de próxima fecha,
-asignación a equipos, versión al editar, roles y aislamiento por prestador."""
+"""Planes de mantenimiento (§6.9.1): CRUD con los triggers por fecha, validación de parámetros de los cuatro que
+habilitó F2-04, cálculo de próxima fecha, asignación a equipos, versión al editar, roles y aislamiento por
+prestador. El comportamiento de los triggers por medidor, por evento y combinados vive en sus propios archivos."""
 from datetime import date
 
 import pytest
@@ -48,10 +49,30 @@ async def test_crear_plan_completo_y_detalle(cliente, auth, datos):
     assert (await cliente.post("/api/planes", headers=await auth(TEC), json={})).status_code in (403, 422)
 
 
-async def test_trigger_fase_2_responde_403(cliente, auth, datos):
-    for tipo, params in (("medidor_umbral", {"umbral": 500}), ("medidor_intervalo", {"cada": 1000}), ("evento", {"evento": "alarma"}), ("combinado", {})):
-        r = await nuevo_plan(cliente, auth, trigger={"tipo_trigger": tipo, "parametros_json": params}, esperado=403)
-        assert r["codigo"] == "TRIGGER_FASE_2", r
+async def test_parametros_invalidos_de_los_triggers_nuevos(cliente, auth, datos):
+    """F2-04 habilitó los cuatro triggers que respondían 403 TRIGGER_FASE_2; lo que queda es validar sus parámetros.
+    Lo que sí funciona vive en test_triggers_medidor.py, test_trigger_evento.py y test_trigger_combinado.py."""
+    casos = [
+        ({"tipo_trigger": "medidor_umbral", "parametros_json": {"umbral": 500}}, "TRIGGER_INVALIDO"),       # sin tipo_medidor_id
+        ({"tipo_trigger": "medidor_intervalo", "parametros_json": {"cada": 1000}}, "TRIGGER_INVALIDO"),     # «cada» no es «intervalo»
+        ({"tipo_trigger": "evento", "parametros_json": {"evento": "alarma"}}, "EVENTO_INVALIDO"),           # fuera del catálogo cerrado
+        ({"tipo_trigger": "combinado", "parametros_json": {}}, "TRIGGER_INVALIDO"),                         # sin triggers a los que apuntar
+    ]
+    for trigger, codigo in casos:
+        r = await nuevo_plan(cliente, auth, trigger=trigger, esperado=422)
+        assert r["codigo"] == codigo, (trigger, r)
+
+
+async def test_catalogo_de_eventos_es_cerrado(cliente, auth, datos):
+    r = await cliente.get("/api/planes/eventos-catalogo", headers=await auth(AP))
+    assert r.status_code == 200, r.text
+    claves = {e["clave"] for e in r.json()}
+    assert claves == {"falla_correctiva_grave", "fallas_repetidas", "equipo_instalado", "reemplazo_componente",
+                      "cambio_medidor"}
+    # Cada clave trae el esquema de sus parámetros, que es lo que la interfaz usa para armar el formulario guiado.
+    por_clave = {e["clave"]: e for e in r.json()}
+    assert por_clave["fallas_repetidas"]["parametros_schema_json"]["cantidad"]["default"] == 3
+    assert (await cliente.get("/api/planes/eventos-catalogo", headers=await auth(OP))).status_code == 403
 
 
 async def test_asignar_plan_a_equipo_calcula_proxima(cliente, auth, datos):
@@ -87,7 +108,7 @@ async def test_editar_plan_sube_version_y_reemplaza_hijos(cliente, auth, datos):
     # La próxima fecha del equipo se recalcula con el nuevo trigger.
     assert date.fromisoformat(d["equipos"][0]["fecha_proxima_ejecucion"]).month == 12
     r = await cliente.put(f"/api/planes/{plan['id']}", headers=await auth(AP), json={"triggers": [{"tipo_trigger": "medidor_umbral", "parametros_json": {"umbral": 10}}]})
-    assert r.status_code == 403 and r.json()["codigo"] == "TRIGGER_FASE_2"
+    assert r.status_code == 422 and r.json()["codigo"] == "TRIGGER_INVALIDO"   # F2-04: ya no es 403, falta el medidor
     r = await cliente.put(f"/api/planes/{plan['id']}", headers=await auth(AP), json={"estado": "inactivo"})
     assert r.status_code == 200 and r.json()["estado"] == "inactivo" and r.json()["version"] == 3
 

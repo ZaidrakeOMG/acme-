@@ -57,12 +57,14 @@ async def test_doble_saldo_decreciente_manual_y_unidades(cliente, auth, datos):
     r = await cliente.put(f"/api/activos/{e2['id']}/depreciacion", headers=await auth(AE),
                           json={"metodo": "manual", "valor_en_libros_manual": "31500.00", "valor_reposicion": "60000.00"})
     assert Decimal(r.json()["tco"]["valor_residual"]) == 31500
-    # Unidades de producción: Fase 1 avisa REQUIERE_MEDIDORES_FASE_2 y conserva el último valor manual.
+    # Unidades de producción: F2-04 lo calcula de verdad. Sin medidor elegido usa el campo manual de unidades y
+    # avisa MEDIDOR_NO_CONFIGURADO: 50,000 × (5,000 ÷ 20,000) = 12,500 de depreciación acumulada.
     r = await cliente.put(f"/api/activos/{e2['id']}/depreciacion", headers=await auth(AE),
                           json={"metodo": "unidades_produccion", "unidades_vida_util": "20000", "unidades_acumuladas": "5000"})
-    assert r.json()["depreciacion"]["aviso"] == "REQUIERE_MEDIDORES_FASE_2"
-    assert Decimal(r.json()["tco"]["valor_residual"]) == 31500
-    assert "Medidores de activos (unidades de producción)" in r.json()["fase_2"][-1]
+    assert r.json()["depreciacion"]["aviso"] == "MEDIDOR_NO_CONFIGURADO"
+    assert Decimal(r.json()["tco"]["valor_residual"]) == 37500
+    # Los medidores ya no son Fase 2; lo que queda ahí es la criticidad automática, el FMEA y el MTBF/MTTR.
+    assert not any("Medidores" in x for x in r.json()["fase_2"])
 
 
 async def test_tco_con_sus_componentes(cliente, auth, datos):

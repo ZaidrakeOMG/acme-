@@ -224,7 +224,8 @@ async def test_catalogo_personalizado_y_opciones(cliente, auth, datos):
     fallas = (await cliente.get("/api/formularios/opciones", headers=await auth(OP), params={"catalogo": "tipos_falla", "padre": familias["Refrigeración"]["id"]})).json()
     assert {o["etiqueta"] for o in fallas["opciones"]} == {"No enciende", "No enfría", "Ruido inusual"}
     equipos = (await cliente.get("/api/formularios/opciones", headers=await auth(OP), params={"catalogo": "equipos_tenant", "un_id": str(datos["unidades"][0])})).json()
-    assert len([o for o in equipos["opciones"] if o["etiqueta"].startswith("EQ-")]) == 4 and all(o["padre"] == str(datos["unidades"][0]) for o in equipos["opciones"])
+    # 4 equipos del seed de P02 + los 6 industriales con medidor que agregó F2-04, todos en la primera UN.
+    assert len([o for o in equipos["opciones"] if o["etiqueta"].startswith("EQ-")]) == 10 and all(o["padre"] == str(datos["unidades"][0]) for o in equipos["opciones"])
     materiales = (await cliente.get("/api/formularios/opciones", headers=await auth(TEC), params={"catalogo": "materiales"})).json()
     assert materiales["opciones"] == [] and "P09" in materiales["aviso"]
     assert (await cliente.get("/api/formularios/opciones", headers=await auth(OTRO_AE), params={"catalogo": "equipos_tenant"})).json()["opciones"] == []

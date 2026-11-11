@@ -22,7 +22,12 @@ class TipoTrigger(str, enum.Enum):
     combinado = "combinado"
 
 
-TRIGGERS_FASE_1 = {TipoTrigger.tiempo_fijo, TipoTrigger.calendario}
+# Los seis tipos de §6.9.1 están activos desde F2-04. Estos dos no necesitan medidores ni eventos: su próxima fecha
+# se calcula solo con el calendario, así que son los que puede resolver `proxima_fecha_trigger` por sí sola.
+TRIGGERS_POR_FECHA = {TipoTrigger.tiempo_fijo, TipoTrigger.calendario}
+TRIGGERS_MEDIDOR = {TipoTrigger.medidor_umbral, TipoTrigger.medidor_intervalo}
+# Nombre histórico (P06, cuando los otros cuatro respondían TRIGGER_FASE_2).
+TRIGGERS_FASE_1 = TRIGGERS_POR_FECHA
 
 
 class EstadoPlan(str, enum.Enum):
@@ -48,6 +53,8 @@ class EstadoPreventivo(str, enum.Enum):
 class OrigenPreventivo(str, enum.Enum):
     manual = "manual"
     plan = "plan"
+    medidor = "medidor"   # F2-04: lo disparó el uso real del equipo
+    evento = "evento"     # F2-04: lo disparó algo que pasó en el sistema
 
 
 class TipoAutorizacionPreventivo(str, enum.Enum):
@@ -106,6 +113,9 @@ class PlanTrigger(ConVersion, Base):
     tipo_trigger: Mapped[TipoTrigger] = mapped_column(pg_enum(TipoTrigger, "tipo_trigger_plan"))
     parametros_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     logica_combinacion: Mapped[str | None] = mapped_column(String(10))
+    # F2-04: identidad estable dentro del plan (`t1`, `t2`, …). Una edición reemplaza los triggers, así que sus id
+    # cambiaban y el trigger `combinado`, que apunta a otros triggers, no podía guardarlos.
+    clave: Mapped[str] = mapped_column(String(40), default="")
 
 
 class PlanTarea(ConVersion, Base):
@@ -144,6 +154,8 @@ class PlanEjecucion(ConVersion, Base):
     fecha_real: Mapped[date | None] = mapped_column(Date)
     desvio_dias: Mapped[int | None] = mapped_column(Integer)
     estado: Mapped[EstadoEjecucionPlan] = mapped_column(pg_enum(EstadoEjecucionPlan, "estado_ejecucion_plan"), default=EstadoEjecucionPlan.programada)
+    plan_trigger_id: Mapped[uuid.UUID | None] = _fk("plan_triggers", True)   # F2-04: qué trigger la generó
+    valor_medidor: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))    # F2-04: acumulado con el que se disparó
 
 
 class EquipoPlan(ConVersion, Base):
@@ -181,6 +193,8 @@ class PreventivoCalendario(ConVersion, Base):
     descripcion: Mapped[str] = mapped_column(Text, default="")
     cargado_por: Mapped[uuid.UUID | None] = _fk("usuarios", True)
     reprogramado_desde_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("preventivos_calendario.id"), nullable=True)
+    plan_trigger_id: Mapped[uuid.UUID | None] = _fk("plan_triggers", True)   # F2-04
+    valor_medidor: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))    # F2-04
 
 
 class CalendarioPublicacion(ConVersion, Base):

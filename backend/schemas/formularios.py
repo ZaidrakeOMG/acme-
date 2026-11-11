@@ -358,10 +358,21 @@ class ActivoMapeo(BaseModel):
     campo_nombre: str | None = Field(default=None, pattern=_CLAVE.pattern)
 
 
+class LecturaMedidorMapeo(BaseModel):
+    """F2-04 §6.9.2: el campo numérico es la lectura de un medidor del equipo. Al enviarse el formulario de atención
+    (o el del preventivo) la lectura se registra con el folio; `campo_foto` apunta al campo fotografía del marcador,
+    que queda como evidencia de esa lectura."""
+    tipo_medidor_id: UUID = Field(description="Tipo de medidor del catálogo (§6.9.2)")
+    campo_foto: str | None = Field(default=None, pattern=_CLAVE.pattern)
+    foto_obligatoria: bool = False
+    metodo: Literal["tecnico", "operador"] = "tecnico"
+
+
 class Campo(BaseModel):
     clave: str = Field(pattern=_CLAVE.pattern, description="Única en el formulario, sin acentos")
     genera_hallazgo: HallazgoMapeo | None = Field(default=None, description="P07: crea un hallazgo para la minuta al enviar")
     clasifica_instalacion_activo: ActivoMapeo | None = Field(default=None, description="P08: clasifica el folio como instalación de activo (§6.10.7)")
+    lectura_medidor: LecturaMedidorMapeo | None = Field(default=None, description="F2-04: el campo es la lectura de un medidor del equipo (§6.9.2)")
     tipo: TipoCampo
     etiqueta: str = Field(min_length=1, max_length=200)
     ayuda: str | None = Field(default=None, max_length=500)
@@ -437,6 +448,21 @@ class EsquemaFormulario(BaseModel):
                 for ref in (a.campo_tipo_equipo, a.campo_marca, a.campo_modelo, a.campo_serie, a.campo_valor_reposicion, a.campo_nombre):
                     if ref and ref not in existentes:
                         raise ValueError(f"clasifica_instalacion_activo de {c.clave} apunta a un campo inexistente: {ref}")
+            # F2-04: una lectura de medidor es un número, así que la bandera solo vale en los campos que capturan
+            # números (`texto` con formato numérico o `slider`).
+            lm = c.lectura_medidor
+            if lm:
+                if c.tipo not in ("texto", "slider"):
+                    raise ValueError(f"lectura_medidor solo aplica a campos texto con formato numérico o slider ({c.clave} es {c.tipo})")
+                if c.tipo == "texto" and c.config.get("formato") != "numeros":
+                    raise ValueError(f"lectura_medidor en {c.clave}: el campo texto debe tener formato numeros")
+                if lm.campo_foto:
+                    if lm.campo_foto not in existentes:
+                        raise ValueError(f"lectura_medidor de {c.clave} apunta a un campo inexistente: {lm.campo_foto}")
+                    if por_clave[lm.campo_foto].tipo != "fotografia":
+                        raise ValueError(f"lectura_medidor de {c.clave}: {lm.campo_foto} no es un campo fotografía")
+                if lm.foto_obligatoria and not lm.campo_foto:
+                    raise ValueError(f"lectura_medidor de {c.clave} exige foto pero no indica campo_foto")
         for c in self.campos:
             for cond in c.condiciones:
                 if cond.campo_origen not in existentes:

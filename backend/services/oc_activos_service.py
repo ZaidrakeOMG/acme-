@@ -328,6 +328,11 @@ async def alta_equipo(db: AsyncSession, folio: Folio, actor: ActorFolio, aut: Fo
     from services.erp import eventos as erp_eventos  # §6.6: crear activo fijo en el ERP del tenant
 
     await erp_eventos.crear_activo_fijo(db, folio, equipo)
+    # F2-04 (§6.9.1 «Por evento»): un plan puede empezar al instalarse el activo, no al cumplirse una fecha.
+    from services import triggers_service
+
+    await triggers_service.evaluar_evento(db, "equipo_instalado", equipo_id=equipo.id,
+                                          datos={"folio_id": str(folio.id), "codigo": codigo})
     if incompleto:
         await alertas_service.disparar(db, "ACTIVO_INSTALADO_INCOMPLETO", tenant_id=folio.tenant_id, prestador_id=folio.prestador_id, entidad_tipo="equipo", entidad_id=equipo.id,
                                        datos={"codigo": codigo, "numero_folio": folio.numero_folio, "faltan": ["tipo_equipo"], "un": un.codigo if un else None})

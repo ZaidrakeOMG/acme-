@@ -7,7 +7,7 @@ import csv
 import io
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
@@ -140,6 +140,14 @@ CATALOGOS: dict[str, Catalogo] = {
         Columna("folio_constancia", False, "Folio de la constancia", "DC3-2026-0145"),
         Columna("vigente_hasta", False, "Vigencia (vacio = se calcula del curso)", "2028-03-15"),
     ], ("tecnico_email", "curso", "fecha_fin")),
+    # F2-04 (§6.9.2 «Importacion desde ERP o SCADA»): la carga por archivo. La API de lecturas en lote hace lo mismo
+    # para un sistema que las manda solo (ver docs/integracion/lecturas_medidor.md).
+    "lecturas_medidor": Catalogo("lecturas_medidor", "Lecturas de medidor", Dominio.tenant, [
+        Columna("equipo_codigo", True, "Codigo del equipo", "EQ-0001"),
+        Columna("tipo_medidor", True, "Nombre del tipo de medidor (el equipo debe tenerlo)", "Horas de operacion"),
+        Columna("valor", True, "Lectura del marcador", "1520.5"),
+        Columna("fecha", True, "Fecha y hora de la lectura (AAAA-MM-DD o AAAA-MM-DD HH:MM)", "2026-11-10 07:30"),
+    ], ("equipo_codigo", "tipo_medidor", "fecha")),
 }
 
 
@@ -237,6 +245,24 @@ def _fecha(v: str) -> date | None:
         except ValueError:
             continue
     raise ValueError("Fecha inválida; usa AAAA-MM-DD")
+
+
+def _fecha_hora(v: str) -> datetime | None:
+    """F2-04: la lectura puede traer solo el día o también la hora. Sin zona se interpreta en UTC, como el resto de
+    los timestamps de la API."""
+    v = (v or "").strip().replace("/", "-")
+    if not v:
+        return None
+    for formato in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(v, formato).replace(tzinfo=UTC)
+        except ValueError:
+            continue
+    try:
+        momento = datetime.fromisoformat(v)
+        return momento if momento.tzinfo else momento.replace(tzinfo=UTC)
+    except ValueError:
+        raise ValueError("Fecha inválida; usa AAAA-MM-DD o AAAA-MM-DD HH:MM") from None
 
 
 def _si_no(v: str | None, default: bool = True) -> bool:
@@ -359,6 +385,18 @@ class Contexto:
                                                 CursoCatalogo.prestador_id.is_(None))))).scalars()}
             self.d["registros"] = {(r.tecnico_id, r.curso_id, r.fecha_fin) for r in (await db.execute(
                 select(TecnicoCurso).where(TecnicoCurso.prestador_id == p))).scalars()}
+        if catalogo == "lecturas_medidor":
+            from models.medidores import EquipoMedidor, MedidorLectura, TipoMedidor
+
+            equipos = list((await db.execute(select(Equipo).where(Equipo.tenant_id == t))).scalars())
+            self.d["equipos_codigo"] = {e.codigo.lower(): e for e in equipos}
+            filas = (await db.execute(select(EquipoMedidor, TipoMedidor).join(
+                TipoMedidor, TipoMedidor.id == EquipoMedidor.tipo_medidor_id).where(
+                EquipoMedidor.tenant_id == t, EquipoMedidor.activo.is_(True)))).all()
+            self.d["medidores"] = {(m.equipo_id, tipo.nombre.lower()): m for m, tipo in filas}
+            self.d["lecturas"] = {(x.equipo_medidor_id, x.timestamp_dispositivo, x.valor) for x in (await db.execute(
+                select(MedidorLectura).where(MedidorLectura.tenant_id == t,
+                                             MedidorLectura.timestamp_dispositivo.is_not(None)))).scalars()}
         if catalogo == "matriz_severidad":
             from services.catalogos_service import prestadores_del_tenant
             prestadores = await prestadores_del_tenant(db, t)
@@ -593,6 +631,39 @@ def _validar_fila(catalogo: str, f: dict[str, str], ctx: Contexto) -> tuple[dict
         duplicado = bool(tenant and un and fecha) and (tenant.id, un.id, equipo.id if equipo else None, fecha) in d["calendario"]
         return (n, duplicado, errores)
 
+    if catalogo == "lecturas_medidor":
+        codigo = (f.get("equipo_codigo") or "").strip().lower()
+        equipo = d["equipos_codigo"].get(codigo)
+        if equipo is None:
+            errores.append(("equipo_codigo", f"El equipo «{f.get('equipo_codigo', '')}» no existe en este cliente"))
+        nombre_tipo = (f.get("tipo_medidor") or "").strip().lower()
+        medidor = d["medidores"].get((equipo.id, nombre_tipo)) if equipo else None
+        if equipo is not None and medidor is None:
+            errores.append(("tipo_medidor", f"El equipo {equipo.codigo} no tiene un medidor de «{f.get('tipo_medidor', '')}» activo"))
+        valor = None
+        try:
+            valor = _decimal(f.get("valor", ""))
+            if valor is None:
+                errores.append(("valor", "La lectura es obligatoria"))
+            elif valor < 0:
+                errores.append(("valor", "La lectura no puede ser negativa"))
+        except ValueError as e:
+            errores.append(("valor", str(e)))
+        momento = None
+        try:
+            momento = _fecha_hora(f.get("fecha", ""))
+            if momento is None:
+                errores.append(("fecha", "La fecha de la lectura es obligatoria"))
+            elif momento > datetime.now(UTC) + timedelta(minutes=5):
+                errores.append(("fecha", "La lectura no puede tener fecha futura"))
+        except ValueError as e:
+            errores.append(("fecha", str(e)))
+        n.update({"equipo_medidor_id": str(medidor.id) if medidor else None, "valor": str(valor) if valor is not None else None,
+                  "timestamp": momento.isoformat() if momento else None,
+                  "_etiqueta": f"{f.get('equipo_codigo', '')} · {f.get('tipo_medidor', '')} · {f.get('fecha', '')}"})
+        duplicado = bool(medidor and valor is not None and momento) and (medidor.id, momento, valor) in d["lecturas"]
+        return (n, duplicado, errores)
+
     raise ErrorAPI(404, "CATALOGO_DESCONOCIDO", f"Catálogo {catalogo} no soportado")
 
 
@@ -628,6 +699,16 @@ class _ActorImportacion:
     def __init__(self, usuario_id, prestador_id):
         self.id, self.prestador_id, self.tenant_id = usuario_id, prestador_id, None
         self.rol = Rol.admin_prestador
+        self.dominio, self.es_superadmin = Dominio.prestador, False
+
+
+class _ActorImportacionTenant:
+    """Igual, para los catálogos del cliente (F2-04: las lecturas de medidor las importa el cliente)."""
+
+    def __init__(self, usuario_id, tenant_id):
+        self.id, self.prestador_id, self.tenant_id = usuario_id, None, tenant_id
+        self.rol = Rol.admin_empresa
+        self.dominio, self.es_superadmin = Dominio.tenant, False
 
 
 # --------------------------------------------------------------- aplicación
@@ -744,6 +825,23 @@ async def aplicar(db: AsyncSession, catalogo: str, filas: list[dict[str, Any]], 
             if curso is not None and tecnico is not None:
                 await capacitacion_service._certificar_habilidad(db, _ActorImportacion(actor_id, prestador_id),
                                                                  None, registro, curso, tecnico)
+            creados += 1
+        await db.flush()
+
+    if catalogo == "lecturas_medidor":
+        # Se reutiliza el servicio para que la validación de anomalías, el acumulado y la evaluación inmediata de
+        # los planes por uso sean exactamente los mismos que en la captura manual (F2-04).
+        from models.medidores import EquipoMedidor, MetodoActualizacionMedidor
+        from services import medidores_service
+
+        actor = _ActorImportacionTenant(actor_id, tenant_id)
+        for f in filas:
+            medidor = await db.get(EquipoMedidor, UUID(str(f["equipo_medidor_id"])))
+            if medidor is None:
+                continue
+            await medidores_service.registrar_lectura(
+                db, actor, medidor, valor=Decimal(str(f["valor"])), metodo=MetodoActualizacionMedidor.importacion,
+                timestamp_dispositivo=datetime.fromisoformat(f["timestamp"]), registrado_por=actor_id)
             creados += 1
         await db.flush()
 

@@ -27,7 +27,8 @@ from services import auditoria, catalogos_service, chat_service, folio_estados
 from services import folios_captura_service as captura
 from services.formularios import servicio as formularios
 
-TIPOS_MUTACION = ("crear_folio", "transicion", "guardar_respuesta", "enviar_respuesta", "subir_evidencia", "agregar_refaccion", "mensaje_chat")
+TIPOS_MUTACION = ("crear_folio", "transicion", "guardar_respuesta", "enviar_respuesta", "subir_evidencia",
+                  "agregar_refaccion", "mensaje_chat", "registrar_lectura")
 ROLES_OPERADOR = {Rol.operador, Rol.admin_un, Rol.admin_empresa, Rol.supervisor_operadores, Rol.mesa_control}
 
 
@@ -100,6 +101,10 @@ async def catalogos(db: AsyncSession, actor: Actor, desde: datetime | None, disp
         formularios_captura = await formularios.listar(db, actor, "captura_operador", None, "publicado", None, None)
         salida["formularios"] = [await formularios.salida(db, actor, f) for f in formularios_captura if not desde or f.updated_at > desde]
         salida["formularios_ids"] = [str(f.id) for f in formularios_captura]
+        # F2-04: los medidores que lee el operador, para que «Registrar lectura» funcione sin señal.
+        from services import medidores_service
+
+        salida["medidores"] = await medidores_service.equipos_para_operador(db, actor)
     if actor.rol == Rol.tecnico or actor.es_superadmin:
         folios = await captura.listar(db, actor, tenant_id=None, un_id=None, grupo_id=None, estado=[e for e in EstadoFolio if e not in (EstadoFolio.cerrado, EstadoFolio.cancelado)],
                                       severidad_id=None, tecnico_id=actor.id if actor.rol == Rol.tecnico else None, desde=None, hasta=None, tipo_folio=None, q=None, limite=500)
@@ -256,6 +261,22 @@ async def _aplicar_una(db: AsyncSession, actor: Actor, m, mapa: dict[str, uuid.U
         await db.flush()
         await aplicar_movimiento_inventario(db, actor, ref, dispositivo_id, ts)
         return ref.id, False
+    if m.tipo == "registrar_lectura":
+        # F2-04 §6.9.2: el técnico y el operador leen el marcador en campo, con o sin señal. La lectura lleva la
+        # hora del dispositivo, que es la que vale para detectar saltos y para el acumulado.
+        from services import medidores_service
+
+        medidor = await medidores_service.medidor_visible(db, actor, await _resolver_id(db, actor, mapa, p.get("equipo_medidor_id")))
+        try:
+            resultado = await medidores_service.registrar_lectura(
+                db, actor, medidor, valor=Decimal(str(p["valor"])),
+                metodo=medidor.metodo_actualizacion if not p.get("metodo") else p["metodo"],
+                timestamp_dispositivo=ts,
+                folio_id=await _resolver_id(db, actor, mapa, p.get("folio_id")) if p.get("folio_id") else None,
+                request=request)
+        except ErrorAPI as e:
+            raise _Rechazo(e.codigo, e.mensaje) from None
+        return resultado["lectura"].id, resultado["duplicada"]
     if m.tipo == "mensaje_chat":
         chat = await chat_service.obtener_chat(db, uuid.UUID(str(p["chat_id"])))
         archivo = None

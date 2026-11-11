@@ -9,7 +9,8 @@ from models.base import Rol
 from models.chat import CanalChat, EstadoChat, ReglaConflicto, TipoMensaje
 from schemas.comun import Modelo
 
-TipoMutacion = Literal["crear_folio", "transicion", "guardar_respuesta", "enviar_respuesta", "subir_evidencia", "agregar_refaccion", "mensaje_chat"]
+TipoMutacion = Literal["crear_folio", "transicion", "guardar_respuesta", "enviar_respuesta", "subir_evidencia",
+                       "agregar_refaccion", "mensaje_chat", "registrar_lectura"]
 
 
 class Mutacion(BaseModel):

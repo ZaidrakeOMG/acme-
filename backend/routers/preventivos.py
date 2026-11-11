@@ -36,16 +36,48 @@ async def listar_planes(db: DB, actor: Actor = Depends(TODOS), prestador_id: UUI
 
 
 @router.post("/api/planes", response_model=PlanSalida, status_code=201, summary="Crear plan con triggers, tareas y materiales",
-             description="Fase 1 acepta triggers `tiempo_fijo` ({cada_dias} o {cada, unidad}) y `calendario` ({mes, dia} o {fechas}); los demás responden 403 TRIGGER_FASE_2.")
+             description="Los seis triggers de §6.9.1: `tiempo_fijo` ({cada_dias} o {cada, unidad}), `calendario` "
+                         "({mes, dia} o {fechas}), `medidor_umbral` ({tipo_medidor_id, umbral}), `medidor_intervalo` "
+                         "({tipo_medidor_id, intervalo}), `evento` ({evento, …} del catálogo cerrado) y `combinado` "
+                         "({triggers_ids, logica: OR|AND}). Cada trigger lleva una `clave` estable dentro del plan "
+                         "(`t1`, `t2`, …) a la que el combinado apunta.")
 async def crear_plan(datos: PlanEntrada, request: Request, db: DB, actor: Actor = Depends(TODOS), prestador_id: UUID | None = None):
     plan = await planes_service.crear(db, actor, datos.model_dump(), request, prestador_id)
     await db.commit()
     return await _plan_salida(db, plan)
 
 
+@router.get("/api/planes/eventos-catalogo", summary="Catálogo cerrado de eventos que disparan planes",
+            description="§6.9.1 «Por evento». Cada clave tiene código que la escucha, así que no se inventan desde "
+                        "la interfaz; lo configurable son sus parámetros (`parametros_schema_json`).")
+async def eventos_catalogo(db: DB, actor: Actor = Depends(TODOS)):
+    if actor.rol not in planes_service.CONSULTAN:
+        raise ErrorAPI(403, "PROHIBIDO", "Tu rol no consulta planes")
+    from models.medidores import EventoTriggerCatalogo
+    from sqlalchemy import select
+
+    filas = (await db.execute(select(EventoTriggerCatalogo).where(EventoTriggerCatalogo.activo.is_(True))
+                              .order_by(EventoTriggerCatalogo.clave))).scalars().all()
+    return [{"clave": e.clave, "descripcion": e.descripcion, "parametros_schema_json": e.parametros_schema_json,
+             "activo": e.activo} for e in filas]
+
+
 @router.get("/api/planes/{plan_id}", response_model=PlanSalida, summary="Detalle del plan")
 async def detalle_plan(plan_id: UUID, db: DB, actor: Actor = Depends(TODOS)):
     return await _plan_salida(db, await planes_service.obtener(db, actor, plan_id))
+
+
+@router.get("/api/planes/{plan_id}/simulacion", summary="¿Cuándo se dispararía este plan?",
+            description="Una fila por equipo asignado, con la fecha estimada de cada trigger: por fecha, el "
+                        "calendario; por medidor, la proyección con el incremento promedio real; por evento, si ya "
+                        "ocurrió. Si el equipo ya trae un preventivo abierto de este plan, lo dice (no nacerá otro).")
+async def simulacion_plan(plan_id: UUID, db: DB, actor: Actor = Depends(TODOS), hoy: date | None = None):
+    from services import triggers_service
+
+    plan = await planes_service.obtener(db, actor, plan_id)
+    if actor.rol not in planes_service.CONSULTAN:
+        raise ErrorAPI(403, "PROHIBIDO", "Tu rol no consulta planes")
+    return await triggers_service.simular(db, plan, hoy)
 
 
 @router.put("/api/planes/{plan_id}", response_model=PlanSalida, summary="Editar plan (sube la versión)")

@@ -17,6 +17,9 @@ class TriggerEntrada(BaseModel):
     tipo_trigger: TipoTrigger
     parametros_json: dict[str, Any] = Field(default_factory=dict)
     logica_combinacion: str | None = Field(default=None, max_length=10)
+    # F2-04: identidad estable dentro del plan. Si no viene, el servicio asigna `t1`, `t2`, … por posición; el
+    # trigger `combinado` apunta a estas claves (o a los `triggers_ids` que la interfaz ya conoce).
+    clave: str | None = Field(default=None, max_length=40, pattern=r"^[a-z0-9_]+$")
 
 
 class TareaEntrada(BaseModel):
@@ -63,6 +66,7 @@ class PlanCambios(BaseModel):
 
 class TriggerSalida(Modelo):
     id: UUID
+    clave: str = ""
     tipo_trigger: TipoTrigger
     parametros_json: dict[str, Any]
     logica_combinacion: str | None
@@ -92,6 +96,7 @@ class EquipoPlanSalida(Modelo):
     fecha_proxima_ejecucion: date | None
     fecha_ultima_ejecucion: date | None
     fecha_alta: date
+    ultimo_valor_medidor: Decimal | None = None   # F2-04: acumulado del medidor en el último PM de este plan
 
 
 class PlanSalida(ConVersionSalida):
@@ -169,6 +174,8 @@ class CalendarioSalida(ConVersionSalida):
     descripcion: str
     cargado_por: UUID | None
     reprogramado_desde_id: UUID | None
+    plan_trigger_id: UUID | None = None            # F2-04: qué trigger lo generó
+    valor_medidor: Decimal | None = None           # F2-04: acumulado con el que se disparó
 
 
 class PublicacionSalida(Modelo):

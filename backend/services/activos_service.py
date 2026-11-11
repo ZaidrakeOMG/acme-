@@ -1,6 +1,6 @@
 """Ficha de activos, depreciación con los cuatro métodos de §6.9.4, TCO por período y análisis reemplazar vs. reparar.
 La criticidad automática A/B/C/D, el FMEA, el MTBF y el MTTR son Fase 2 (ISO 55000): la ficha muestra la criticidad manual. P09."""
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -31,7 +31,9 @@ CERO = Decimal("0")
 CENTAVO = Decimal("0.01")
 UMBRAL_DEFECTO = Decimal("70")
 CLAVE_UMBRAL = "umbral_reemplazo_pct"
-MENSAJE_MEDIDORES = "REQUIERE_MEDIDORES_FASE_2"
+# F2-04: el método «unidades de producción» ya funciona; estos dos avisos son lo que falta por configurar.
+MENSAJE_MEDIDORES = "MEDIDOR_NO_CONFIGURADO"
+MENSAJE_SIN_VIDA_UNIDADES = "SIN_VIDA_UTIL_EN_UNIDADES"
 TIPOS_CORRECTIVOS = (TipoFolio.correctivo, TipoFolio.especial)
 
 
@@ -104,6 +106,13 @@ async def configuracion(db: AsyncSession, equipo_id: UUID) -> ActivoDepreciacion
 async def guardar_depreciacion(db: AsyncSession, actor: Actor, equipo: Equipo, datos: dict[str, Any], request: Request | None = None) -> ActivoDepreciacion:
     if not actor.es_superadmin and actor.rol not in CONFIGURAN:
         raise prohibido("Solo el Admin empresa configura la depreciación del activo")
+    if datos.get("equipo_medidor_id") is not None:
+        # F2-04: el medidor de la depreciación tiene que ser uno de los del propio equipo.
+        from models.medidores import EquipoMedidor
+
+        m = await db.get(EquipoMedidor, datos["equipo_medidor_id"])
+        if m is None or m.equipo_id != equipo.id:
+            raise ErrorAPI(422, "MEDIDOR_INVALIDO", "Ese medidor no es de este equipo")
     d = await configuracion(db, equipo.id)
     if d is None:
         d = ActivoDepreciacion(equipo_id=equipo.id, tenant_id=equipo.tenant_id)
@@ -123,8 +132,13 @@ def _meses(desde: date, hasta: date) -> int:
     return max(0, (hasta.year - desde.year) * 12 + (hasta.month - desde.month))
 
 
-def valor_en_libros(equipo: Equipo, d: ActivoDepreciacion | None, hasta: date) -> tuple[Decimal, Decimal, str]:
-    """Devuelve (valor_en_libros, depreciacion_del_periodo, aviso). Los cuatro métodos literales de §6.9.4."""
+def valor_en_libros(equipo: Equipo, d: ActivoDepreciacion | None, hasta: date,
+                    unidades_usadas: Decimal | None = None, unidades_periodo: Decimal | None = None) -> tuple[Decimal, Decimal, str]:
+    """Devuelve (valor_en_libros, depreciacion_del_periodo, aviso). Los cuatro métodos literales de §6.9.4.
+
+    `unidades_usadas` son las unidades que lleva el activo desde que empezó a depreciarse y `unidades_periodo` las
+    del período; las lee `libros_con_unidades()` del medidor configurado (F2-04, ACT-8.3). Sin medidor se usa el
+    campo manual `unidades_acumuladas`, que es lo que había en P09."""
     costo = equipo.costo_adquisicion or CERO
     if d is None or costo <= CERO:
         return costo, CERO, ""
@@ -134,8 +148,16 @@ def valor_en_libros(equipo: Equipo, d: ActivoDepreciacion | None, hasta: date) -
     if d.metodo == MetodoDepreciacion.manual:
         return (d.valor_en_libros_manual if d.valor_en_libros_manual is not None else costo), CERO, ""
     if d.metodo == MetodoDepreciacion.unidades_produccion:
-        # Fase 1 no tiene medidores de activos: se conserva el último valor manual y se avisa.
-        return (d.valor_en_libros_manual if d.valor_en_libros_manual is not None else costo), CERO, MENSAJE_MEDIDORES
+        # §6.9.4: depreciación del período = (costo − residual) × (unidades del período ÷ vida útil en unidades).
+        vida = Decimal(d.unidades_vida_util or 0)
+        if vida <= CERO:
+            return (d.valor_en_libros_manual if d.valor_en_libros_manual is not None else costo), CERO, MENSAJE_SIN_VIDA_UNIDADES
+        usadas = unidades_usadas if unidades_usadas is not None else Decimal(d.unidades_acumuladas or 0)
+        periodo = unidades_periodo if unidades_periodo is not None else CERO
+        acumulada = min(base, (base * max(CERO, usadas) / vida).quantize(CENTAVO))
+        previas = min(base, (base * max(CERO, usadas - max(CERO, periodo)) / vida).quantize(CENTAVO))
+        aviso = "" if d.equipo_medidor_id is not None else MENSAJE_MEDIDORES
+        return (costo - acumulada).quantize(CENTAVO), (acumulada - previas).quantize(CENTAVO), aviso
     vida_meses = max(1, (d.vida_util_anios or 1) * 12)
     if d.metodo == MetodoDepreciacion.linea_recta:
         por_mes = (base / vida_meses).quantize(CENTAVO)
@@ -156,6 +178,32 @@ def valor_en_libros(equipo: Equipo, d: ActivoDepreciacion | None, hasta: date) -
     return valor, ultimo, ""
 
 
+async def unidades_del_activo(db: AsyncSession, d: ActivoDepreciacion | None, hasta: date) -> tuple[Decimal | None, Decimal | None]:
+    """(unidades desde el inicio de la depreciación, unidades del período) leídas del medidor configurado.
+    Devuelve (None, None) cuando no hay medidor: entonces manda el campo manual. F2-04, ACT-8.3."""
+    if d is None or d.metodo != MetodoDepreciacion.unidades_produccion or d.equipo_medidor_id is None:
+        return None, None
+    from services import medidores_service
+
+    inicio = d.unidades_al_inicio
+    if inicio is None:
+        inicio = await medidores_service.acumulado_a_la_fecha(db, d.equipo_medidor_id, d.fecha_inicio)
+    acumulado = await medidores_service.acumulado_a_la_fecha(db, d.equipo_medidor_id, hasta)
+    usadas = max(CERO, (Decimal(acumulado) - Decimal(inicio)).quantize(CENTAVO))
+    primer_dia = date(hasta.year, hasta.month, 1)
+    del_periodo = await medidores_service.unidades_entre(db, d.equipo_medidor_id, primer_dia - timedelta(days=1), hasta)
+    return usadas, min(usadas, del_periodo)
+
+
+async def libros_con_unidades(db: AsyncSession, equipo: Equipo, d: ActivoDepreciacion | None,
+                              hasta: date) -> tuple[Decimal, Decimal, str, Decimal | None, Decimal | None]:
+    """`valor_en_libros` resolviendo antes las unidades del medidor. Devuelve además las unidades, que el historial
+    guarda para que se pueda auditar el cálculo."""
+    usadas, periodo = await unidades_del_activo(db, d, hasta)
+    libros, dep, aviso = valor_en_libros(equipo, d, hasta, usadas, periodo)
+    return libros, dep, aviso, usadas, periodo
+
+
 async def calcular_depreciacion(db: AsyncSession, equipo: Equipo, hasta: date | None = None) -> ActivoDepreciacionHistorial | None:
     """Tarea mensual: escribe el valor en libros del período en `activo_depreciacion_historial` (idempotente por período)."""
     hasta = hasta or date.today()
@@ -167,12 +215,16 @@ async def calcular_depreciacion(db: AsyncSession, equipo: Equipo, hasta: date | 
                                                                             ActivoDepreciacionHistorial.periodo == periodo))).scalar_one_or_none()
     if existente is not None:
         return existente
-    libros, periodo_dep, _aviso = valor_en_libros(equipo, d, hasta)
+    libros, periodo_dep, _aviso, usadas, unidades_periodo = await libros_con_unidades(db, equipo, d, hasta)
     h = ActivoDepreciacionHistorial(equipo_id=equipo.id, tenant_id=equipo.tenant_id, periodo=periodo, valor_en_libros=libros,
                                     depreciacion_periodo=periodo_dep, depreciacion_acumulada=((equipo.costo_adquisicion or CERO) - libros).quantize(CENTAVO),
-                                    metodo_aplicado=d.metodo)
+                                    metodo_aplicado=d.metodo, unidades_periodo=unidades_periodo, unidades_acumuladas=usadas)
     db.add(h)
     await db.flush()
+    # El acumulado del medidor también queda en la configuración: es lo que la ficha muestra sin recalcular.
+    if usadas is not None:
+        d.unidades_acumuladas = usadas
+        await db.flush()
     return h
 
 
@@ -212,7 +264,7 @@ async def componentes_tco(db: AsyncSession, equipo: Equipo, hasta: date | None =
     tarifa = await costo_hora_inactividad(db, equipo)
     downtime = (horas * tarifa).quantize(CENTAVO)
     d = await configuracion(db, equipo.id)
-    residual, _dep, aviso = valor_en_libros(equipo, d, hasta)
+    residual, _dep, aviso, _usadas, _periodo = await libros_con_unidades(db, equipo, d, hasta)
     adquisicion = equipo.costo_adquisicion or CERO
     reposicion = (d.valor_reposicion if d and d.valor_reposicion else equipo.valor_reposicion) or CERO
     tco = (adquisicion + preventivos + correctivos + downtime - residual).quantize(CENTAVO)
@@ -434,6 +486,7 @@ async def ficha(db: AsyncSession, actor: Actor, equipo: Equipo) -> dict[str, Any
                                           .order_by(FolioRefaccion.created_at.desc()))).scalars()) if folios else []
     d = await configuracion(db, equipo.id)
     componentes = await componentes_tco(db, equipo)
+    unidades_hoy, unidades_periodo = await unidades_del_activo(db, d, date.today())
     historial = await historial_depreciacion(db, equipo.id)
     alerta = (await db.execute(select(ActivoReemplazoAlerta).where(ActivoReemplazoAlerta.equipo_id == equipo.id)
                                 .order_by(ActivoReemplazoAlerta.fecha_alerta.desc()))).scalars().first()
@@ -467,11 +520,16 @@ async def ficha(db: AsyncSession, actor: Actor, equipo: Equipo) -> dict[str, Any
                          "importe": (r.cantidad * r.costo_unitario).quantize(CENTAVO) if ver_costos else None} for r in refacciones[:100]],
         "depreciacion": None if d is None else {"metodo": d.metodo.value, "vida_util_anios": d.vida_util_anios, "valor_salvamento": d.valor_salvamento,
                                                 "valor_reposicion": d.valor_reposicion, "unidades_vida_util": d.unidades_vida_util,
-                                                "unidades_acumuladas": d.unidades_acumuladas, "valor_en_libros_manual": d.valor_en_libros_manual,
-                                                "fecha_inicio": d.fecha_inicio, "aviso": componentes["aviso"]},
+                                                "unidades_acumuladas": unidades_hoy if unidades_hoy is not None else d.unidades_acumuladas,
+                                                "valor_en_libros_manual": d.valor_en_libros_manual,
+                                                "fecha_inicio": d.fecha_inicio, "aviso": componentes["aviso"],
+                                                "equipo_medidor_id": d.equipo_medidor_id, "unidades_al_inicio": d.unidades_al_inicio,
+                                                "unidades_periodo": unidades_periodo},
         "depreciacion_historial": [{"periodo": h.periodo, "valor_en_libros": h.valor_en_libros, "depreciacion_periodo": h.depreciacion_periodo,
-                                    "depreciacion_acumulada": h.depreciacion_acumulada, "metodo_aplicado": h.metodo_aplicado.value}
+                                    "depreciacion_acumulada": h.depreciacion_acumulada, "metodo_aplicado": h.metodo_aplicado.value,
+                                    "unidades_periodo": h.unidades_periodo, "unidades_acumuladas": h.unidades_acumuladas}
                                    for h in reversed(historial)],
+        "medidores": await medidores_de_la_ficha(db, actor, equipo),
         "tco": componentes,
         "tco_historial": [{"periodo": s.periodo, "tco_total": s.tco_total, "porcentaje_vs_reposicion": s.porcentaje_vs_reposicion,
                            "costo_preventivos": s.costo_preventivos, "costo_correctivos": s.costo_correctivos, "costo_refacciones": s.costo_refacciones,
@@ -484,5 +542,12 @@ async def ficha(db: AsyncSession, actor: Actor, equipo: Equipo) -> dict[str, Any
                                                          "decision": alerta.decision.value if alerta.decision else None, "razon": alerta.razon,
                                                          "trabajo_especial_id": alerta.trabajo_especial_id},
         "umbral_reemplazo_pct": await umbral_reemplazo(db, equipo.tenant_id),
-        "fase_2": ["Criticidad automática A/B/C/D", "FMEA simplificado", "MTBF y MTTR", "Medidores de activos (unidades de producción)"],
+        "fase_2": ["Criticidad automática A/B/C/D", "FMEA simplificado", "MTBF y MTTR"],
     }
+
+
+async def medidores_de_la_ficha(db: AsyncSession, actor: Actor, equipo: Equipo) -> list[dict[str, Any]]:
+    """Pestaña «Medidores» de la ficha (F2-04). Vive aquí para que la ficha salga en una sola llamada."""
+    from services import medidores_service
+
+    return await medidores_service.resumen_de_equipo(db, actor, equipo)

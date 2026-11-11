@@ -10,10 +10,11 @@ async def habilidad_id(cliente, auth, clave: str) -> str:
     return next(h["id"] for h in habs if h["clave"] == clave)
 
 
-async def nuevo_plan(cliente, auth, *, familia="Refrigeración", indice=0, trigger=None, tareas=None, materiales=None, email=AP, esperado=201, **extra) -> dict:
+async def nuevo_plan(cliente, auth, *, familia="Refrigeración", indice=0, trigger=None, triggers=None, tareas=None, materiales=None, email=AP, esperado=201, **extra) -> dict:
+    """`triggers` (lista) para un plan con varias condiciones, como el combinado de F2-04; `trigger` para uno solo."""
     tipo = await tipo_equipo(cliente, auth, familia, indice)
     cuerpo = {"nombre": f"Plan {uuid.uuid4().hex[:6]}", "descripcion": "Plan de prueba", "tipo_equipo_id": tipo["id"], "tiempo_ventana_dias": 5,
-              "triggers": [trigger or {"tipo_trigger": "tiempo_fijo", "parametros_json": {"cada_dias": 30}}],
+              "triggers": triggers if triggers is not None else [trigger or {"tipo_trigger": "tiempo_fijo", "parametros_json": {"cada_dias": 30}}],
               "tareas": tareas if tareas is not None else [{"orden": 1, "descripcion": "Revisión general", "tiempo_estimado_min": 20}],
               "materiales": materiales if materiales is not None else [{"descripcion": "Trapo industrial", "cantidad_estandar": "2", "unidad": "pieza"}], **extra}
     r = await cliente.post("/api/planes", headers=await auth(email), json=cuerpo)

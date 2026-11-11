@@ -76,6 +76,10 @@ from models.mensajeria import (  # F2-02
     CanalMensajeria, CategoriaPlantilla, EstadoAprobacionPlantilla, EstadoEnvioMensajeria, MensajeriaConfiguracion,
     MensajeriaEnvio, MensajeriaPlantilla, MensajeriaRespuesta, ProveedorMensajeria,
 )
+from models.medidores import (  # F2-04
+    CategoriaMedidor, EquipoMedidor, EstadoLecturaMedidor, EventoTriggerCatalogo, LlaveApiTenant, MedidorCambio,
+    MedidorEstimacion, MedidorLectura, MetodoActualizacionMedidor, TipoCambioMedidor, TipoMedidor,
+)
 
 __all__ = [
     "Articulo", "EstadoCFDI", "EstadoGastoCajaChica", "EstadoOrdenCompra", "EstadoPoliza", "Existencia", "FondoCajaChica", "FormatoPoliza",
@@ -122,4 +126,7 @@ __all__ = [
     "MensajeriaConfiguracion", "MensajeriaEnvio", "MensajeriaPlantilla", "MensajeriaRespuesta", "ProveedorMensajeria",
     "AlertaOperacionSeguimiento", "CerradaPorJornada", "EstadoJornada", "EstatusOperativo", "JornadaPausa",
     "JornadaTecnico", "MotivoPausaJornada", "RespuestaAlertaTecnico", "TecnicoPosicion",
+    "CategoriaMedidor", "EquipoMedidor", "EstadoLecturaMedidor", "EventoTriggerCatalogo", "LlaveApiTenant",
+    "MedidorCambio", "MedidorEstimacion", "MedidorLectura", "MetodoActualizacionMedidor", "TipoCambioMedidor",
+    "TipoMedidor",
 ]

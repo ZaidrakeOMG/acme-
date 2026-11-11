@@ -5,10 +5,11 @@ from datetime import UTC, datetime, timedelta
 from tests.folios_utiles import AE, AP, AUN, DES, MC, OP, SA, TEC
 from tests.sla_utiles import panel_alertas
 
-# F2-01 saco CERTIFICACION_VENCIDA de esta lista (su fuente, `tecnico_cursos`, ya existe) y F2-03 saco
-# TECNICO_TIEMPO_MUERTO y TECNICO_SIN_SENAL (ya hay posiciones GPS de donde salir). El desvio de ruta sigue en
-# Fase 2 porque necesita la ruta planeada del bloque de optimizacion de rutas.
-FASE_2 = {"TECNICO_DESVIO_RUTA", "MEDIDOR_PROXIMO_PM"}
+# F2-01 saco CERTIFICACION_VENCIDA de esta lista (su fuente, `tecnico_cursos`, ya existe), F2-03 saco
+# TECNICO_TIEMPO_MUERTO y TECNICO_SIN_SENAL (ya hay posiciones GPS de donde salir) y F2-04 saco
+# MEDIDOR_PROXIMO_PM (ya hay medidores de activos). El desvio de ruta es lo unico que sigue en Fase 2: necesita la
+# ruta planeada del bloque de optimizacion de rutas.
+FASE_2 = {"TECNICO_DESVIO_RUTA"}
 
 
 async def _catalogo(cliente, auth, email=AP) -> dict:
@@ -49,7 +50,11 @@ async def test_alertas_de_fase_2_visibles_inactivas_y_no_activables(cliente, aut
     # y «sin señal» con F2-03.
     assert cat["SLA_INCUMPLIDO"]["fase"] == 1
     assert cat["CERTIFICACION_VENCIDA"]["fase"] == 1 and cat["CERTIFICACION_VENCIDA"]["activa_por_defecto"] is True
-    for clave in ("TECNICO_TIEMPO_MUERTO", "TECNICO_SIN_SENAL"):
+    # F2-04: las tres de medidores están activas y con su umbral literal de §6.9.6.
+    assert cat["MEDIDOR_PROXIMO_PM"]["umbral_default"] == "10.00" and cat["MEDIDOR_PROXIMO_PM"]["tipo_umbral"] == "porcentaje"
+    assert cat["MEDIDOR_SIN_LECTURA"]["umbral_default"] == "30.00" and cat["MEDIDOR_SIN_LECTURA"]["tipo_umbral"] == "dias"
+    for clave in ("TECNICO_TIEMPO_MUERTO", "TECNICO_SIN_SENAL", "MEDIDOR_PROXIMO_PM", "MEDIDOR_SIN_LECTURA",
+                  "MEDIDOR_LECTURA_ANOMALA"):
         assert cat[clave]["fase"] == 1 and cat[clave]["activa_por_defecto"] is True
     r = await cliente.put("/api/alertas/configuracion/TECNICO_DESVIO_RUTA", headers=await auth(AP),
                           json={"umbral_valor": "500", "parametros": {}, "canales": ["app"],

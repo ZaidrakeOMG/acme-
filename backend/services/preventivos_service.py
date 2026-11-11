@@ -175,7 +175,8 @@ async def enriquecer(db: AsyncSession, filas: list[PreventivoCalendario]) -> lis
         salida.append({
             **{k: getattr(f, k) for k in ("id", "created_at", "updated_at", "version_hash", "prestador_id", "tenant_id", "un_id", "equipo_id", "plan_id", "tecnico_id",
                                           "fecha_programada", "fecha_programada_original", "fecha_real", "desvio_dias", "estado", "folio_id", "formulario_id",
-                                          "origen", "descripcion", "cargado_por", "reprogramado_desde_id")},
+                                          "origen", "descripcion", "cargado_por", "reprogramado_desde_id",
+                                          "plan_trigger_id", "valor_medidor")},
             "un_codigo": un.codigo if un else None, "un_nombre": un.nombre if un else None, "equipo_codigo": eq.codigo if eq else None,
             "equipo_nombre": eq.nombre if eq else None, "plan_nombre": plan.nombre if plan else None, "tecnico_nombre": tec.nombre if tec else None,
             "numero_folio": folio.numero_folio if folio else None, "estado_folio": folio.estado if folio else None, "texto_desvio": texto_desvio(f.desvio_dias),
@@ -332,17 +333,31 @@ async def generar_programados(db: AsyncSession, hoy: date | None = None, horizon
         if ya:
             resumen["omitidos"] += 1
             continue
+        # F2-04: mientras siga abierto el preventivo anterior de este plan en este equipo, no nace otro. Con
+        # triggers por medidor la fecha próxima se reproyecta todos los días, así que sin este candado un plan
+        # podía generar un folio diario.
+        from services import triggers_service
+
+        if await triggers_service._folio_abierto(db, plan.id, ep.equipo_id) is not None:
+            resumen["omitidos"] += 1
+            continue
         equipo = await db.get(Equipo, ep.equipo_id)
         try:
             punto = await db.begin_nested()
+            # F2-04: el origen lo decide el trigger que explica esa fecha, para que el calendario diga «por
+            # medidor» o «por evento» en lugar de etiquetar todo como «plan» (§6.9.1).
+            from services import triggers_service
+
+            origen, trigger, valor = await triggers_service.origen_y_trigger(db, plan, ep, equipo, hoy)
             cal = PreventivoCalendario(prestador_id=plan.prestador_id, tenant_id=ep.tenant_id, un_id=equipo.un_id, equipo_id=equipo.id, plan_id=plan.id,
-                                       fecha_programada=fecha, fecha_programada_original=fecha, origen=OrigenPreventivo.plan, descripcion=f"Mantenimiento preventivo: {plan.nombre}",
-                                       cargado_por=plan.created_by)
+                                       fecha_programada=fecha, fecha_programada_original=fecha, origen=origen, descripcion=f"Mantenimiento preventivo: {plan.nombre}",
+                                       cargado_por=plan.created_by, plan_trigger_id=trigger.id if trigger else None, valor_medidor=valor)
             db.add(cal)
             await db.flush()
             folio = await generar_folio_preventivo(db, cal, plan, hoy)
             db.add(PlanEjecucion(plan_id=plan.id, prestador_id=plan.prestador_id, tenant_id=ep.tenant_id, equipo_id=equipo.id, folio_id=folio.id, calendario_id=cal.id,
-                                 formulario_id=cal.formulario_id, fecha_programada=fecha, estado=EstadoEjecucionPlan.generada))
+                                 formulario_id=cal.formulario_id, fecha_programada=fecha, estado=EstadoEjecucionPlan.generada,
+                                 plan_trigger_id=trigger.id if trigger else None, valor_medidor=valor))
             triggers = (await db.execute(select(PlanTrigger).where(PlanTrigger.plan_id == plan.id))).scalars().all()
             ep.fecha_proxima_ejecucion = planes_service.proxima_fecha_plan(triggers, fecha, hoy)
             await db.flush()
@@ -533,9 +548,16 @@ async def _cancelacion_requiere_autorizacion(db: AsyncSession, folio: Folio, nue
 
 @folio_estados.suscribir
 async def _al_cerrar_preventivo(db: AsyncSession, folio: Folio, _anterior, nuevo: EstadoFolio, actor, contexto) -> None:
-    """Al cerrar: fecha real, desvío en días (§7.6) y próxima fecha del plan desde la última ejecución."""
+    """Al cerrar: fecha real, desvío en días (§7.6) y próxima fecha del plan desde la última ejecución.
+
+    F2-04: antes de recalcular se mueve el último PM del medidor (`triggers_service.al_cerrar`), porque la próxima
+    fecha de un plan por intervalo se cuenta desde ahí. Ejecutar el plan reinicia **todos** sus triggers, incluidos
+    los de un combinado, que es lo que pide §6.9.1."""
     if nuevo != EstadoFolio.cerrado or folio.tipo_folio != TipoFolio.preventivo:
         return
+    from services import triggers_service
+
+    await triggers_service.al_cerrar(db, folio)
     fecha_real = (folio.fecha_cierre or datetime.now(UTC)).date()
     cal = await db.get(PreventivoCalendario, folio.calendario_id) if folio.calendario_id else None
     if cal is not None:
@@ -547,7 +569,25 @@ async def _al_cerrar_preventivo(db: AsyncSession, folio: Folio, _anterior, nuevo
             ep.fecha_ultima_ejecucion = fecha_real
             triggers = (await db.execute(select(PlanTrigger).where(PlanTrigger.plan_id == pe.plan_id))).scalars().all()
             ep.fecha_proxima_ejecucion = planes_service.proxima_fecha_plan(triggers, fecha_real)
+            equipo = await db.get(Equipo, pe.equipo_id)
+            plan = await db.get(PlanMantenimiento, pe.plan_id)
+            if equipo is not None and plan is not None and {t.tipo_trigger for t in triggers} - set(planes_service.TRIGGERS_POR_FECHA):
+                await triggers_service._proyectar_asignacion(db, plan, ep, equipo, list(triggers), fecha_real)
     await db.flush()
+
+
+@folio_estados.suscribir
+async def _eventos_de_trigger(db: AsyncSession, folio: Folio, _anterior, nuevo: EstadoFolio, actor, contexto) -> None:
+    """§6.9.1 «Por evento»: el cierre de un correctivo es lo que escuchan `falla_correctiva_grave`,
+    `fallas_repetidas` y `reemplazo_componente`. Se usa el gancho de `transicionar()` que ya existe (P04), no un
+    sondeo."""
+    if nuevo != EstadoFolio.cerrado or folio.tipo_folio == TipoFolio.preventivo or folio.equipo_id is None:
+        return
+    from services import triggers_service
+
+    for clave in ("falla_correctiva_grave", "fallas_repetidas", "reemplazo_componente"):
+        await triggers_service.evaluar_evento(db, clave, equipo_id=folio.equipo_id,
+                                              datos={"folio_id": str(folio.id), "numero_folio": folio.numero_folio})
 
 
 async def tareas_y_materiales(db: AsyncSession, folio: Folio) -> dict[str, Any]:
