@@ -8,6 +8,13 @@ trabajar en el día a día:
     python -m scripts.seed_historico 2000 18    # 2,000 folios en 18 meses
 
 Es idempotente por el prefijo del número de folio (`HX-`): si ya hay histórico, no vuelve a generarlo.
+
+**Córrelo al final, cuando el parque ya esté cargado.** Reparte los folios entre los equipos que existen en ese
+momento, así que si se corre con doce equipos y después se importan cuatrocientos, esos doce se quedan con todo el
+histórico encima: decenas de fallas al año cada uno. Eso no rompe los tableros (que suman por UN y por cliente),
+pero sí deja sin sentido cualquier indicador por activo, y en particular la probabilidad de falla de la criticidad
+de §6.9.3, que cuenta fallas por equipo al año y con esa densidad sale 5 para todos. Si ya pasó, hay que repartir
+los `HX-` existentes entre el parque de cada UN en lugar de volver a generarlos.
 """
 import asyncio
 import random

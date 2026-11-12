@@ -60,6 +60,18 @@
   - La implicación «técnico certificado» activada como **restricción** no restringía nada: la levantaba la razón del
     permiso `asignar_tecnico_sin_habilidad`, y sin esa razón la asignación ya se había frenado antes. Ahora solo el
     Superadmin la pasa.
+- **Reparación de la base de desarrollo (autorizada por la usuaria).** El demo mostraba A, B y C pero no D, y no
+  era la fórmula: `scripts/seed_historico` se había corrido cuando el cliente demo tenía doce equipos, así que sus
+  1,200 folios sintéticos quedaron apilados en esos doce (52 a 81 fallas al año cada uno) y con esa densidad la
+  probabilidad sale 5 para todos y el índice mínimo alcanzable es 20.00, justo la frontera de C. Se repartieron esos
+  folios entre los 419 equipos de sus tres UNs conservando número, costo, SLA, fechas y UN —lo único que cambió es a
+  qué activo de esa misma UN pertenece cada uno, así que los totales del tablero no se movieron—, y después se
+  completó el historial de los doce hasta su banda y se reevaluaron. **El folio cerrado es inmutable por diseño**:
+  se desactivó solo `trg_folios_inmutable`, en una transacción, y quedó activo otra vez al terminar; el mapeo previo
+  se respaldó antes. Hoy el demo muestra **2 A (EQ-0001 con plan y EQ-0002 sin plan), 2 B, 4 C y 4 D**, con 10 modos
+  de falla, 6 mitigaciones y las alertas `ACTIVO_CRITICO_SIN_PLAN` y `MITIGACION_VENCIDA` disparadas. La lección
+  quedó escrita en el encabezado de `seed_historico`: ese seed se corre **al final**, con el parque ya cargado.
+
 - El seed demo deja los doce equipos con **los cuatro niveles saliendo del cálculo** (2 A, 2 B, 4 C y 4 D), y
   completa el historial de fallas de cada uno hasta la banda de probabilidad que le toca contando lo que ya le
   dejaron los otros seeds: así la demo no depende de cuántos folios haya generado antes el seed base.

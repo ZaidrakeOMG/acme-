@@ -59,6 +59,17 @@ EQ-0002 crítico sin plan, que es el caso que la alerta debe cazar). Para eso co
 equipo hasta la banda de probabilidad que le toca, **contando lo que ya le dejaron los otros seeds**: con cantidades
 fijas la demo cambiaba de resultado según cuántos folios hubiera generado antes el seed base.
 
+**Una reparación de la base de desarrollo que no estaba en el prompt.** Con todo verde, el demo seguía mostrando
+solo A, B y C. No era la fórmula: el histórico sintético opcional de P10 se había generado cuando el cliente demo
+tenía doce equipos, y hoy tiene 419, así que sus 1,200 folios estaban apilados en esos doce con 52 a 81 fallas al
+año cada uno. Con esa densidad la probabilidad de §6.9.3 sale 5 para todos y el nivel D es inalcanzable. Con la
+autorización de la usuaria se repartieron entre los equipos de sus tres UNs —conservando número, costo, SLA, fechas
+y UN, así que los tableros no se movieron— desactivando solo el trigger de inmutabilidad del folio cerrado dentro de
+una transacción y volviéndolo a activar, con el mapeo previo respaldado. Después se completó el historial de los
+doce hasta su banda y se reevaluaron: **2 A, 2 B, 4 C y 4 D**. La lección quedó en el encabezado de
+`seed_historico`: ese seed va al final, cuando el parque ya está cargado, porque reparte entre los equipos que
+existen en ese momento.
+
 Cerró con 665 pytest con los servidores apagados (37:28), 150 vitest, `tsc --noEmit` y
 `npm run build` en verde. 77 pruebas nuevas de backend en seis archivos y 13 de frontend.
 
