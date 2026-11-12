@@ -7,7 +7,9 @@ import { decidirReemplazo, fichaActivo, guardarDatosEconomicos, guardarDepreciac
 import type { FichaActivo, MetodoDepreciacion } from '../../types/inventario'
 import { DESCRIPCION_METODO, NOMBRE_METODO, ROLES_ESCRIBEN_PRESUPUESTO } from '../../types/inventario'
 import { ROLES_MEDIDORES, formatoValor } from '../../types/medidores'
+import { ROLES_CONSULTAN } from '../../types/criticidad'
 import { fecha as fmtFecha } from '../folios/comunes'
+import { PestanaCriticidad } from './PestanaCriticidad'
 import { PestanaMedidores } from './PestanaMedidores'
 
 function moneda(v: string | null | undefined) {
@@ -19,7 +21,9 @@ export function FichaEquipo() {
   const { equipoId } = useParams()
   const { usuario } = useAuth()
   const [params] = useSearchParams()
-  const [vista, setVista] = useState<'ficha' | 'medidores'>(params.get('vista') === 'medidores' ? 'medidores' : 'ficha')
+  const inicial = params.get('vista')
+  const [vista, setVista] = useState<'ficha' | 'medidores' | 'criticidad'>(
+    inicial === 'medidores' ? 'medidores' : inicial === 'criticidad' ? 'criticidad' : 'ficha')
   const [f, setF] = useState<FichaActivo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -50,9 +54,11 @@ export function FichaEquipo() {
         acciones={
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex gap-1">
-              {(['ficha', 'medidores'] as const).map((v) => (
+              {(['ficha', 'medidores', ...(ROLES_CONSULTAN.includes(usuario.rol) ? (['criticidad'] as const) : [])] as const).map((v) => (
                 <button key={v} className={`rounded-lg px-3 py-1.5 text-sm ${vista === v ? 'bg-primario text-white' : 'border border-slate-300'}`} onClick={() => setVista(v)}>
-                  {v === 'ficha' ? 'Ficha y TCO' : `Medidores${f.medidores?.length ? ` (${f.medidores.length})` : ''}`}
+                  {v === 'ficha' ? 'Ficha y TCO'
+                    : v === 'criticidad' ? `Criticidad y riesgo${e.criticidad ? ` (${e.criticidad})` : ''}`
+                    : `Medidores${f.medidores?.length ? ` (${f.medidores.length})` : ''}`}
                 </button>
               ))}
             </div>
@@ -71,7 +77,10 @@ export function FichaEquipo() {
       {vista === 'medidores' && equipoId && (
         <PestanaMedidores equipoId={equipoId} puedeAdministrar={ROLES_MEDIDORES.includes(usuario.rol)} />
       )}
-      {vista === 'medidores' ? null : (<>
+      {vista === 'criticidad' && equipoId && (
+        <PestanaCriticidad equipoId={equipoId} equipoCodigo={e.codigo ?? ''} />
+      )}
+      {vista !== 'ficha' ? null : (<>
 
       {f.alerta_reemplazo && f.alerta_reemplazo.decision === null && (
         <Tarjeta titulo="Reemplazo recomendado" acciones={<Insignia tono="alerta">{Number(f.alerta_reemplazo.porcentaje_alcanzado).toFixed(1)}% del valor de reposición</Insignia>}>
@@ -169,9 +178,11 @@ export function FichaEquipo() {
         )}
       </Tarjeta>
 
-      <Tarjeta titulo="Disponible en Fase 2">
-        <ul className="list-disc pl-5 text-sm text-slate-600">{f.fase_2.map((x) => <li key={x}>{x}</li>)}</ul>
-      </Tarjeta>
+      {f.fase_2.length > 0 && (
+        <Tarjeta titulo="Pendiente de la ficha">
+          <ul className="list-disc pl-5 text-sm text-slate-600">{f.fase_2.map((x) => <li key={x}>{x}</li>)}</ul>
+        </Tarjeta>
+      )}
       </>)}
 
       {modal === 'economicos' && <FormEconomicos ficha={f} alCerrar={() => setModal(null)}

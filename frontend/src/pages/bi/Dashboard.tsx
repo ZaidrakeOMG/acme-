@@ -197,6 +197,30 @@ function Jerarquia({ titulo, filas, testid }: { titulo: string; filas: NivelJera
   )
 }
 
+/** F2-05 (§6.9.3): distribución por nivel, activos A sin plan y acciones vencidas. Es el estado de hoy del parque,
+ * así que no lleva comparativo contra el período anterior. */
+function Criticidad({ d }: { d: Tablero }) {
+  const c = d.criticidad!
+  const NIVELES: ('A' | 'B' | 'C' | 'D')[] = ['A', 'B', 'C', 'D']
+  const ETIQUETA: Record<string, string> = { A: 'Crítico', B: 'Importante', C: 'Estándar', D: 'No crítico' }
+  return (
+    <Tarjeta titulo="Gestión de activos ISO 55000"
+      acciones={<Link className="text-xs text-primario underline" to="/iso55000">Ver el módulo</Link>}>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="criticidad-tablero">
+        {NIVELES.map((n) => (
+          <KPI key={n} titulo={`Nivel ${n} · ${ETIQUETA[n]}`} valor={String(c.por_nivel[n] ?? 0)}
+            detalle={`de ${c.total} activo(s) evaluados`} />
+        ))}
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <KPI titulo="Activos A sin plan" valor={String(c.criticos_sin_plan)} detalle="§6.9.3 pide PM obligatorio con plan" />
+        <KPI titulo="Mitigaciones vencidas" valor={String(c.mitigaciones_vencidas)} detalle="Acciones comprometidas sin implementar" />
+        <KPI titulo="Revisiones vencidas" valor={String(c.revisiones_vencidas)} detalle="Clasificación por revisar" />
+      </div>
+    </Tarjeta>
+  )
+}
+
 function CumplimientoTabla({ d }: { d: Tablero }) {
   const sla = d.cumplimiento_sla!
   return (
@@ -246,6 +270,7 @@ function TableroCliente({ d }: { d: Tablero }) {
         {d.folios_por_estado && <Tarjeta titulo="Folios por estado"><EstadosGrafica estados={d.folios_por_estado} /></Tarjeta>}
         {d.folios_por_severidad && <Tarjeta titulo="Distribución por severidad"><SeveridadGrafica severidades={d.folios_por_severidad} /></Tarjeta>}
       </div>
+      {d.criticidad && d.criticidad.total > 0 && <Criticidad d={d} />}
       {d.cumplimiento_sla && <CumplimientoTabla d={d} />}
       {d.comparativo_periodo && <Comparativo d={d} />}
       {d.jerarquia && <Jerarquia titulo="Comparativo por grupo de unidades" filas={d.jerarquia.grupos} testid="jerarquia-grupos" />}
@@ -372,6 +397,7 @@ function TableroPrestador({ d }: { d: Tablero }) {
           ))}</ul>
         </Tarjeta>
       )}
+      {d.criticidad && d.criticidad.total > 0 && <Criticidad d={d} />}
       <Tarjeta titulo="Carga de trabajo por técnico">
         <div className="h-56" aria-hidden="true">
           <ResponsiveContainer width="100%" height="100%">

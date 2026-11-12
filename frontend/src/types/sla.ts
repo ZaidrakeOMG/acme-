@@ -109,6 +109,9 @@ export interface Tablero {
   calificacion_admin_un?: { periodo: string; calificacion: string; clasificados_en_plazo: number; tardios: number; sin_clasificar: number; minutas_respondidas: number } | null
   sla_en_riesgo?: { id: string; clave: string; disparo: string; datos: Record<string, unknown>; atendida: boolean; escalada: boolean; estado: string }[]
   escalaciones?: { id: string; clave: string; disparo: string; datos: Record<string, unknown>; atendida: boolean; escalada: boolean; estado: string }[]
+  /** F2-05 (§6.9.3): estado de hoy del parque, no un acumulado del período. */
+  criticidad?: { por_nivel: Record<string, number>; total: number; criticos_sin_plan: number
+    criticos_sin_plan_ids: string[]; mitigaciones_vencidas: number; revisiones_vencidas: number }
   jornada?: Jornada
   sin_finanzas?: boolean
   solo_lectura?: boolean

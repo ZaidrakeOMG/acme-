@@ -318,6 +318,15 @@ export function FolioDetalle() {
               <Selector etiqueta="Técnico" value={tecnicoId} onChange={(e) => setTecnicoId(e.target.value)}
                         opciones={[{ valor: '', texto: 'Elegir técnico…' }, ...tecnicos.map((t) => ({ valor: t.usuario_id, texto: `${t.nombre} · ${resumenCertificaciones(t.habilidades)}` }))]} />
             )}
+            {/* F2-05 (§6.9.3): la criticidad del activo pide un perfil de técnico, junto al indicador de
+                certificación de F2-01. Si el cliente la activó como restricción, el servidor la exige. */}
+            {accion.campo === 'tecnico' && (f.criticidad === 'A' || f.criticidad === 'B') && (
+              <Aviso tipo="info">
+                {`El activo es de criticidad ${f.criticidad}: §6.9.3 pide ${
+                  f.criticidad === 'A' ? 'técnico especialista' : 'técnico certificado'} y respuesta en ${
+                  f.criticidad === 'A' ? 4 : 8} horas.`}
+              </Aviso>
+            )}
             <Campo etiqueta={accion.campo === 'razon' ? 'Razón (obligatoria)' : accion.campo === 'tecnico' ? 'Razón (solo si no tiene la habilidad certificada)' : 'Notas'} value={texto} onChange={(e) => setTexto(e.target.value)} />
             <div className="flex justify-end gap-2">
               <Boton type="button" variante="fantasma" onClick={() => setAccion(null)}>Cancelar</Boton>
