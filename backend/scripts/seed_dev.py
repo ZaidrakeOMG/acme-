@@ -153,6 +153,9 @@ async def sembrar(db) -> bool:
     await db.flush()
     from scripts.seed_medidores import sembrar_medidores  # F2-04
     await sembrar_medidores(db)
+    await db.flush()
+    from scripts.seed_criticidad import sembrar_criticidad  # F2-05
+    await sembrar_criticidad(db)
     await db.commit()
     return True
 

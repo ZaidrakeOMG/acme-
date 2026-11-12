@@ -82,3 +82,34 @@ El mapa en vivo, el GPS de los técnicos y los desvíos de ruta de §6.8.4 son *
 Se generan en el servidor en PDF (WeasyPrint, con el generador mínimo de respaldo en Windows) y en Excel (openpyxl) con
 el logo y los colores del prestador, quedan en `reportes_generados` con su `archivo_key` y el tiempo de generación, y la
 tarea `acma.enviar_reportes_programados` los manda por correo según la periodicidad configurada.
+
+## Gestión de activos ISO 55000 (§6.9.3, F2-05)
+
+El indicador `criticidad` del tablero del cliente y del prestador **no depende del período**: la criticidad es el
+estado de hoy del parque, no un acumulado del mes.
+
+| Campo | Qué es |
+|---|---|
+| `por_nivel` | Activos evaluados por nivel A, B, C y D. |
+| `criticos_sin_plan` | Activos de nivel A sin plan de mantenimiento preventivo activo (§6.9.3 lo exige). |
+| `mitigaciones_vencidas` | Acciones de mitigación de riesgo que pasaron su fecha compromiso sin implementarse. |
+| `revisiones_vencidas` | Activos cuya criticidad debía revisarse y no se revisó (`meses_revision` por cliente). |
+
+### Reportes de certificación
+
+| Plantilla | Destinatario | Qué demuestra ante un auditor |
+|---|---|---|
+| `iso_registro` | Admin empresa / Admin prestador | Que cada activo tiene criticidad documentada, con su índice, su desglose, la fecha de evaluación y la próxima revisión. |
+| `iso_matriz` | Admin empresa / Admin prestador | Que el riesgo está ubicado: probabilidad × impacto con los activos en cada celda, y la matriz 5×5 de los modos de falla. |
+| `iso_modos_falla` | Admin empresa / Admin prestador | Que los modos de falla están analizados y tienen plan de mitigación con responsable, fecha y efectividad medida. |
+| `iso_mejora_continua` | Admin empresa / Admin prestador | Que la gestión mejora: MTBF y MTTR por nivel de criticidad mes a mes, y cobertura de preventivos de los activos A y B. |
+| `iso_historial` | Admin empresa / Admin prestador | La trazabilidad: cada cambio de criticidad con su motivo, su razón y quién lo hizo. |
+
+Salen por `GET /api/reportes/iso55000/{tipo}?formato=pdf|excel` con el mismo generador de ACT-8.4, así que llevan el
+logo y los colores del prestador, quedan en `reportes_generados` con su tiempo de generación y la descarga se anota en
+la bitácora de acceso a datos sensibles (§6.9.5).
+
+**MTBF y MTTR por nivel** usan las mismas definiciones del catálogo de indicadores (horas entre fallas consecutivas
+del mismo equipo, y horas desde el reporte hasta el cierre), agrupadas por el nivel de criticidad vigente del activo.
+Un mes sin dos fallas del mismo equipo sale como «sin datos» en lugar de como cero: un cero diría que el equipo falla
+sin parar, que es lo contrario.

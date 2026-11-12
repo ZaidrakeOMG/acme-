@@ -449,6 +449,28 @@ async def tecnico_con_habilidad(db: AsyncSession, tecnico_usuario_id: UUID, foli
     return usuario, tiene, requerida
 
 
+async def advertencia_por_criticidad(db: AsyncSession, folio: Folio, tiene_habilidad: bool) -> dict | None:
+    """F2-05 (§6.9.3): «técnico especialista» en activos A y «técnico certificado» en B. ACMA lo trata como
+    advertencia (queda en el historial del folio y la ve el despachador al asignar) y solo como restricción si el
+    cliente activó `tecnico_certificado.restriccion`. Devuelve None cuando no hay nada que advertir."""
+    if tiene_habilidad or folio.equipo_id is None:
+        return None
+    from models.criticidad import ActivoCriticidad
+    from services import criticidad_service
+
+    fila = (await db.execute(select(ActivoCriticidad).where(ActivoCriticidad.equipo_id == folio.equipo_id))).scalar_one_or_none()
+    if fila is None or fila.nivel not in ("A", "B"):
+        return None
+    cfg = await criticidad_service.configuracion(db, folio.tenant_id)
+    implicacion = (cfg.implicaciones_activas_json or {}).get("tecnico_certificado") or {}
+    if not implicacion.get("alerta", False) and not implicacion.get("restriccion", False):
+        return None
+    exigencia = "técnico especialista" if fila.nivel == "A" else "técnico certificado"
+    return {"nivel": fila.nivel, "restriccion": bool(implicacion.get("restriccion", False)),
+            "mensaje": f"El activo es de criticidad {fila.nivel} y §6.9.3 pide {exigencia}: este técnico no tiene la "
+                       f"habilidad requerida certificada"}
+
+
 async def asignar(db: AsyncSession, actor: Actor, folio: Folio, tecnico_id: UUID, razon: str | None, notas: str,
                   request: Request | None) -> Folio:
     folio_estados.exigir(actor, folio.estado, EstadoFolio.asignado)  # primero el rol (tabla §6.8.6), luego la habilidad
@@ -465,9 +487,22 @@ async def asignar(db: AsyncSession, actor: Actor, folio: Folio, tecnico_id: UUID
                            [{"habilidad_requerida": requerida}])
         if not (razon or "").strip():
             raise ErrorAPI(422, "RAZON_REQUERIDA", "Asignar sin la habilidad requerida exige razón")
+    # F2-05 (§6.9.3): un activo A pide técnico especialista y uno B, técnico certificado. Por defecto es una
+    # advertencia que queda en el historial; el cliente puede volverla restricción en su configuración.
+    # Como restriccion **no** la levanta la razon del permiso `asignar_tecnico_sin_habilidad`: ese permiso dispensa
+    # la habilidad del tipo de falla, no la certificacion que §6.9.3 exige por la criticidad del activo. Si la razon
+    # bastara, la restriccion no restringiria nada: para llegar hasta aqui sin la habilidad ya hace falta una razon.
+    # Solo el Superadmin de la plataforma puede pasarla.
+    aviso_criticidad = await advertencia_por_criticidad(db, folio, tiene)
+    if aviso_criticidad and aviso_criticidad["restriccion"] and not actor.es_superadmin:
+        raise ErrorAPI(409, "CRITICIDAD_EXIGE_CERTIFICACION", aviso_criticidad["mensaje"],
+                       [{"nivel": aviso_criticidad["nivel"], "habilidad_requerida": requerida}])
     tecnico = (await db.execute(select(Tecnico).where(Tecnico.usuario_id == usuario.id))).scalar_one_or_none()
     contexto = {"tecnico_id": str(usuario.id), "tecnico_nombre": usuario.nombre, "sin_habilidad": not tiene, "razon": razon,
                 "vehiculo": tecnico.vehiculo_placas if tecnico else None}
+    if aviso_criticidad:
+        contexto["aviso_criticidad"] = aviso_criticidad["mensaje"]
+        contexto["criticidad"] = aviso_criticidad["nivel"]
     destino = EstadoFolio.asignado
     return await folio_estados.transicionar(db, folio, destino, actor, notas or f"Asignado a {usuario.nombre}", contexto, request)
 

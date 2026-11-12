@@ -80,6 +80,10 @@ from models.medidores import (  # F2-04
     CategoriaMedidor, EquipoMedidor, EstadoLecturaMedidor, EventoTriggerCatalogo, LlaveApiTenant, MedidorCambio,
     MedidorEstimacion, MedidorLectura, MetodoActualizacionMedidor, TipoCambioMedidor, TipoMedidor,
 )
+from models.criticidad import (  # F2-05
+    ActivoCriticidad, ActivoModoFalla, ActivoRiesgoMitigacion, CriticidadConfiguracion, CriticidadEvaluacion,
+    EstadoMitigacion, MotivoEvaluacion, OrigenCriticidad, OrigenModoFalla, TipoMitigacion,
+)
 
 __all__ = [
     "Articulo", "EstadoCFDI", "EstadoGastoCajaChica", "EstadoOrdenCompra", "EstadoPoliza", "Existencia", "FondoCajaChica", "FormatoPoliza",
@@ -129,4 +133,7 @@ __all__ = [
     "CategoriaMedidor", "EquipoMedidor", "EstadoLecturaMedidor", "EventoTriggerCatalogo", "LlaveApiTenant",
     "MedidorCambio", "MedidorEstimacion", "MedidorLectura", "MetodoActualizacionMedidor", "TipoCambioMedidor",
     "TipoMedidor",
+    "ActivoCriticidad", "ActivoModoFalla", "ActivoRiesgoMitigacion", "CriticidadConfiguracion",
+    "CriticidadEvaluacion", "EstadoMitigacion", "MotivoEvaluacion", "OrigenCriticidad", "OrigenModoFalla",
+    "TipoMitigacion",
 ]

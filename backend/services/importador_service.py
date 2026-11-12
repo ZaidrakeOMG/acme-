@@ -148,6 +148,15 @@ CATALOGOS: dict[str, Catalogo] = {
         Columna("valor", True, "Lectura del marcador", "1520.5"),
         Columna("fecha", True, "Fecha y hora de la lectura (AAAA-MM-DD o AAAA-MM-DD HH:MM)", "2026-11-10 07:30"),
     ], ("equipo_codigo", "tipo_medidor", "fecha")),
+    # F2-05 (§6.9.3): carga de evaluaciones de criticidad. Las cuatro dimensiones en escala 1-5; la probabilidad la
+    # pone ACMA con el historial de fallas, no viene en el archivo.
+    "criticidad": Catalogo("criticidad", "Criticidad de activos (ISO 55000)", Dominio.tenant, [
+        Columna("equipo_codigo", True, "Codigo del equipo", "EQ-0001"),
+        Columna("operacional", True, "Impacto operacional de 1 a 5", "4"),
+        Columna("seguridad", True, "Impacto en seguridad de 1 a 5", "5"),
+        Columna("economico", True, "Impacto economico de 1 a 5 (1 menor a $5,000 ... 5 mayor a $500,000)", "3"),
+        Columna("imagen", True, "Impacto en imagen de 1 a 5", "2"),
+    ], ("equipo_codigo",)),
 }
 
 
@@ -385,6 +394,13 @@ class Contexto:
                                                 CursoCatalogo.prestador_id.is_(None))))).scalars()}
             self.d["registros"] = {(r.tecnico_id, r.curso_id, r.fecha_fin) for r in (await db.execute(
                 select(TecnicoCurso).where(TecnicoCurso.prestador_id == p))).scalars()}
+        if catalogo == "criticidad":
+            from models.criticidad import ActivoCriticidad
+
+            self.d["equipos_codigo"] = {e.codigo.lower(): e for e in (await db.execute(
+                select(Equipo).where(Equipo.tenant_id == t))).scalars()}
+            self.d["ya_evaluados"] = set((await db.execute(
+                select(ActivoCriticidad.equipo_id).where(ActivoCriticidad.tenant_id == t))).scalars())
         if catalogo == "lecturas_medidor":
             from models.medidores import EquipoMedidor, MedidorLectura, TipoMedidor
 
@@ -631,6 +647,20 @@ def _validar_fila(catalogo: str, f: dict[str, str], ctx: Contexto) -> tuple[dict
         duplicado = bool(tenant and un and fecha) and (tenant.id, un.id, equipo.id if equipo else None, fecha) in d["calendario"]
         return (n, duplicado, errores)
 
+    if catalogo == "criticidad":
+        codigo = (f.get("equipo_codigo") or "").strip().lower()
+        equipo = d["equipos_codigo"].get(codigo)
+        if equipo is None:
+            errores.append(("equipo_codigo", f"El equipo «{f.get('equipo_codigo', '')}» no existe en este cliente"))
+        n["equipo_id"] = str(equipo.id) if equipo else None
+        for col in ("operacional", "seguridad", "economico", "imagen"):
+            campo(col, _entero, minimo=1, maximo=5)
+            if n.get(col) is None:
+                errores.append((col, "Es un numero de 1 a 5"))
+        n["_etiqueta"] = f"{f.get('equipo_codigo', '')}"
+        # Reevaluar un equipo ya evaluado es valido (deja su rastro en el historial), asi que no es duplicado.
+        return (n, False, errores)
+
     if catalogo == "lecturas_medidor":
         codigo = (f.get("equipo_codigo") or "").strip().lower()
         equipo = d["equipos_codigo"].get(codigo)
@@ -825,6 +855,24 @@ async def aplicar(db: AsyncSession, catalogo: str, filas: list[dict[str, Any]], 
             if curso is not None and tecnico is not None:
                 await capacitacion_service._certificar_habilidad(db, _ActorImportacion(actor_id, prestador_id),
                                                                  None, registro, curso, tecnico)
+            creados += 1
+        await db.flush()
+
+    if catalogo == "criticidad":
+        # Se reutiliza el servicio para que el indice, el nivel, la sincronizacion con `equipos.criticidad` y el
+        # historial de evaluaciones salgan exactamente igual que en la evaluacion por pantalla (F2-05).
+        from models.criticidad import MotivoEvaluacion
+        from services import criticidad_service
+
+        actor = _ActorImportacionTenant(actor_id, tenant_id)
+        for f in filas:
+            equipo = await db.get(Equipo, UUID(str(f["equipo_id"])))
+            if equipo is None:
+                continue
+            await criticidad_service.evaluar(
+                db, actor, equipo,
+                {k: int(f[k]) for k in ("operacional", "seguridad", "economico", "imagen")},
+                motivo=MotivoEvaluacion.evaluacion_inicial, razon="Carga por importación", exigir_rol=False)
             creados += 1
         await db.flush()
 

@@ -497,6 +497,9 @@ async def _armar(db: AsyncSession, actor: Actor, f: Filtro, tipo: str) -> dict[s
             "top_equipos_costo": await top_equipos(db, f, "costo"),
             "top_equipos_fallas": await top_equipos(db, f, "fallas"),
             "jerarquia": await comparativo_jerarquia(db, f),
+            # F2-05 (§6.9.3): distribución de activos por nivel de criticidad, activos A sin plan y acciones de
+            # mitigación vencidas. Son los tres números que el cliente mira para su gestión de activos.
+            "criticidad": await criticidad(db, actor, f),
             "calificacion_admin_un": await _calificacion(db, actor, f) if actor.rol == Rol.admin_un else None,
         }
     if tipo == "direccion":
@@ -519,8 +522,21 @@ async def _armar(db: AsyncSession, actor: Actor, f: Filtro, tipo: str) -> dict[s
         "preventivos": await preventivos(db, f),
         "inventario_y_caja": await inventario_y_caja(db, f),
         "mttr": await mttr(db, f),
+        "criticidad": await criticidad(db, actor, f),   # F2-05: el prestador ve los activos críticos sin plan
         "solo_lectura": actor.rol in (Rol.supervisor_prestador, Rol.direccion_prestador),
     }
+
+
+async def criticidad(db: AsyncSession, actor: Actor, f: Filtro) -> dict[str, Any]:
+    """F2-05 (§6.9.3): activos por nivel, activos A sin plan de mantenimiento, mitigaciones y revisiones vencidas.
+    No depende del período: la criticidad es el estado de hoy del parque, no un acumulado del mes."""
+    from services import criticidad_service
+
+    try:
+        return await criticidad_service.resumen(db, actor, f.tenant_id)
+    except Exception:  # noqa: BLE001 — un rol sin acceso al módulo no debe tumbar el tablero completo
+        return {"por_nivel": {}, "total": 0, "criticos_sin_plan": 0, "criticos_sin_plan_ids": [],
+                "mitigaciones_vencidas": 0, "revisiones_vencidas": 0}
 
 
 async def _claves_escalacion(db: AsyncSession, f: Filtro | None = None):

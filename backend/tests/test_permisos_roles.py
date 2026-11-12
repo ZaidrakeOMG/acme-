@@ -237,9 +237,11 @@ async def test_catalogo_tiene_los_20_tipos_mas_los_de_cada_modulo(cliente, auth)
     # que ya existian desde P01 (TECNICO_TIEMPO_MUERTO y TECNICO_SIN_SENAL).
     # + 2 de F2-04 (MEDIDOR_LECTURA_ANOMALA y MEDIDOR_SIN_LECTURA; MEDIDOR_PROXIMO_PM ya existia desde P01 y lo que
     # hizo F2-04 fue activarla).
-    assert len(catalogo) == 64
+    # + 5 de F2-05 (CRITICIDAD_REVISION_PENDIENTE, ACTIVO_CRITICO_SIN_PLAN, RESPUESTA_CRITICIDAD_EN_RIESGO,
+    # REFACCION_CRITICA_SIN_STOCK y MITIGACION_VENCIDA).
+    assert len(catalogo) == 69
     assert {"SLA_RESPUESTA_EN_RIESGO", "COTIZACION_ESCALADA_DIRECCION", "TECNICO_SIN_SENAL",
-            "MEDIDOR_SIN_LECTURA"} <= {a["clave"] for a in catalogo}
+            "MEDIDOR_SIN_LECTURA", "ACTIVO_CRITICO_SIN_PLAN", "MITIGACION_VENCIDA"} <= {a["clave"] for a in catalogo}
 
 
 async def test_umbral_por_tenant_dentro_de_rango(cliente, auth, datos):

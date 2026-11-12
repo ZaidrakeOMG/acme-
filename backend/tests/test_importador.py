@@ -29,7 +29,9 @@ async def test_catalogos_y_plantillas(cliente, auth):
                                            # F2-01: catalogo de cursos y historial de cursos por tecnico.
                                            "cursos", "tecnico_cursos",
                                            # F2-04: lecturas de medidor por archivo (§6.9.2).
-                                           "lecturas_medidor"}
+                                           "lecturas_medidor",
+                                           # F2-05: evaluacion de criticidad en lote (§6.9.3).
+                                           "criticidad"}
     for cat in lista:
         r = await cliente.get(f"/api/catalogos/importar/{cat['clave']}/plantilla", headers=await auth(AE))
         assert r.status_code == 200 and r.headers["content-type"].startswith(XLSX)

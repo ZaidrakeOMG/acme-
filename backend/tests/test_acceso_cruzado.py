@@ -59,11 +59,15 @@ FUENTES: dict[str, str | None] = {
     "plantilla_id": "SELECT id FROM mensajeria_plantillas WHERE prestador_id IS NOT NULL ORDER BY created_at LIMIT 1",
     # F2-04: un medidor de un equipo del cliente demo (su historial de reinicios y reemplazos).
     "medidor_id": "SELECT id FROM equipo_medidores WHERE activo ORDER BY created_at LIMIT 1",
+    # F2-05: una acción de mitigación de riesgo del cliente demo (su efectividad medida).
+    "mitigacion_id": "SELECT id FROM activo_riesgo_mitigacion ORDER BY created_at LIMIT 1",
     # No son identificadores de recursos de un cliente: el valor no revela datos ajenos.
     "catalogo": None,
     "modulo": None,
     "nombre": None,
     "clave": None,
+    # F2-05: `tipo` es la clave del reporte ISO 55000 (iso_registro, iso_matriz…), no un identificador.
+    "tipo": None,
     # F2-02: el enlace corto `/l/{codigo}` y el PDF firmado de la minuta son **públicos a propósito**: los abre
     # quien recibió el mensaje en su teléfono, que no tiene sesión en ese navegador. El secreto es el código (8
     # caracteres aleatorios) y el token firmado, no la sesión; ver decisiones 152 y 153 de CONTEXTO.md.

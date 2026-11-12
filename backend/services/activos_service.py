@@ -1,5 +1,6 @@
 """Ficha de activos, depreciación con los cuatro métodos de §6.9.4, TCO por período y análisis reemplazar vs. reparar.
-La criticidad automática A/B/C/D, el FMEA, el MTBF y el MTTR son Fase 2 (ISO 55000): la ficha muestra la criticidad manual. P09."""
+La criticidad A/B/C/D y el FMEA los calcula `criticidad_service` (ISO 55000, F2-05) y la ficha los muestra con su
+origen; el MTBF y el MTTR por activo siguen pendientes. P09."""
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -470,9 +471,21 @@ async def listado(db: AsyncSession, actor: Actor, *, tenant_id: UUID | None = No
     return salida
 
 
+async def _origen_de_criticidad(db: AsyncSession, equipo: Equipo) -> str:
+    """De dónde viene el nivel que muestra la ficha: el cálculo de F2-05, un ajuste manual del Admin empresa, o el
+    campo que se capturaba a mano antes de que existiera la evaluación."""
+    from services import criticidad_service
+
+    fila = await criticidad_service.vigente(db, equipo.id)
+    if fila is None:
+        return "manual" if equipo.criticidad else "sin evaluar"
+    origen = fila.origen.value if hasattr(fila.origen, "value") else str(fila.origen)
+    return "calculado (ISO 55000 §6.9.3)" if origen == "calculado" else "ajuste manual del Admin empresa"
+
+
 async def ficha(db: AsyncSession, actor: Actor, equipo: Equipo) -> dict[str, Any]:
-    """§6.9.4: datos del equipo, contrato y garantía, criticidad manual, historial de folios con costos y causa, preventivos con
-    desvío, refacciones consumidas, depreciación y TCO. Criticidad automática, FMEA, MTBF y MTTR: Fase 2."""
+    """§6.9.4: datos del equipo, contrato y garantía, criticidad con su origen, historial de folios con costos y
+    causa, preventivos con desvío, refacciones consumidas, depreciación y TCO. MTBF y MTTR por activo: pendientes."""
     from services import folios_captura_service as captura
     from services.preventivos_service import texto_desvio
 
@@ -506,7 +519,7 @@ async def ficha(db: AsyncSession, actor: Actor, equipo: Equipo) -> dict[str, Any
     return {
         "equipo": {"id": equipo.id, "codigo": equipo.codigo, "nombre": equipo.nombre, "marca": equipo.marca, "modelo": equipo.modelo,
                    "numero_serie": equipo.numero_serie, "estado": equipo.estado.value, "criticidad": equipo.criticidad,
-                   "criticidad_origen": "manual (criticidad automática A/B/C/D y FMEA: Fase 2)", "tipo_equipo": tipo.nombre if tipo else None,
+                   "criticidad_origen": await _origen_de_criticidad(db, equipo), "tipo_equipo": tipo.nombre if tipo else None,
                    "un_id": equipo.un_id, "un_codigo": un.codigo if un else None, "un_nombre": un.nombre if un else None,
                    "fecha_instalacion": equipo.fecha_instalacion, "fecha_adquisicion": equipo.fecha_adquisicion,
                    "costo_adquisicion": equipo.costo_adquisicion, "valor_reposicion": equipo.valor_reposicion,
@@ -542,7 +555,7 @@ async def ficha(db: AsyncSession, actor: Actor, equipo: Equipo) -> dict[str, Any
                                                          "decision": alerta.decision.value if alerta.decision else None, "razon": alerta.razon,
                                                          "trabajo_especial_id": alerta.trabajo_especial_id},
         "umbral_reemplazo_pct": await umbral_reemplazo(db, equipo.tenant_id),
-        "fase_2": ["Criticidad automática A/B/C/D", "FMEA simplificado", "MTBF y MTTR"],
+        "fase_2": ["MTBF y MTTR por activo"],
     }
 
 

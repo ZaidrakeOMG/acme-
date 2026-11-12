@@ -23,7 +23,7 @@ from core.errors import ErrorAPI, prohibido
 from models.base import Dominio, FormatoReporte, PeriodicidadReporte, Rol
 from models.organizaciones import Prestador
 from models.reportes import ReporteGenerado, ReporteProgramado
-from services import auditoria, bi_service, pdf
+from services import auditoria, bi_service, pdf, reportes_iso55000
 from services.almacenamiento import dueno_de, obtener_almacenamiento
 from services.bi_service import Filtro
 
@@ -33,12 +33,15 @@ PLANTILLAS = {
     "cliente": "Reporte ejecutivo del cliente",
     "prestador": "Reporte ejecutivo del prestador",
     "jornada": "Cierre de jornada",
+    # F2-05: los cinco de certificación ISO 55000 (§6.9.3). Mismo generador, mismas secciones.
+    **reportes_iso55000.PLANTILLAS,
 }
 # Quién puede pedir cada plantilla (§5.1, §5.2).
 PERMISOS = {
     "cliente": {Rol.superadmin, Rol.admin_empresa, Rol.admin_un, Rol.admin_prestador, Rol.mesa_control},
     "prestador": {Rol.superadmin, Rol.admin_prestador, Rol.mesa_control, Rol.direccion_prestador, Rol.supervisor_prestador},
     "jornada": {Rol.superadmin, Rol.admin_prestador, Rol.supervisor_prestador, Rol.despachador, Rol.mesa_control},
+    **{clave: reportes_iso55000.PERMISOS for clave in reportes_iso55000.PLANTILLAS},
 }
 
 
@@ -55,6 +58,8 @@ async def _tema(db: AsyncSession, prestador_id: UUID | None) -> dict[str, str]:
 # ----------------------------------------------------------- composición
 async def secciones(db: AsyncSession, actor: Actor, tipo: str, f: Filtro) -> list[dict[str, Any]]:
     """Cada sección es {titulo, tipo: 'kpi'|'tabla', filas} para que PDF y Excel compartan el contenido."""
+    if tipo in reportes_iso55000.PLANTILLAS:
+        return await reportes_iso55000.secciones(db, actor, tipo, f)
     if tipo == "jornada":
         j = await bi_service.jornada(db, f)
         return [
