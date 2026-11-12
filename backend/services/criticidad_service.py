@@ -572,9 +572,14 @@ async def detalle(db: AsyncSession, equipo: Equipo) -> dict[str, Any]:
     cfg = await configuracion(db, equipo.tenant_id)
     fila = await vigente(db, equipo.id)
     if fila is None:
+        # Misma forma que la rama evaluada, para que la pantalla no tenga que leer dos estructuras distintas:
+        # `probabilidad` siempre es el numero (o None sin evaluar) y el detalle siempre va aparte.
+        prob = await probabilidad_de(db, equipo, cfg)
         return {"evaluado": False, "nivel_manual": equipo.criticidad, "guia": GUIA_DIMENSIONES,
                 "pesos": cfg.pesos_json, "economico_propuesto": await economico_propuesto(db, equipo, cfg),
-                "probabilidad": await probabilidad_de(db, equipo, cfg) | {"valor": None},
+                "probabilidad": None, "probabilidad_estimada": prob["estimada"],
+                "probabilidad_origen": prob["origen"], "probabilidad_detalle": prob["detalle"],
+                "probabilidad_si_se_evalua": prob["valor"],
                 "meses_revision": cfg.meses_revision}
     dims = fila.dimensiones_json or {}
     pesos = dims.get("pesos") or cfg.pesos_json or {}

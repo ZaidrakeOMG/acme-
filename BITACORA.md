@@ -2,6 +2,66 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-11 · F2-05 ISO 55000: criticidad de activos y gestión del riesgo
+
+El bloque que cierra §6.9.3. Hasta hoy la criticidad de un activo era un campo que alguien escribía a mano en la
+ficha; ahora **se calcula**, se explica, se revisa y deja evidencia. Migración `0017` con cinco tablas, de las
+cuales `criticidad_evaluaciones` es append-only porque es justamente la que lee una auditoría.
+
+**La fórmula, en una línea:** `índice = probabilidad × impacto ÷ 25 × 100`, y el nivel sale del índice (A ≥ 80,
+B ≥ 50, C ≥ 20, D debajo). La probabilidad la pone ACMA con el historial de correctivos cerrados del equipo; el
+impacto lo evalúa el cliente con las cuatro dimensiones de §6.9.3 y sus pesos (seguridad 35 %, operacional 30 %,
+económico 25 %, imagen 10 %). El EQ-0001 del demo: 13 fallas en doce meses → probabilidad 5; dimensiones 5/4/4/4 →
+impacto 4.30; índice 86.00 → **A**.
+
+**Por qué el reparto importa.** La probabilidad no la puede capturar una persona: es un hecho que ya está en los
+folios, y dejarla a criterio volvería el índice una opinión con decimales. El impacto sí lo tiene que evaluar el
+cliente, porque solo él sabe si perder ese equipo le cierra la sucursal. Así el número tiene una mitad medida y una
+mitad declarada, y la pantalla dice cuál es cuál: un auditor que pregunta «¿de dónde salió este 86?» ve el desglose
+dimensión por dimensión con su peso y su aporte.
+
+**Las escalas son configuración, no código**, y están puestas para moverse: los pesos (con un CHECK que exige que
+sumen 100 %, porque si no suman el índice deja de significar lo que dice), las fronteras de nivel, la escala de
+fallas y el impacto económico. En `CONTEXTO.md` quedan los valores de hoy y la **recomendación de recalibrarlos con
+seis a doce meses de operación real**: se eligieron sin historia del parque, y la escala de probabilidad es la que
+más depende del tipo de equipo. Las ocho preguntas que esto le deja al negocio quedaron en
+`docs/decisiones_para_validar.md` (43 a 50).
+
+Cuatro decisiones de diseño que salieron de hacerlo:
+
+- **El recálculo solo escribe si cambia el nivel.** La tarea semanal recalcula con el historial nuevo, pero si el
+  índice se mueve de 51.60 a 55.00 actualiza la fila y no registra nada: una traza de auditoría llena de ruido no la
+  lee nadie. Y respeta el nivel fijado a mano hasta la próxima revisión, que es lo que hace útil al ajuste manual.
+- **La probabilidad prestada se declara.** Un activo sin historia suficiente toma el promedio del mismo tipo de
+  equipo del cliente, después el de toda la plataforma como número anónimo (nunca se dice de quién salió), y si no
+  hay nada, 2.00. En los tres casos la evaluación queda marcada como estimada: un dato prestado que se lee como
+  propio es peor que no tenerlo.
+- **El FMEA no se escribe en blanco.** ACMA propone los modos de falla que el activo ya repitió, con la causa raíz
+  más frecuente que los técnicos registraron en el formulario de cierre (P03) y la severidad que la operación ya les
+  dio. Lo aceptado queda marcado `sugerido`, separado de lo que escribió una persona.
+- **Las exigencias de cada nivel avisan antes de bloquear.** §6.9.3 dice que un activo A *tiene* plan obligatorio,
+  respuesta en 4 horas, técnico especialista y refacción en inventario. ACMA lo aplica como alerta y cada cliente
+  puede volver restricción las que quiera: un cálculo nuevo que bloquea la operación el primer día se termina
+  apagando entero. Y el aviso de respuesta **no toca el SLA del contrato**: son dos relojes a propósito, porque el
+  contrato puede prometer 24 h en un equipo que debería atenderse en 4.
+
+**Dos defectos propios que encontraron las pruebas.** El primero: `_meses_de_historia` medía la observación desde el
+primer folio del equipo, así que un activo instalado en 2024 con una sola falla reciente parecía nuevo y tomaba la
+probabilidad prestada del tipo de equipo en lugar de su propio historial; ahora un activo sin un solo folio sigue
+dando 0 (no se ha observado nada), pero con folios la observación se cuenta desde lo más antiguo que ACMA sabe de
+él. El segundo: la implicación «técnico certificado» activada como restricción **no restringía nada**, porque la
+levantaba la razón del permiso `asignar_tecnico_sin_habilidad` y sin esa razón la asignación ya se había frenado
+antes; ese permiso dispensa la habilidad del tipo de falla, no la certificación que pide la criticidad, así que
+ahora solo el Superadmin la pasa.
+
+**El seed demo deja los cuatro niveles saliendo del cálculo** (2 A, 2 B, 4 C y 4 D, con EQ-0001 crítico con plan y
+EQ-0002 crítico sin plan, que es el caso que la alerta debe cazar). Para eso completa el historial de fallas de cada
+equipo hasta la banda de probabilidad que le toca, **contando lo que ya le dejaron los otros seeds**: con cantidades
+fijas la demo cambiaba de resultado según cuántos folios hubiera generado antes el seed base.
+
+Cerró con 665 pytest con los servidores apagados (37:28), 150 vitest, `tsc --noEmit` y
+`npm run build` en verde. 77 pruebas nuevas de backend en seis archivos y 13 de frontend.
+
 ## 2026-11-11 · F2-04 Medidores de activos y planes de mantenimiento por uso
 
 El bloque que cierra §6.9.1 y §6.9.2: ahora un plan puede dispararse por el **uso real** del equipo y no solo por el

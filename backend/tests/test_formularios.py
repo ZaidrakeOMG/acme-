@@ -228,4 +228,9 @@ async def test_catalogo_personalizado_y_opciones(cliente, auth, datos):
     assert len([o for o in equipos["opciones"] if o["etiqueta"].startswith("EQ-")]) == 10 and all(o["padre"] == str(datos["unidades"][0]) for o in equipos["opciones"])
     materiales = (await cliente.get("/api/formularios/opciones", headers=await auth(TEC), params={"catalogo": "materiales"})).json()
     assert materiales["opciones"] == [] and "P09" in materiales["aviso"]
-    assert (await cliente.get("/api/formularios/opciones", headers=await auth(OTRO_AE), params={"catalogo": "equipos_tenant"})).json()["opciones"] == []
+    # El otro cliente ve sus equipos, no los del demo. (Antes de F2-05 no tenia ninguno y esto afirmaba lista
+    # vacia; la prueba de la probabilidad anonima por tipo de equipo le da de alta uno, y lo que importa aqui es
+    # el aislamiento, no que el catalogo este vacio.)
+    ajenos = (await cliente.get("/api/formularios/opciones", headers=await auth(OTRO_AE),
+                                params={"catalogo": "equipos_tenant"})).json()["opciones"]
+    assert not any(o["etiqueta"].startswith("EQ-") for o in ajenos), ajenos

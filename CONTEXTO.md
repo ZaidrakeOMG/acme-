@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-11-11 · F2-04 Medidores de activos y planes de mantenimiento por uso**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-11-11 · F2-05 ISO 55000: criticidad de activos y gestión del riesgo**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -29,6 +29,40 @@
 | F2-02 | Notificaciones por WhatsApp y SMS: plantillas aprobables por Meta, consentimiento del destinatario, horario de silencio, tope de gasto, enlace corto propio y minuta por WhatsApp | ✅ 2026-11-10 |
 | F2-03 | Pantalla de operaciones en tiempo real: jornada del técnico con GPS, mapa en vivo con OpenStreetMap, estatus automático, geocerca de llegada, tiempo muerto y sin señal | ✅ 2026-11-10 |
 | F2-04 | Medidores de activos y planes de mantenimiento por uso: los seis tipos de medidor, lecturas por los cuatro métodos, los cuatro triggers que faltaban, depreciación por unidades producidas y llaves de API para recibir lecturas | ✅ 2026-11-11 |
+| F2-05 | ISO 55000: criticidad A/B/C/D calculada como probabilidad × impacto, FMEA simplificado con mitigaciones y su efectividad medida, implicaciones por nivel como alerta o restricción y cinco reportes de certificación | ✅ 2026-11-11 |
+
+## Verificación al cierre de F2-05
+
+- Migración `0017_iso55000_criticidad.py` aplicada (subida, bajada y subida), con `criticidad_configuracion`,
+  `activo_criticidad`, `criticidad_evaluaciones` (**append-only**), `activo_modos_falla` y
+  `activo_riesgo_mitigacion`; RLS forzada en las cinco, `criticidad_evaluaciones` sin privilegio DELETE para
+  `acma_api` y con políticas solo de SELECT e INSERT (así un UPDATE no encuentra ni una fila), más el trigger
+  `acma_auditoria_inmutable()` como tercer cerco.
+- **665 pytest** en verde **con los servidores de desarrollo apagados** (37:28). 77 pruebas nuevas
+  de F2-05 en `test_criticidad_calculo.py`, `test_criticidad_revision.py`, `test_modos_falla.py`,
+  `test_mitigacion.py`, `test_implicaciones_criticidad.py` y `test_reportes_iso55000.py`.
+- **150 vitest** (13 nuevos en `criticidad.test.tsx`), `tsc --noEmit` y `npm run build` en verde.
+- Las dos pruebas guardián de P11a volvieron a hacer su trabajo: `test_acceso_cruzado` pidió declarar de dónde
+  sacar un `modo_id` y un `mitigacion_id` reales, y `test_permisos_roles` acusó el catálogo de alertas de 64 a 69.
+- Pruebas de otros prompts que cambiaron porque F2-05 cambia lo que afirmaban: el importador pasó de 12 a 13
+  catálogos, la ficha del activo dejó de etiquetar la criticidad y el FMEA como «Fase 2» (ahora dice de dónde salió
+  el nivel: cálculo o ajuste manual), y `test_formularios` ya no afirma que el catálogo de equipos del segundo
+  cliente esté **vacío**, sino que no trae equipos del demo: la prueba de la probabilidad anónima por tipo de equipo
+  necesita darle de alta uno, y lo que esa afirmación cuida es el aislamiento, no que el catálogo esté vacío.
+- La primera corrida completa marcó 14 fallas; dos eran reales (la afirmación de «Fase 2» en la ficha y la
+  contaminación del catálogo del segundo cliente) y están corregidas. Las otras doce no se reprodujeron ni juntas ni
+  por archivo, así que quedan como ruido de esa corrida: la segunda corrida completa salió limpia.
+- **Dos defectos propios que encontraron las pruebas**, los dos corregidos y con su prueba:
+  - `_meses_de_historia` medía la observación desde el primer folio del equipo, así que un activo instalado en 2024
+    con una sola falla reciente parecía nuevo y su probabilidad salía prestada del tipo de equipo en lugar de su
+    propio historial. Ahora un activo **sin un solo folio** sigue dando 0 (no se ha observado nada), pero con
+    folios la observación se cuenta desde lo más antiguo que ACMA sabe de él.
+  - La implicación «técnico certificado» activada como **restricción** no restringía nada: la levantaba la razón del
+    permiso `asignar_tecnico_sin_habilidad`, y sin esa razón la asignación ya se había frenado antes. Ahora solo el
+    Superadmin la pasa.
+- El seed demo deja los doce equipos con **los cuatro niveles saliendo del cálculo** (2 A, 2 B, 4 C y 4 D), y
+  completa el historial de fallas de cada uno hasta la banda de probabilidad que le toca contando lo que ya le
+  dejaron los otros seeds: así la demo no depende de cuántos folios haya generado antes el seed base.
 
 ## Verificación al cierre de F2-04
 
@@ -1185,8 +1219,70 @@ nunca el marcador; `medidores_service.acumulado_de()` es la única fuente de esa
   automática A/B/C/D**, el **FMEA**, el **MTBF/MTTR** y los **adaptadores de ERP** (la importación de lecturas por
   archivo y por API propia sí existe; lo que no hay es conexión directa a un ERP de terceros).
 
+### ISO 55000 (F2-05)
+
+**La fórmula.** `índice = probabilidad × impacto ÷ 25 × 100`, de 4 a 100. La **probabilidad** es 1–5 y la pone ACMA
+con el historial de correctivos cerrados del activo; el **impacto** es 1.00–5.00 y es el promedio ponderado de las
+cuatro dimensiones de §6.9.3 que evalúa el cliente. El nivel sale del índice. Un ejemplo completo, el EQ-0001 del
+demo: 13 fallas en 12 meses → probabilidad 5; dimensiones 5 operacional, 4 seguridad, 4 económico y 4 imagen con
+los pesos 30/35/25/10 → impacto `(150 + 140 + 100 + 40) ÷ 100 = 4.30`; índice `5 × 4.30 ÷ 25 × 100 = 86.00` →
+**nivel A**.
+
+**Las escalas elegidas** (todas configuración por cliente, no código):
+
+| Qué | Valor de hoy |
+|---|---|
+| Pesos de las dimensiones | seguridad 35 %, operacional 30 %, económico 25 %, imagen 10 % (tienen que sumar 100 %, lo garantiza un CHECK) |
+| Fronteras de nivel | A ≥ 80, B ≥ 50, C ≥ 20, D debajo de 20 |
+| Probabilidad por fallas en 12 meses | 0 → 1 · 1–2 → 2 · 3–5 → 3 · 6–11 → 4 · 12 o más → 5 |
+| Impacto económico (propuesta automática) | menos de $5,000 → 1 · hasta $25,000 → 2 · hasta $100,000 → 3 · hasta $500,000 → 4 · más → 5 |
+| Historia mínima para usar el historial propio | 6 meses |
+| Revisión de la clasificación | cada 12 meses, con aviso a los 30 días de vencida |
+| Ventana de efectividad de una mitigación | 6 meses antes contra 6 después, con «sin datos suficientes» antes de 90 días |
+
+**Recalibrar con datos reales.** Estos números son defendibles, pero son un punto de partida, no una verdad: se
+eligieron sin historia propia del parque. **La recomendación es revisarlos con seis a doce meses de operación
+real**, comparando lo que el cálculo clasificó contra lo que de verdad falló, y ajustando sobre todo la escala de
+probabilidad, que es la que más depende del tipo de parque: en equipos de uso intenso doce fallas al año puede ser
+lo normal, y entonces la escala quedaría toda en 5, que es como no tener escala. Las ocho preguntas que esto le deja
+al negocio están en [`docs/decisiones_para_validar.md`](docs/decisiones_para_validar.md) (43 a 50).
+
+- **Tablas (0017)**: `criticidad_configuracion` (pesos, escalas, rangos e implicaciones activas por cliente),
+  `activo_criticidad` (la clasificación vigente, una por equipo, reusando el ENUM `criticidad_activo` de P04),
+  `criticidad_evaluaciones` (**append-only**: cada cambio con su motivo, su razón y quién), `activo_modos_falla`
+  (del activo **o** genérico del tipo de equipo, nunca de los dos: lo garantiza un CHECK) y
+  `activo_riesgo_mitigacion` (la acción, su vínculo según el tipo y su efectividad medida).
+- **`equipos.criticidad` sigue siendo el campo que lee el resto del sistema** (la aprobación multinivel de P04, el
+  tablero, la ficha). La evaluación lo escribe con contexto de sistema dentro de la misma transacción, como el alta
+  de equipos de P08, porque el cliente no puede escribir ese campo por la RLS de P02 y porque la tarea semanal
+  evalúa sin usuario. Así la criticidad calculada entra sola a decidir el nivel de aprobación de un folio.
+- **El recálculo solo escribe si cambia el nivel.** Si el índice se mueve de 51.60 a 55.00 la fila se actualiza pero
+  no se registra una evaluación: ensuciar la traza de auditoría con ruido hace que nadie la lea. Y respeta el nivel
+  fijado a mano hasta la próxima revisión.
+- **La probabilidad prestada se declara.** Sin historia propia suficiente se usa el promedio del mismo tipo de
+  equipo del cliente, después el de toda la plataforma como número anónimo, y si no hay nada, 2.00. En los tres
+  casos la fila queda `probabilidad_estimada = true` con su origen, y la pantalla lo dice: un dato prestado que se
+  lee como propio es peor que no tenerlo.
+- **El FMEA no se escribe en blanco.** `riesgo_service.sugerir()` propone los tipos de falla que el activo ya
+  repitió en sus correctivos cerrados, con la causa raíz más frecuente (del catálogo de P03, leída de la respuesta
+  del formulario de atención) y la severidad que la operación ya les dio. Quien revisa acepta, edita o descarta, y
+  lo aceptado queda marcado `sugerido` para distinguirlo de lo que escribió una persona.
+- **Las cuatro implicaciones de §6.9.3 son alerta por defecto y restricción opcional** del cliente
+  (`implicaciones_activas_json`). Cinco alertas avisan solas (`CRITICIDAD_REVISION_PENDIENTE`,
+  `ACTIVO_CRITICO_SIN_PLAN`, `RESPUESTA_CRITICIDAD_EN_RIESGO` al 80 % del tiempo, `REFACCION_CRITICA_SIN_STOCK` y
+  `MITIGACION_VENCIDA`); la del técnico se aplica al asignar. **`RESPUESTA_CRITICIDAD_EN_RIESGO` no toca el SLA ni
+  la penalización de P10**: es un reloj paralelo, porque el contrato puede prometer 24 h en un equipo que por su
+  criticidad debería atenderse en 4.
+- **Cinco reportes de certificación** (`iso_registro`, `iso_matriz`, `iso_modos_falla`, `iso_mejora_continua`,
+  `iso_historial`) sin generador nuevo: arman las mismas secciones `{titulo, tipo, columnas, filas}` que ya
+  comparten el PDF y el Excel de P10.
+- **Hoja «Dónde se ve en el sistema» (Excel, no se edita)**: quedan obsoletas las filas que marcan como «Fase 2» la
+  **criticidad automática A/B/C/D**, el **FMEA** y la **matriz de riesgo**. El **MTBF y el MTTR por activo** en la
+  ficha siguen pendientes (en el tablero ya están desde P10).
+
 ### Frontend
-- `src/config/modulos.ts` define los 28 módulos con pantalla (27 de Fase 1 + `medidores` de F2-04), su prompt y los
+- `src/config/modulos.ts` define los 29 módulos con pantalla (27 de Fase 1 + `medidores` de F2-04 e `iso55000`
+  de F2-05), su prompt y los
   roles que los ven. Desde P10 **todos tienen
   `ruta`**: no queda ninguno con la etiqueta «Disponible en el prompt Pxx».
 - Gráficas con Recharts 3.10.1; cada valor va también en texto junto a la gráfica (accesibilidad).

@@ -165,11 +165,13 @@ async def test_quien_evalua_y_quien_solo_mira(cliente, auth, datos):
 async def test_detalle_sin_evaluar_trae_la_guia_y_la_propuesta_economica(cliente, auth, datos):
     equipo = await equipo_con_historia(cliente, auth, datos, fallas=1)
     d = await detalle(cliente, auth, equipo["id"])
-    assert d["evaluado"] is False and d["probabilidad"]["valor"] is None
+    assert d["evaluado"] is False and d["probabilidad"] is None
     assert set(d["guia"]) == {"operacional", "seguridad", "economico", "imagen"}
     assert d["guia"]["seguridad"]["peso_default"] == 35
     assert 1 <= d["economico_propuesto"]["nivel"] <= 5
-    assert d["probabilidad"]["detalle"]["fallas_12m"] == 1
+    assert d["probabilidad_detalle"]["fallas_12m"] == 1
+    # La probabilidad que saldria si se evaluara hoy, para que la pantalla pueda estimar el indice.
+    assert Decimal(d["probabilidad_si_se_evalua"]) == 2 and d["probabilidad_origen"] == "historial_equipo"
 
 
 async def test_detalle_explica_como_se_formo_el_indice(cliente, auth, datos):

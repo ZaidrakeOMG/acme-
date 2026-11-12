@@ -19,7 +19,10 @@ async def test_datos_economicos_y_depreciacion_linea_recta(cliente, auth, datos)
     e = await equipo_con_activo(cliente, auth, datos, costo="120000.00", reposicion="150000.00")
     f = await _ficha(cliente, auth, e["id"])
     assert Decimal(f["equipo"]["costo_adquisicion"]) == 120000 and Decimal(f["equipo"]["costo_hora_inactividad"]) == 400
-    assert f["equipo"]["criticidad_origen"].startswith("manual") and "FMEA simplificado" in f["fase_2"]
+    # F2-05: la criticidad y el FMEA ya no son Fase 2. Un equipo recien creado no tiene evaluacion, y la ficha lo
+    # dice en lugar de etiquetarlos como pendientes.
+    assert f["equipo"]["criticidad_origen"] == "manual"   # el campo capturado a mano, sin evaluacion de F2-05
+    assert not any("riticidad" in x or "FMEA" in x for x in f["fase_2"]), f["fase_2"]
     assert (await cliente.put(f"/api/activos/{e['id']}/datos-economicos", headers=await auth(DES), json={"costo_adquisicion": "1.00"})).status_code == 403
     # Línea recta: 10 años, salvamento 20000 → (120000-20000)/120 = 833.33 al mes; a 4 años (48 meses) quedan 80000.
     inicio = date.today() - timedelta(days=365 * 4)

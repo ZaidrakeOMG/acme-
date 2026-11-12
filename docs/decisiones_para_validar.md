@@ -405,6 +405,90 @@ manda lecturas a ACMA; solo sirve para eso, vive atada a ese cliente y se puede 
 técnica. La contra es que entonces el prestador puede emitir llaves sobre los datos del cliente sin que el cliente
 lo autorice.
 
+## Criticidad de activos y riesgo (ISO 55000, F2-05)
+
+Las cuatro primeras de esta sección son **una sola decisión repartida**: con qué números se clasifica el parque. El
+Documento de Diseño fija los cuatro niveles (A, B, C, D) y las cuatro dimensiones de impacto, pero no los pesos ni
+las fronteras. Los que están hoy son defendibles y están puestos para que se puedan mover sin tocar código: son
+configuración por cliente. **La recomendación es revisarlos con seis a doce meses de operación real**, cuando se
+pueda comparar lo que el cálculo dijo contra lo que de verdad falló.
+
+### 43. ¿Con qué peso entra cada dimensión del impacto?
+
+**Hoy:** seguridad 35 %, operacional 30 %, económico 25 %, imagen 10 %. Los cuatro tienen que sumar 100 %, y si no
+suman, ACMA no guarda la configuración: en cuanto no suman, el índice deja de significar lo que dice.
+
+**Si responde distinto:** se cambian en la pantalla del módulo, cada cliente los suyos. Subir seguridad empuja
+hacia arriba los equipos que pueden lastimar a alguien; subir económico empuja los caros de reparar. Las
+evaluaciones ya hechas no se recalculan solas: cambiar los pesos y volver a evaluar es una decisión explícita.
+
+### 44. ¿Dónde están las fronteras entre A, B, C y D?
+
+**Hoy:** el índice va de 4 a 100 y se corta en **A ≥ 80, B ≥ 50, C ≥ 20, D debajo de 20**. Con eso, en el parque
+demo de doce equipos quedan 2 A, 2 B, 4 C y 4 D, que es una pirámide razonable: pocos críticos y una base amplia de
+no críticos.
+
+**Si responde distinto:** son rangos configurables. Bajar la frontera de A hace críticos a más equipos, y con ello
+cuántos exigen plan obligatorio, respuesta en 4 horas y refacción en inventario. Conviene mirar primero cuántos
+equipos caen de cada lado antes de moverla.
+
+### 45. ¿Cuántas fallas al año hacen a un equipo «probable»?
+
+**Hoy:** sin fallas en 12 meses es probabilidad 1; de 1 a 2 es 2; de 3 a 5 es 3; de 6 a 11 es 4; 12 o más es 5. Es
+la escala con la que ACMA convierte el historial de correctivos cerrados en el número que multiplica al impacto.
+
+**Si responde distinto:** se ajusta la escala del cliente. Esta es la que más conviene recalibrar con datos reales,
+porque depende del tipo de parque: en equipos de uso intenso doce fallas al año puede ser normal y la escala
+quedaría toda en 5, que es como no tener escala.
+
+### 46. Cuando el activo no tiene historia en ACMA, ¿de dónde sale su probabilidad?
+
+**Hoy:** del **promedio de los equipos del mismo tipo de ese cliente**; si ninguno tiene historia propia, del
+promedio del mismo tipo **en toda la plataforma, como número anónimo** (nunca se dice de qué cliente ni de qué
+equipo salió); y si tampoco hay, queda en 2.00. En los tres casos la evaluación se marca como **estimada** y la
+ficha lo dice, para que nadie la lea como si fuera historial del equipo.
+
+**Si responde distinto:** se puede apagar el promedio de plataforma y dejar solo el del cliente, o pedir que la
+probabilidad la capture una persona cuando no hay historia. Lo primero es más conservador con el dato; lo segundo
+es más exacto si quien evalúa conoce el equipo.
+
+### 47. Las exigencias de cada nivel, ¿avisan o bloquean?
+
+**Hoy:** **avisan**. §6.9.3 dice que un activo A tiene plan obligatorio, respuesta máxima de 4 horas, técnico
+especialista y refacciones en inventario. ACMA lo aplica como alerta, y cada cliente puede volver restricción las
+que quiera. La única que hoy bloquea de verdad cuando se activa es la del técnico: asignar a un activo A o B un
+técnico sin la certificación queda bloqueado, y **la razón del permiso «asignar sin la habilidad» no la levanta**
+(ese permiso dispensa la habilidad del tipo de falla, no la certificación que pide la criticidad). Solo el
+Superadmin de la plataforma puede pasarla.
+
+**Si responde distinto:** se activan como restricción desde la pantalla del módulo, una por una. La recomendación es
+empezar avisando: un cálculo nuevo que bloquea la operación el primer día se termina apagando entero.
+
+### 48. ¿La respuesta por criticidad cambia el SLA del contrato?
+
+**Hoy:** **no**. El contrato puede prometer 24 horas en un equipo que por su criticidad debería atenderse en 4.
+ACMA avisa cuando se consume el 80 % de las 4 horas, pero el cumplimiento y la penalización se siguen midiendo
+contra el contrato. Son dos relojes distintos a propósito.
+
+**Si responde distinto:** se puede hacer que la criticidad apriete el SLA del contrato, pero eso cambia números que
+ya se le entregaron al cliente y habría que renegociarlo, no configurarlo.
+
+### 49. ¿Cada cuánto se revisa la clasificación?
+
+**Hoy:** **cada 12 meses**, y a los 30 días de vencida ACMA avisa. Una evaluación vieja deja de ser evidencia ante
+un auditor.
+
+**Si responde distinto:** es un número por cliente, de 1 a 60 meses. En parques que cambian mucho conviene seis.
+
+### 50. ¿Con qué ventana se mide si una acción de mitigación sirvió?
+
+**Hoy:** **seis meses antes contra seis meses después** de implementarla, en fallas y en MTBF, y **antes de 90 días
+ACMA responde «sin datos suficientes»** en lugar de dar un veredicto: la diferencia sería ruido.
+
+**Si responde distinto:** se puede acortar la ventana para tener respuesta antes, a costa de que el veredicto
+cambie de signo con una sola falla.
+
+
 ## Dos cosas que no son preguntas de negocio pero hay que decidir antes de publicar
 
 No son decisiones de producto; son de infraestructura, y sin ellas el sistema queda a medias en lo que promete.
