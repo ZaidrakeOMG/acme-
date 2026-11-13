@@ -402,16 +402,27 @@ async def resolver(db: AsyncSession, problema: Problema) -> dict[str, Any]:
 
 
 async def _por_sidecar(crudo: dict[str, Any], limite_s: int) -> dict[str, Any]:
+    import asyncio
+
     import httpx
 
     url = config.rutas_solver_url.rstrip("/") + "/resolver"
-    try:
-        async with httpx.AsyncClient(timeout=limite_s + 30) as cliente:
-            r = await cliente.post(url, json=crudo)
-            r.raise_for_status()
-            return r.json()
-    except Exception as e:  # noqa: BLE001
-        # Mejor un error claro que una ruta inventada: el despachador tiene que saber que el motor no respondió.
-        raise ErrorAPI(503, "SOLVER_NO_DISPONIBLE",
-                       f"El optimizador de rutas no respondió en {url}. Levántalo con "
-                       f"«docker compose up -d solver» y vuelve a calcular.", [{"detalle": str(e)[:200]}]) from e
+    ultimo: Exception | None = None
+    # Tres intentos con espera creciente. El contenedor se reinicia solo (`restart: unless-stopped`) y mientras
+    # arranca deja caer la conexión; en un equipo con poca memoria eso pasa de verdad, y un reinicio del solver no
+    # debe verse como «no hay ruta». Las esperas suman ~6 s en el peor caso.
+    for intento, espera in enumerate((1, 5, 0)):
+        try:
+            async with httpx.AsyncClient(timeout=limite_s + 30) as cliente:
+                r = await cliente.post(url, json=crudo)
+                r.raise_for_status()
+                return r.json()
+        except Exception as e:  # noqa: BLE001
+            ultimo = e
+            if espera:
+                await asyncio.sleep(espera)
+    # Mejor un error claro que una ruta inventada: el despachador tiene que saber que el motor no respondió.
+    raise ErrorAPI(503, "SOLVER_NO_DISPONIBLE",
+                   f"El optimizador de rutas no respondió en {url}. Levántalo con "
+                   f"«docker compose up -d solver» y vuelve a calcular.",
+                   [{"detalle": str(ultimo)[:200]}]) from ultimo

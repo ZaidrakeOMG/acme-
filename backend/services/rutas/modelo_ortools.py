@@ -157,13 +157,20 @@ def resolver(problema: dict[str, Any]) -> dict[str, Any]:
         # SLA y criticidad: llegar después del límite del SLA cuesta por minuto, y cuesta más en un activo crítico.
         limite = p.get("sla_limite_s")
         factor = FACTOR_CRITICIDAD.get(str(p.get("criticidad") or "C"), 1)
-        if limite is not None:
-            coeficiente = min(tope_sla, max(1, (pesos["sla"] + pesos["criticidad"] * factor) // 60))
-            tiempo.SetCumulVarSoftUpperBound(indice, max(0, int(round(int(limite) / 60))), coeficiente)
-        elif factor:
-            # Sin SLA calculable, la criticidad sola empuja al activo hacia el principio de la ruta.
-            tiempo.SetCumulVarSoftUpperBound(indice, max(0, desde),
-                                             min(tope_sla, max(1, (pesos["criticidad"] * factor) // 60)))
+        # OR-Tools admite **una** cota blanda por variable, así que el SLA y la criticidad se combinan en una:
+        #   - un activo A o B se castiga desde el inicio de su ventana, así que cada minuto de espera cuesta y
+        #     termina al principio de la ruta (es lo que pide §6.9.3: «A antes que D»);
+        #   - un C o un D se castiga solo a partir del límite de su SLA.
+        # Sin esto, dos folios con el mismo SLA holgado quedaban en cualquier orden: nadie iba tarde, así que la
+        # criticidad no tenía por dónde expresarse.
+        coeficiente = min(tope_sla, max(1, (pesos["sla"] + pesos["criticidad"] * factor) // 60))
+        if factor >= 2:
+            cota = max(0, desde)
+        elif limite is not None:
+            cota = max(0, int(round(int(limite) / 60)))
+        else:
+            cota = jornada_max
+        tiempo.SetCumulVarSoftUpperBound(indice, cota, coeficiente)
 
     # ------------------------------------------------------------------ habilidad (dura) y folios fijos
     for p in paradas:

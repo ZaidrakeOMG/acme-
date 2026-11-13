@@ -249,3 +249,67 @@ cd backend && .venv/Scripts/python -m locust -f pruebas_carga/locustfile.py --ho
 
 Con la suite de pytest y los demás servidores de desarrollo apagados: en una máquina de 7 GB, medir con pytest
 corriendo no dice nada.
+
+---
+
+# Motor de optimización de rutas (VRPTW) · ACT-2.2
+
+Requisito que se verifica: **ACT-2.2 — medir el cálculo inicial y el recálculo parcial con 10, 25 y 50 técnicos**.
+El guion es [`backend/scripts/medir_rutas.py`](../../backend/scripts/medir_rutas.py) y arma problemas sintéticos
+con la misma forma que los reales (habilidades por técnico, ventanas de horario, SLA y criticidad repartidos) sobre
+una rejilla de 20 × 20 km con semilla fija, así que dos corridas son comparables.
+
+Medido el **13 de noviembre de 2026**, con el motor en el contenedor `solver` (OR-Tools 9.15.6755 sobre Linux) y
+los servidores de desarrollo apagados.
+
+## Lo primero que hay que entender de estas cifras
+
+**El tiempo de cálculo lo fija la configuración, no el tamaño del problema.** El optimizador usa el presupuesto
+que se le da (`rutas_configuracion.segundos_limite_calculo`) mejorando la solución hasta agotarlo, así que medir
+«cuánto tarda» es medir el presupuesto. Lo que importa es **qué calidad alcanza dentro de él**, y eso es lo que
+muestran las dos corridas.
+
+## Con presupuesto de 10 segundos
+
+| Técnicos | Folios | Nodos | Cálculo inicial | Folios colocados | Sin asignar | Folios del recálculo | Recálculo parcial |
+|---|---|---|---|---|---|---|---|
+| 10 | 50 | 60 | 11,265 ms | 46 | 4 | 7 | 3,547 ms |
+| 25 | 150 | 175 | 10,578 ms | 150 | 0 | 22 | 3,500 ms |
+| 50 | 300 | 350 | 10,719 ms | 300 | 0 | 45 | 3,656 ms |
+
+## Con presupuesto de 3 segundos
+
+| Técnicos | Folios | Nodos | Cálculo inicial | Folios colocados | Sin asignar | Folios del recálculo | Recálculo parcial |
+|---|---|---|---|---|---|---|---|
+| 10 | 50 | 60 | 4,281 ms | 46 | 4 | 7 | 2,485 ms |
+| 25 | 150 | 175 | 3,515 ms | 150 | 0 | 22 | 2,500 ms |
+| 50 | 300 | 350 | 3,610 ms | 300 | 0 | 45 | 2,531 ms |
+
+## Qué dicen
+
+- **El escenario grande de ACT-2.2 entra completo.** Con 50 técnicos y 300 folios coloca los 300, y lo hace igual
+  con 3 segundos que con 10: el motor llega rápido a una solución buena y después la pule.
+- **Los 4 folios sin asignar del escenario chico no son un fallo del motor**: con 10 técnicos de dos habilidades
+  cada uno, hay folios cuya habilidad nadie del turno tiene certificada. El plan los reporta con ese motivo, que
+  es exactamente lo que el despachador necesita leer.
+- **El recálculo parcial es lo que corre durante el día** y es el que tiene que ser rápido: mira solo los folios
+  pendientes del técnico afectado más los huérfanos (15 % del parque en la medición), y termina en 2.5 segundos
+  incluso con 50 técnicos activos.
+- **El default de 30 segundos es conservador.** Para parques de este tamaño, 5 segundos sobran. Conviene dejarlo
+  alto solo si el parque crece mucho o si se activa `google_routes`, donde la matriz de distancias tarda más en
+  armarse.
+
+## Lo que estas cifras no son
+
+El contenedor del solver comparte los 8 núcleos y los 7.2 GB de esta máquina con PostgreSQL, Redis, MinIO y los
+contenedores de otro proyecto. En el servidor de producción, con OR-Tools **en proceso** (sin el salto HTTP) y sin
+competencia, los tiempos bajan. Lo que no cambia con el hardware es la **calidad**: los folios colocados y los
+motivos de los que quedan fuera son del modelo, no de la máquina.
+
+## Cómo repetir la medición
+
+```bash
+cd backend && .venv/Scripts/python -m scripts.medir_rutas 10
+```
+
+

@@ -249,6 +249,8 @@ class Reasignacion(ConVersion, Base):
     razon_id: Mapped[uuid.UUID | None] = _fk("razones_reasignacion", True)
     comentario: Mapped[str] = mapped_column(Text, default="")
     despachador_id: Mapped[uuid.UUID | None] = _fk("usuarios", True)
+    # F2-06: liga la reasignacion automatica con el recalculo de ruta que la propuso (0018).
+    recalculo_id: Mapped[uuid.UUID | None] = _fk("rutas_recalculos", True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

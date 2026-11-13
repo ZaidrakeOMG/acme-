@@ -37,6 +37,10 @@ os.environ["VAPID_CLAVE_PUBLICA"] = ""
 os.environ["VAPID_CLAVE_PRIVADA"] = ""
 os.environ["SMTP_HOST"] = ""
 os.environ["NOTIFICACIONES_ENVIO_INLINE"] = "true"
+# F2-06: el motor VRPTW corre en el contenedor `solver`, no en proceso. Cargar el binario nativo de OR-Tools
+# dentro de pytest **revienta el intérprete** (segmentation fault), así que la suite habla con el contenedor,
+# que es además como corre la aplicacion en este equipo. Levantalo con `docker compose up -d solver`.
+os.environ["RUTAS_MOTOR_TRANSPORTE"] = "sidecar"
 
 import pyotp  # noqa: E402
 import pytest  # noqa: E402
