@@ -77,8 +77,14 @@ async def candidatos(db: AsyncSession, actor: Actor, folio: Folio) -> list[dict[
 
 
 async def reasignar(db: AsyncSession, actor: Actor, folio: Folio, tecnico_destino_id: UUID, razon_id: UUID, comentario: str, confirmar_advertencias: bool,
-                    razon_sin_habilidad: str | None, request: Request | None) -> Reasignacion:
-    if actor.rol not in REASIGNAN:
+                    razon_sin_habilidad: str | None, request: Request | None, *,
+                    tipo: TipoReasignacion = TipoReasignacion.forzada, recalculo_id: UUID | None = None,
+                    exigir_rol: bool = True) -> Reasignacion:
+    """F2-06: `tipo` y `recalculo_id` permiten que el recálculo de rutas registre una reasignación **automática**
+    por esta misma puerta, y con ella la pausa de SLA de §6.10.1, las validaciones, el chat y los avisos. El motor
+    corre con `exigir_rol=False` porque lo dispara el sistema, no una persona; las restricciones duras de §6.8.2
+    (folio en ejecución, habilidad certificada) siguen aplicando igual."""
+    if exigir_rol and actor.rol not in REASIGNAN:
         raise prohibido("Solo el Despachador o el Admin prestador reasignan folios")
     if actor.dominio == Dominio.prestador and folio.prestador_id != actor.prestador_id:
         raise no_encontrado("Folio")
@@ -125,7 +131,8 @@ async def reasignar(db: AsyncSession, actor: Actor, folio: Folio, tecnico_destin
                                      {"tecnico_id": str(usuario.id), "tecnico_nombre": usuario.nombre, "sin_habilidad": not tiene, "razon": razon_sin_habilidad,
                                       "vehiculo": tecnico.vehiculo_placas if tecnico else None, "reasignacion": True}, request)
     r = Reasignacion(folio_id=folio.id, prestador_id=folio.prestador_id, tenant_id=folio.tenant_id, tecnico_origen_id=origen_id, tecnico_destino_id=usuario.id,
-                     tipo=TipoReasignacion.forzada, razon_id=razon.id, comentario=(comentario or "").strip(), despachador_id=actor.id, timestamp=datetime.now(UTC))
+                     tipo=tipo, razon_id=razon.id, comentario=(comentario or "").strip(), despachador_id=actor.id, timestamp=datetime.now(UTC),
+                     recalculo_id=recalculo_id)
     db.add(r)
     await db.flush()
     db.add(ReasignacionValidacion(reasignacion_id=r.id, prestador_id=folio.prestador_id, tenant_id=folio.tenant_id, habilidad_ok=tiene, refaccion_ok=refaccion_ok,
@@ -142,8 +149,14 @@ async def reasignar(db: AsyncSession, actor: Actor, folio: Folio, tecnico_destin
             await chat_service.evento_sistema(db, chats[canal], "folio.reasignado", texto, {"reasignacion_id": str(r.id), "tecnico_origen_id": contexto["tecnico_origen_id"],
                                                                                             "tecnico_destino_id": str(usuario.id)})
     await push_service.enviar_a_usuarios(db, [x for x in (origen_id, usuario.id) if x], f"Folio {folio.numero_folio} reasignado", texto, {"url": f"/campo/folio/{folio.id}"})
-    await auditoria.registrar_actor(db, actor, "folio.reasignacion_forzada", request, recurso_tipo="folio", recurso_id=folio.id, tenant_id=folio.tenant_id,
-                                    prestador_id=folio.prestador_id, antes={"tecnico_id": origen_id}, despues={"tecnico_id": usuario.id, "razon": razon.descripcion, "advertencias": advertencias})
+    # F2-06 (§6.8.2): el folio sale de la ruta del técnico origen y se inserta en la **posición óptima** de la del
+    # destino por inserción greedy, sin recalcular la ruta completa, y las dos ETA se actualizan.
+    en_ruta = await _mover_en_la_ruta(db, folio, usuario.id)
+    await auditoria.registrar_actor(db, actor, f"folio.reasignacion_{tipo.value}", request, recurso_tipo="folio", recurso_id=folio.id, tenant_id=folio.tenant_id,
+                                    prestador_id=folio.prestador_id, antes={"tecnico_id": origen_id},
+                                    despues={"tecnico_id": usuario.id, "razon": razon.descripcion, "advertencias": advertencias,
+                                             "tipo": tipo.value, "recalculo_id": str(recalculo_id) if recalculo_id else None,
+                                             "en_ruta": en_ruta})
     await db.flush()
     return r
 
@@ -190,3 +203,24 @@ async def reporte(db: AsyncSession, actor: Actor, desde: date | None, hasta: dat
             "por_tecnico_origen": agrupar(lambda r: nombres.get(r.tecnico_origen_id, "Sin técnico")),
             "por_tecnico_destino": agrupar(lambda r: nombres.get(r.tecnico_destino_id, "—")),
             "por_tipo": agrupar(lambda r: r.tipo.value)}
+
+
+async def _mover_en_la_ruta(db: AsyncSession, folio: Folio, tecnico_destino_id: UUID) -> dict | None:
+    """Si hay un plan de rutas vigente que incluye el folio, lo mueve a la ruta del destino (F2-06).
+
+    Si no hay plan (el prestador todavía no usa la optimización), no hace nada: la reasignación de P06 funciona
+    igual sin rutas.
+    """
+    from models.rutas import EstadoPlanRuta, RutaParada, RutaPlan
+    from services.rutas import insercion
+
+    plan = (await db.execute(select(RutaPlan).join(RutaParada, RutaParada.plan_id == RutaPlan.id).where(
+        RutaParada.folio_id == folio.id,
+        RutaPlan.estado.in_((EstadoPlanRuta.publicado, EstadoPlanRuta.en_curso))))).scalars().first()
+    if plan is None:
+        return None
+    await insercion.quitar(db, plan, folio.id)
+    resultado = await insercion.insertar(db, plan, tecnico_destino_id, folio)
+    return {"plan_id": str(plan.id), "posicion": resultado["posicion"],
+            "llegada_estimada": resultado["llegada_estimada"].isoformat(),
+            "costo_extra_min": resultado["costo_extra_s"] // 60}

@@ -11,7 +11,7 @@ from core.config import config
 
 celery_app = Celery("acma", broker=config.celery_broker_url, backend=config.celery_result_backend, include=["workers.tareas", "workers.tareas.preventivos", "workers.tareas.notificaciones", "workers.tareas.minuta",
                             "workers.tareas.costos", "workers.tareas.sla", "workers.tareas.medidores",
-                            "workers.tareas.criticidad"])
+                            "workers.tareas.criticidad", "workers.tareas.rutas"])
 celery_app.conf.update(
     timezone="America/Mexico_City",
     enable_utc=True,
@@ -59,6 +59,12 @@ celery_app.conf.update(
         # F2-05: la probabilidad de falla y la frecuencia de los modos de falla se releen del historial cada
         # semana. Domingo de madrugada: el historial de la semana ya cerró y nadie está operando.
         "recalcular-criticidad": {"task": "acma.recalcular_criticidad", "schedule": crontab(hour=4, minute=20, day_of_week=0)},
+        # F2-06: el plan de rutas del dia queda en borrador antes de que empiece la jornada (la hora exacta la
+        # decide cada prestador en `rutas_configuracion.hora_calculo_automatico`; esto corre a las 06:00 y la
+        # respeta). La ETA y el vencimiento de las propuestas van cada 5 minutos: el dia se mueve.
+        "calcular-rutas-del-dia": {"task": "acma.calcular_rutas_del_dia", "schedule": crontab(hour=6, minute=0)},
+        "refrescar-eta": {"task": "acma.refrescar_eta", "schedule": 300.0},
+        "expirar-propuestas-ruta": {"task": "acma.expirar_propuestas_ruta", "schedule": 300.0},
     },
 )
 

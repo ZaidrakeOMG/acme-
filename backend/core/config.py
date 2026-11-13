@@ -152,6 +152,14 @@ class Configuracion(BaseSettings):
                 raise ValueError("APP_URL_PUBLICA debe ser https en produccion (las cookies de sesion son Secure)")
         return self
 
+    # F2-06: optimizacion de rutas. El solver corre en proceso donde OR-Tools carga (Linux, produccion) y, donde
+    # no carga, en el contenedor `solver` (en Windows el Control de aplicaciones inteligente bloquea su binario).
+    # "auto" prueba en proceso y cae al contenedor; "en_proceso" y "sidecar" lo fuerzan.
+    rutas_motor_transporte: str = "auto"
+    rutas_solver_url: str = "http://localhost:8099"
+    # Sin llave, el proveedor `google_routes` devuelve el estimado y lo declara: nunca inventa un tiempo con trafico.
+    google_routes_api_key: str = ""
+
     @property
     def url_lectura(self) -> str:
         return self.database_read_url or self.database_url

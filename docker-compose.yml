@@ -56,6 +56,18 @@ services:
     volumes:
       - acma_nuevo_minio:/data
 
+  solver:
+    # F2-06: el optimizador de rutas (OR-Tools). En Linux la API carga OR-Tools en proceso y este servicio no
+    # hace falta; en Windows el Control de aplicaciones inteligente bloquea su binario nativo, asi que el motor
+    # corre aqui. El modelo se **monta** desde services/rutas/ para que la API y el contenedor no se desincronicen.
+    build: ./backend/solver
+    container_name: acma_nuevo_solver
+    restart: unless-stopped
+    ports:
+      - "${SOLVER_HOST_PORT:-8099}:8099"
+    volumes:
+      - ./backend/services/rutas/modelo_ortools.py:/app/modelo_ortools.py:ro
+
 volumes:
   acma_nuevo_pg:
   acma_nuevo_minio:

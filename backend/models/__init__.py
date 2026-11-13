@@ -84,6 +84,11 @@ from models.criticidad import (  # F2-05
     ActivoCriticidad, ActivoModoFalla, ActivoRiesgoMitigacion, CriticidadConfiguracion, CriticidadEvaluacion,
     EstadoMitigacion, MotivoEvaluacion, OrigenCriticidad, OrigenModoFalla, TipoMitigacion,
 )
+from models.rutas import (  # F2-06
+    DisparadorRecalculo, DistanciaCache, EstadoPlanRuta, EstadoRecalculo, Mercado, MercadoUnidad,
+    ModoReasignacionAutomatica, ProveedorDistancias, RutaParada, RutaPlan, RutaRecalculo, RutaTiempoServicio,
+    RutaTrazo, RutasConfiguracion,
+)
 
 __all__ = [
     "Articulo", "EstadoCFDI", "EstadoGastoCajaChica", "EstadoOrdenCompra", "EstadoPoliza", "Existencia", "FondoCajaChica", "FormatoPoliza",

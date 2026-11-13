@@ -1,0 +1,4 @@
+# Optimizador de rutas (F2-06). Solo lo que el modelo necesita: nada de ACMA entra aquí.
+ortools>=9.10,<10
+fastapi>=0.115
+uvicorn>=0.32

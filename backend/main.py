@@ -10,7 +10,7 @@ from core.middleware import configurar_cors, instalar_middleware
 from core.observabilidad import configurar_logs, estado_dependencias
 from routers import (
     alertas, auditoria, auth, biblioteca, capacitacion, catalogos_equipos, catalogos_importar,
-    catalogos_tecnicos, chat, configuracion, contratos, criticidad, medidores, mensajeria, operacion,
+    catalogos_tecnicos, chat, configuracion, contratos, criticidad, medidores, mensajeria, operacion, rutas,
     activos, caja_chica, clasificacion, erp, folios, formularios, grupos_un, inventario, minutas, notificaciones, oc_activos, prestadores, presupuestos,
     preventivos, push, reasignaciones, seguimiento, sla, bi, sync, tenants, trabajos_especiales, unidades_negocio, usuarios,
 )
@@ -55,6 +55,9 @@ app.include_router(operacion.router_ws)
 app.include_router(criticidad.router_modos)
 app.include_router(criticidad.router_mitigaciones)
 app.include_router(criticidad.router_reportes)
+# F2-06: las rutas y la ETA viven en /api/rutas, y la ETA y las incidencias amplían /api/operacion (§6.8.2, §6.8.4).
+app.include_router(rutas.router)
+app.include_router(rutas.router_operacion)
 
 
 @app.get("/api/salud", tags=["Sistema"], summary="Estado del servicio",
