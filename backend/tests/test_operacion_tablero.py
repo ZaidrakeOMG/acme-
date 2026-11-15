@@ -24,8 +24,9 @@ async def test_el_tablero_trae_los_cinco_paneles_de_la_pantalla(cliente, auth, d
 
     # Indicadores globales de jornada (los de P10, en vivo).
     assert {"completados", "total_dia", "tecnicos_activos", "alertas_abiertas"} <= set(t["indicadores"])
-    # Y el aviso de lo que falta ya no habla del mapa, que ya existe.
-    assert "rutas" in t["indicadores"]["aviso_fase_2"] and "mapa" not in t["indicadores"]["aviso_fase_2"].lower()
+    # Y el aviso de lo que falta ya no habla del mapa ni del desvío, que ya existen: queda el tráfico en vivo.
+    aviso = t["indicadores"]["aviso_fase_2"]
+    assert "Google Routes" in aviso and "mapa" not in aviso.lower() and "Fase 2" not in aviso
     assert t["parametros"]["frecuencias"]["jornada_activa_s"] == 30
     assert t["solo_lectura"] is False
 

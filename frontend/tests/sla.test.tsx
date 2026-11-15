@@ -273,8 +273,8 @@ describe('Configuración central de alertas', () => {
     const user = userEvent.setup()
     await user.click(await within(tabla).findByRole('button', { name: 'Ver' }))
     const form = await screen.findByTestId('form-alerta')
-    // F2-04: la única que queda sin fuente de datos es el desvío de ruta, que espera el bloque de rutas.
-    expect(within(form).getByText(/bloque de optimización de rutas/)).toBeInTheDocument()
+    // F2-06: el desvío ya tiene fuente de datos; el aviso quedó en texto general para la siguiente que no la tenga.
+    expect(within(form).getByText(/La fuente de datos de esta alerta todavía no existe en ACMA/)).toBeInTheDocument()
     expect(within(form).getByLabelText(/Alerta activa/)).toBeDisabled()
   })
 

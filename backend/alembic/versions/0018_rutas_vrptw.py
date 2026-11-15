@@ -15,7 +15,9 @@ Lo que agrega:
 - `distancias_cache`: la distancia y el tiempo entre dos puntos por franja y proveedor, además de Redis, para no
   volver a pedirla (y para no gastar llamadas cuando el proveedor sea Google).
 - `reasignaciones.recalculo_id`: liga una reasignación automática al recálculo que la propuso.
-- `TECNICO_DESVIO_RUTA` pasa a fase 1 con sus defaults literales de §6.8.4 (500 m por 5 min). El umbral de la tabla
+- `TECNICO_DESVIO_RUTA` pasa a fase 1 **y activa por defecto** (como el tiempo muerto y «sin señal» en F2-03:
+  una alerta inactiva por defecto no la dispara nadie, porque `alertas_service.disparar` respeta la
+  configuración efectiva), con sus defaults literales de §6.8.4 (500 m por 5 min). El umbral de la tabla
   de alertas son los **metros**; los minutos viven en `rutas_configuracion.umbral_desvio_min`, porque una alerta
   tiene un solo umbral configurable.
 
@@ -282,8 +284,8 @@ def upgrade() -> None:
     ex("SET LOCAL app.rol = 'sistema';")
     ex("""
     UPDATE alertas_catalogo
-       SET fase = 1, umbral_default = 500, umbral_min = 100, umbral_max = 10000, tipo_umbral = 'metros',
-           prompt_origen = 'F2-06',
+       SET fase = 1, activa_por_defecto = true, umbral_default = 500, umbral_min = 100,
+           umbral_max = 10000, tipo_umbral = 'metros', prompt_origen = 'F2-06',
            descripcion = 'Técnico a más de X metros de su ruta calculada por más de los minutos configurados'
      WHERE clave = 'TECNICO_DESVIO_RUTA';
     """)
@@ -301,7 +303,7 @@ def downgrade() -> None:
     ex("SET LOCAL app.rol = 'sistema';")
     ex("""
     UPDATE alertas_catalogo
-       SET fase = 2, prompt_origen = 'P10',
+       SET fase = 2, activa_por_defecto = false, prompt_origen = 'P10',
            descripcion = 'Técnico fuera de la ruta planeada más de los metros configurados'
      WHERE clave = 'TECNICO_DESVIO_RUTA';
     """)

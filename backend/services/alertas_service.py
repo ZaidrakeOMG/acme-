@@ -72,6 +72,17 @@ async def obtener_catalogo(db: AsyncSession, clave: str) -> AlertaCatalogo:
     return cat
 
 
+def validar_fase(cat: AlertaCatalogo, *, activa: bool) -> None:
+    """Una alerta cuya fuente de datos todavía no existe se puede dejar preparada, pero no activar.
+
+    Desde F2-06 el catálogo no tiene ninguna de Fase 2 (el desvío de ruta era la última), pero el candado se queda
+    para la siguiente que se registre sin fuente: activarla por error sería prometer un aviso que nunca llega.
+    """
+    if cat.fase == 2 and activa:
+        raise ErrorAPI(422, "ALERTA_FASE_2", f"{cat.clave} depende de datos que llegan en Fase 2 y no puede activarse",
+                       [{"campo": "activa", "fase": 2}])
+
+
 async def configurar(db: AsyncSession, clave: str, tenant_id: UUID | None, prestador_id: UUID | None, *,
                      umbral_valor: Decimal, parametros: dict, canales: list[str], destinatarios_roles: list[str],
                      activa: bool) -> tuple[dict | None, dict]:

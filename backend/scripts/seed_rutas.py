@@ -63,9 +63,6 @@ async def sembrar_rutas(db) -> bool:
     tenant = (await db.execute(select(Tenant).where(Tenant.rfc == "CDE200101XY2"))).scalar_one_or_none()
     if prestador is None or tenant is None:
         return False
-    if (await db.execute(select(Mercado.id).where(Mercado.prestador_id == prestador.id))).first():
-        return False
-
     rnd = random.Random(60000)
     usuarios = {u.email: u for u in (await db.execute(select(Usuario))).scalars()}
     operador = usuarios["operador@acma.dev"]
@@ -77,13 +74,20 @@ async def sembrar_rutas(db) -> bool:
         return False
 
     # ------------------------------------------------------------- mercado con sus unidades
-    centro_lat = sum(19.43 for _ in unidades) / len(unidades)
-    mercado = Mercado(prestador_id=prestador.id, codigo=MERCADO[0], nombre=MERCADO[1],
-                      centro=func.ST_GeogFromText("POINT(-99.1332 19.4326)"))
-    db.add(mercado)
-    await db.flush()
+    # Se puede volver a correr: reusa el mercado y sus unidades si ya están. Correrlo otra vez es lo que deja la
+    # demostración en el estado del inicio de un día (jornadas frescas y plan recién publicado).
+    mercado = (await db.execute(select(Mercado).where(
+        Mercado.prestador_id == prestador.id, Mercado.codigo == MERCADO[0]))).scalar_one_or_none()
+    if mercado is None:
+        mercado = Mercado(prestador_id=prestador.id, codigo=MERCADO[0], nombre=MERCADO[1],
+                          centro=func.ST_GeogFromText("POINT(-99.1332 19.4326)"))
+        db.add(mercado)
+        await db.flush()
+    ya_en_mercado = {u for (u,) in (await db.execute(select(MercadoUnidad.un_id).where(
+        MercadoUnidad.mercado_id == mercado.id))).all()}
     for un in unidades:
-        db.add(MercadoUnidad(mercado_id=mercado.id, prestador_id=prestador.id, un_id=un.id))
+        if un.id not in ya_en_mercado:
+            db.add(MercadoUnidad(mercado_id=mercado.id, prestador_id=prestador.id, un_id=un.id))
     await db.flush()
 
     # ------------------------------------------------------------- configuración del optimizador
@@ -165,11 +169,19 @@ async def sembrar_rutas(db) -> bool:
                Usuario.email.in_(TECNICOS_DEMO))
         .order_by(Usuario.email))).all())
     abiertas = 0
+    refrescadas = 0
     for tecnico, _usuario in tecnicos:
         ya = (await db.execute(select(JornadaTecnico).where(
             JornadaTecnico.tecnico_id == tecnico.id,
             JornadaTecnico.estado == EstadoJornada.activa))).scalars().first()
         if ya is not None:
+            # El plan reparte lo que **queda** de la jornada: una jornada abierta desde la madrugada (o desde la
+            # corrida anterior del seed) deja dos horas útiles y el demo sale con tres paradas y setenta folios sin
+            # asignar. Para que la demostración se parezca al inicio de un día, se le mueve el arranque a hace una
+            # hora. Es dato de demostración en la base de desarrollo, no una operación del sistema.
+            if ya.inicio < datetime.now(UTC) - timedelta(hours=2):
+                ya.inicio = datetime.now(UTC) - timedelta(hours=1)
+                refrescadas += 1
             continue
         db.add(JornadaTecnico(prestador_id=prestador.id, tecnico_id=tecnico.id,
                               inicio=datetime.now(UTC) - timedelta(hours=1),
@@ -178,6 +190,16 @@ async def sembrar_rutas(db) -> bool:
     await db.flush()
 
     # ------------------------------------------------------------- plan calculado y publicado
+    # Volver a sembrar es volver a empezar el día: el servicio no recalcula sobre un plan publicado (y hace bien),
+    # así que el plan de la corrida anterior se cierra, igual que lo haría el despachador.
+    from models.rutas import RutaPlan
+
+    anterior = (await db.execute(select(RutaPlan).where(
+        RutaPlan.mercado_id == mercado.id, RutaPlan.fecha == hoy,
+        RutaPlan.estado.in_((EstadoPlanRuta.publicado, EstadoPlanRuta.en_curso))))).scalars().first()
+    if anterior is not None:
+        await planes_service.cerrar(db, actor_desp, anterior)
+        await db.flush()
     plan = await planes_service.calcular(db, actor_desp, mercado.id, hoy, prestador_id=prestador.id)
     await db.flush()
     publicado = await planes_service.publicar(db, actor_desp, plan)
@@ -194,7 +216,9 @@ async def sembrar_rutas(db) -> bool:
             motivo="Desvío de ruta detectado en el seed demo (500 m por más de 5 minutos)")
     await db.flush()
     print(f"  rutas: mercado {mercado.codigo} con {len(unidades)} UN, {creados} folios del día, "
-          f"{abiertas} jornadas, plan {plan.estado.value} con {publicado['asignados']} asignados y "
+          f"{abiertas} jornadas abiertas y {refrescadas} refrescadas, plan {plan.estado.value} con "
+          f"{publicado['asignados'] + publicado['respetados']} paradas "
+          f"({publicado['asignados']} asignados nuevos y {publicado['respetados']} respetados) y "
           f"{plan.folios_sin_asignar} sin asignar, "
           f"propuesta {'pendiente' if propuesta and propuesta.folios_movidos_json else 'sin movimientos'}")
     return True

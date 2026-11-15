@@ -6,7 +6,7 @@ funciona hoy con la opción marcada.** Esta lista es para que alguien del negoci
 Cómo leerla: cada punto trae **la pregunta**, **lo que ACMA hace hoy** y **qué cambia si responde distinto**. No hace
 falta saber nada técnico. Lo que no se cambie se queda como está.
 
-Hay 42 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
+Hay 57 preguntas, agrupadas por tema. Las de la primera sección son las que más conviene revisar: afectan al dinero
 y a lo que se le cobra o se le descuenta al prestador.
 
 ---
@@ -487,6 +487,81 @@ ACMA responde «sin datos suficientes»** en lugar de dar un veredicto: la difer
 
 **Si responde distinto:** se puede acortar la ventana para tener respuesta antes, a costa de que el veredicto
 cambie de signo con una sola falla.
+
+
+## Rutas del día y reasignación automática (F2-06)
+
+El optimizador decide a quién le toca cada folio y en qué orden. Lo que sigue son las reglas con las que hoy
+decide: son números de operación, y conviene que los revise quien responde por el servicio en la calle.
+
+### 51. ¿Qué pesa más: recorrer menos kilómetros o no dejar ningún folio sin atender?
+
+**Hoy:** **no dejar folios sin atender**, con mucha diferencia. Dejar un folio fuera de la ruta cuesta 5,000 veces
+lo que cuesta un kilómetro; entregar un folio con el SLA ya vencido cuesta 600; adelantar un activo crítico, 300;
+pasarse de la jornada, 240 por hora; y mandar a alguien que no trae la refacción, 400. ACMA prefiere una ruta larga
+a un folio sin visitar.
+
+**Si responde distinto:** los seis pesos se cambian desde la pantalla de configuración del módulo, con una
+explicación en lenguaje claro al lado de cada uno. Bajar el de «folio sin asignar» hace rutas más cortas y más
+folios que se quedan para mañana.
+
+### 52. ¿La reasignación automática mueve folios sola o solo propone?
+
+**Hoy:** **solo propone**. Cuando algo se mueve (un desvío, un técnico que se detuvo, un SLA en riesgo, una
+incidencia), ACMA recalcula y le deja al despachador una propuesta con los movimientos y la hora de llegada de cada
+uno. **Nada cambia hasta que alguien acepta.** El otro modo, «aplicar y avisar», está implementado y se activa con
+un selector.
+
+**Si responde distinto:** en «aplicar y avisar» el sistema reasigna solo y notifica a los técnicos y al
+despachador. Gana minutos en la operación y pierde el control humano de cada cambio; conviene activarlo cuando ya
+haya confianza en las propuestas.
+
+### 53. ¿Cuánto tiempo vale una propuesta antes de vencerse?
+
+**Hoy:** **20 minutos**. Una propuesta describe dónde estaba cada técnico en ese momento; media hora después ya es
+una foto vieja y aplicarla puede empeorar la ruta. Al vencerse se marca como vencida, sin aplicarse.
+
+**Si responde distinto:** es un número por prestador. Más tiempo da margen para contestar; menos evita aplicar
+decisiones sobre una realidad que ya cambió.
+
+### 54. ¿Cuándo se considera que un técnico se desvió de su ruta?
+
+**Hoy:** cuando se sale **más de 500 metros** del corredor de su ruta (un pasillo de 300 metros a cada lado del
+trazo) **durante más de 10 minutos seguidos**, y el tráfico no lo explica. Los tres números son configurables y la
+alerta avisa al despachador en amarillo, no en rojo: un desvío casi siempre tiene una razón.
+
+**Si responde distinto:** con umbrales más estrictos el tablero avisa más seguido y se vuelve ruido; con umbrales
+más amplios se pierden desvíos reales. En ciudad con tráfico pesado conviene subir los minutos antes que los metros.
+
+### 55. ¿La ruta del día se publica sola?
+
+**Hoy:** **no**. A las 6:00 de la mañana ACMA calcula las rutas de todos los mercados y las deja **en borrador**:
+los técnicos no ven nada todavía. Una persona la revisa, mueve lo que quiera y la publica; publicar es lo que
+asigna los folios.
+
+**Si responde distinto:** se puede publicar automáticamente al calcular, y entonces el técnico abre su app con la
+ruta ya puesta. Se gana tiempo en la madrugada y se pierde la revisión de quien conoce el día.
+
+### 56. ¿Se contrata Google Maps Routes para usar tráfico real?
+
+**Hoy:** **no se contrata nada**. Las distancias se estiman con la línea recta multiplicada por 1.35 (el factor de
+calle de una ciudad en rejilla) y velocidades distintas por franja horaria: 18 km/h en el pico de la mañana, 28 en
+horas normales, 16 en el pico de la tarde y 35 de noche. Es suficiente para ordenar las visitas, y no cuesta.
+El conector de Google Routes **ya está programado**: se activa poniendo la llave, sin tocar código.
+
+**Si responde distinto:** con Google Routes las horas de llegada se calculan con tráfico real y la ETA que ve el
+cliente se vuelve mucho más precisa. Se paga por consulta, y una ruta de 30 paradas consulta una matriz grande cada
+vez que se recalcula: hay que fijar un tope de gasto como el de WhatsApp de F2-02.
+
+### 57. ¿Cuánto se tarda un técnico en cada tipo de trabajo?
+
+**Hoy:** ACMA lo **mide del historial**: toma la mediana de lo que tardaron los folios cerrados de ese tipo de
+trabajo y ese tipo de equipo, descartando los que duraron más de 8 horas (son folios que se quedaron abiertos, no
+trabajos largos). Mientras no haya historial suficiente usa **60 minutos**. La mediana y no el promedio, porque un
+folio que alguien dejó abierto el fin de semana arrastra el promedio y vacía las rutas.
+
+**Si responde distinto:** cada tipo se puede fijar a mano desde la pantalla, y entonces el valor medido queda solo
+como sugerencia. Conviene fijarlo a mano en los trabajos donde el historial es poco o está sucio.
 
 
 ## Dos cosas que no son preguntas de negocio pero hay que decidir antes de publicar

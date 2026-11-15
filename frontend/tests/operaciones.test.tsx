@@ -18,7 +18,7 @@ const parametros: Parametros = {
   geocerca_radio_m: 150, jornada_cierre_horas: 2, sin_senal_min: 15, tiempo_muerto_min: 20,
   aviso_geolocalizacion: 'Mientras tu jornada esté iniciada, ACMA registra la ubicación de tu teléfono cada 30 segundos.',
   max_lote: 60, precision_maxima_m: 500, horas_recorrido: 2,
-  desvio_ruta: 'El desvío de ruta llega con el bloque de optimización de rutas (Fase 2)',
+  desvio_ruta: 'El desvío se marca cuando el técnico se sale del corredor de su ruta',
 }
 
 const tecnicos: TecnicoEnTablero[] = [
@@ -72,7 +72,7 @@ const tableroDemo: Tablero = {
   ],
   indicadores: { completados: 4, total_dia: 9, tecnicos_activos: 3, alertas_abiertas: 2,
                  tiempo_promedio_atencion_horas: '2.40',
-                 aviso_fase_2: 'El desvío de ruta y el ETA por tráfico llegan con el bloque de rutas (Fase 2)' },
+                 aviso_fase_2: 'El desvío de ruta y el ETA ya operan con distancias estimadas' },
   parametros,
   solo_lectura: false,
 }

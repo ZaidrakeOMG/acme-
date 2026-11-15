@@ -146,7 +146,8 @@ async def test_barra_de_jornada_del_despachador(cliente, auth, datos):
     assert set(j) >= {"completados", "total_dia", "tecnicos_activos", "alertas_abiertas",
                       "tiempo_promedio_atencion_horas", "aviso_fase_2"}
     assert j["total_dia"] >= 1 and j["tecnicos_activos"] >= 1
-    assert "Fase 2" in j["aviso_fase_2"]  # el mapa en vivo y el GPS no están en Fase 1
+    # F2-06: el desvío y el ETA ya operan; lo que sigue pendiente es el tráfico en vivo de Google Routes.
+    assert "Google Routes" in j["aviso_fase_2"] and "Fase 2" not in j["aviso_fase_2"]
     # El tablero del despachador la trae integrada (puede venir de la caché de 120 s, así que se compara la forma).
     t = await tablero(cliente, auth, DES)
     assert set(t["jornada"]) == set(j) and t["jornada"]["total_dia"] >= 1

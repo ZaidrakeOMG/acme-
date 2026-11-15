@@ -155,9 +155,10 @@ function FormularioAlerta({ alerta, params, alGuardar }: { alerta: AlertaEfectiv
   return (
     <div className="space-y-4" data-testid="form-alerta">
       <p className="text-sm text-slate-600">{alerta.descripcion}</p>
-      {/* F2-04: de las de Fase 2 solo queda el desvío de ruta, que necesita la ruta planeada del bloque de rutas. */}
-      {fase2 && <Aviso tipo="info">La fuente de datos de esta alerta (la ruta planeada del técnico) llega con el
-        bloque de optimización de rutas: puedes dejar su umbral preparado, pero no se puede activar.</Aviso>}
+      {/* F2-06: el desvío de ruta era la última de Fase 2 y ya tiene fuente de datos, así que hoy el catálogo no
+          trae ninguna. El aviso se queda, en texto general, para la siguiente que se registre sin fuente. */}
+      {fase2 && <Aviso tipo="info">La fuente de datos de esta alerta todavía no existe en ACMA: puedes dejar su
+        umbral y sus destinatarios preparados, pero no se puede activar.</Aviso>}
       {alerta.escalacion_de && <Aviso tipo="info">Escala desde <strong>{alerta.escalacion_de}</strong>: el umbral se mide
         desde que esa alerta se disparó, no desde el hecho original.</Aviso>}
       {error && <Aviso>{error}</Aviso>}

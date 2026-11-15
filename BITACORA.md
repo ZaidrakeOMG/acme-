@@ -2,6 +2,79 @@
 
 Registro por fecha de lo realizado en cada prompt.
 
+## 2026-11-13 · F2-06 Rutas del día y reasignación automática
+
+El bloque que cierra §6.8.2 y lo que quedaba de §6.8.4. Hasta hoy el despachador repartía los folios a mano y el
+orden de las visitas era criterio de cada técnico; ahora **ACMA propone la ruta del día de cada uno** respetando a la
+vez habilidad certificada, ventana de horario de la unidad, SLA del contrato, criticidad del activo, jornada y
+refacción en el vehículo. Migración `0018` con nueve tablas y el `recalculo_id` de las reasignaciones.
+
+**Sin contratar nada.** El optimizador es **OR-Tools 9.15.6755**, una librería de Python, resolviendo un VRPTW con
+dimensión de tiempo. Las distancias se estiman con línea recta por un factor de sinuosidad de 1.35 y velocidades por
+franja horaria; el conector de Google Routes está escrito y **sin llave devuelve el estimado diciendo que lo es**.
+Los enlaces de navegación de la app del técnico son los esquemas públicos de Waze y Google Maps: gratuitos y sin API.
+
+**El motor vive en un contenedor.** `services/rutas/modelo_ortools.py` quedó autónomo a propósito (solo `ortools` y
+la librería estándar) para que **el mismo archivo** corra en proceso y dentro de `acma_nuevo_solver`, que lo monta de
+solo lectura. Dos razones concretas, las dos del entorno de esta máquina: **Smart App Control de Windows** bloqueó
+`_pywrapcp.pyd` (Code Integrity 3077/3033) y, cuando después lo dejó cargar, **OR-Tools revienta con segfault dentro
+de pytest**. El selector `RUTAS_MOTOR_TRANSPORTE` acepta `auto | en_proceso | sidecar`; en producción Linux
+`en_proceso` ahorra el salto HTTP.
+
+**El plan nace en borrador.** Calcular no asigna nada. Los técnicos no ven el plan hasta que una persona lo publica,
+y publicar es lo que escribe la asignación respetando §6.8.6. Antes de publicar se puede mover una parada —con la
+misma validación de habilidad que al asignar— y preguntar **«¿Qué pasa si lo muevo?»**: una simulación que no
+escribe nada y contesta en kilómetros y en paradas fuera de ventana. Lo que no se pudo colocar sale con su motivo,
+no desaparece.
+
+**Seis defectos del modelo que solo aparecieron al sembrar datos reales**, cada uno corregido y comentado en el
+archivo porque ninguno es evidente:
+
+- Un nodo obligatorio volvía **todo el modelo** infactible: si nadie tiene esa habilidad certificada, el plan salía
+  vacío en lugar de salir con ese folio reportado. El `-1` («no se visita») tiene que estar siempre entre los
+  vehículos permitidos de cada nodo.
+- La dimensión de tiempo estaba en **segundos**, así que la penalización del SLA competía contra la de dejar un
+  folio fuera en otra escala y el plan salía casi vacío. Ahora está en minutos.
+- El coeficiente del SLA sin tope hacía que un folio muy vencido costara más que no visitarlo: el motor **prefería
+  abandonarlo**. Quedó acotado por debajo del peso de folio sin asignar.
+- `PATH_CHEAPEST_ARC` no encontraba ni una primera solución con muchos nodos opcionales; con
+  `PARALLEL_CHEAPEST_INSERTION` más búsqueda local guiada sí, y hay un reintento con otra estrategia.
+- El tiempo de servicio medido como **promedio** del tiempo que un folio pasa abierto daba 1,440 minutos (el tope) y
+  la ruta salía con **una parada por técnico**. Ahora es la **mediana** descartando muestras de más de 8 horas: un
+  folio que alguien dejó abierto el fin de semana no es un trabajo de dos días.
+- `publicar` pasaba un folio de `reasignado` a `reasignado`, que §6.8.6 no permite. Ahora distingue el primer
+  movimiento del resto.
+
+**La reasignación automática no toca nada sin permiso.** En `solo_sugerir` —el modo de hoy— cada disparador deja una
+propuesta con sus movimientos y la hora de llegada de cada uno, y **vence sola a los 20 minutos** porque describe la
+operación de ese momento: aplicar media hora después puede empeorar la ruta. El despachador la acepta o la rechaza
+desde el tablero, donde ya está mirando. El modo `aplicar_y_avisar` está implementado y se activa con un selector.
+
+**La alerta de desvío de ruta, que quedaba pendiente desde F2-03**, por fin tiene fuente de datos y se evalúa de dos
+maneras según lo que haya: con el trazo del plan publicado, midiendo la distancia al corredor de la ruta; sin plan,
+midiendo la distancia al segmento hacia la siguiente parada. Dispara con más de 500 m fuera de un corredor de 300 m
+durante más de 10 minutos y **solo si el tráfico no lo explica**. En el tablero pinta la fila en **ámbar y con el
+texto «Desvío de ruta»**, no en rojo: un desvío casi siempre tiene una razón, y tratarlo como una emergencia enseña
+al despachador a ignorarlo. Con esto el catálogo de alertas se queda **sin ninguna de Fase 2**.
+
+**La ETA es una hora, no una posición.** El operador ve a qué hora se espera al técnico y, si el folio no está en una
+ruta publicada, lo dice en lugar de inventar una hora. Lo que no ve es el GPS: eso se decidió en F2-03 (§6.9.5) y la
+ETA no lo cambia.
+
+**La app del técnico** muestra su ruta del día ordenada con la hora estimada de cada parada, su recorrido en el mapa
+y los botones «Abrir en Waze» y «Abrir en Google Maps» hacia la unidad. Y un botón **«Reportar incidencia»**, que es
+el disparador de §6.8.2 que faltaba: si el técnico no puede seguir, el despachador lo sabe de inmediato y recibe la
+propuesta de cómo repartir lo que quedaba pendiente.
+
+**Rendimiento (ACT-2.2).** El tiempo lo fija el presupuesto de cálculo, no el tamaño del problema: con 50 técnicos y
+300 folios coloca **los 300** tanto con 3 segundos (3,610 ms) como con 10 (10,719 ms), y el recálculo parcial —el que
+corre durante el día— termina en **2.5 segundos**. El default de 30 segundos es conservador para parques de este
+tamaño. Las cifras completas y cómo repetir la medición están en `docs/rendimiento/resultados.md`.
+
+Las siete preguntas que esto le deja al negocio quedaron en `docs/decisiones_para_validar.md` (51 a 57): el reparto
+de los pesos, si la reasignación aplica sola, cuánto vive una propuesta, cuándo cuenta como desvío, si la ruta se
+publica sola, si se contrata Google Routes y de dónde sale el tiempo de cada trabajo.
+
 ## 2026-11-11 · F2-05 ISO 55000: criticidad de activos y gestión del riesgo
 
 El bloque que cierra §6.9.3. Hasta hoy la criticidad de un activo era un campo que alguien escribía a mano en la

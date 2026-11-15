@@ -5,6 +5,9 @@ import { Aviso, Boton, Insignia } from '../../../components/ui'
 import { useConexion } from '../../../hooks/useConexion'
 import { mensajeDeError } from '../../../services/api'
 import { encuestaDisponible, folioCampo } from '../../../services/campo'
+import { etaDeFolio } from '../../../services/rutas'
+import type { Eta } from '../../../types/rutas'
+import { hora as horaEta } from '../../../types/rutas'
 import type { FolioDetalle } from '../../../types/folios'
 import { NOMBRE_ESTADO, NOMBRE_TRIGGER } from '../../../types/folios'
 import { EstadoInsignia, SeveridadInsignia, fecha } from '../../folios/comunes'
@@ -53,7 +56,7 @@ export function DetalleOperador() {
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-lg bg-slate-50 p-2"><p className="text-slate-500">Técnico</p><p className="font-medium">{f.tecnico_nombre ?? 'Sin asignar'}</p></div>
-          <div className="rounded-lg bg-slate-50 p-2"><p className="text-slate-500">Llegada estimada</p><p className="font-medium text-slate-400">Fase 2</p></div>
+          <LlegadaEstimada folioId={f.id} />
         </div>
         {pendiente && <p className="mt-2 text-xs text-amber-800">Capturado sin conexión: se enviará automáticamente al recuperar la señal.</p>}
         {d.triggers_revision.filter((t) => !t.resuelto).length > 0 && (
@@ -96,6 +99,40 @@ export function DetalleOperador() {
           {d.historial.length === 0 && <li className="text-xs text-slate-500">La línea de tiempo se verá al sincronizar.</li>}
         </ol>
       </div>
+    </div>
+  )
+}
+
+
+/**
+ * Hora estimada de llegada del folio (§6.8.4, F2-06). Sustituye el «Fase 2» de la tarjeta.
+ *
+ * Muestra **la hora, no la posición del técnico**: en F2-03 se decidió que el cliente no ve el GPS (§6.9.5), y la
+ * ETA no cambia eso. Si el folio no está en una ruta publicada, lo dice en lugar de inventar una hora.
+ */
+function LlegadaEstimada({ folioId }: { folioId: string }) {
+  const [eta, setEta] = useState<Eta | null>(null)
+
+  useEffect(() => {
+    let vigente = true
+    etaDeFolio(folioId).then((r) => { if (vigente) setEta(r) }).catch(() => undefined)
+    return () => { vigente = false }
+  }, [folioId])
+
+  return (
+    <div className="rounded-lg bg-slate-50 p-2" data-testid="eta-operador">
+      <p className="text-slate-500">Llegada estimada</p>
+      {eta?.tiene_eta
+        ? (
+          <p className="font-medium text-slate-800">
+            {horaEta(eta.llegada_estimada)}
+            {eta.en_camino && <span className="ml-1 text-xs text-emerald-700">· va en camino</span>}
+            {eta.minutos_restantes != null && !eta.en_camino && (
+              <span className="ml-1 text-xs text-slate-500">{`· en ${eta.minutos_restantes} min`}</span>
+            )}
+          </p>
+        )
+        : <p className="text-xs text-slate-500">{eta?.motivo ?? 'Calculando…'}</p>}
     </div>
   )
 }

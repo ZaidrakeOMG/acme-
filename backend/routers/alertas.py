@@ -75,9 +75,7 @@ async def configurar(clave: str, datos: AlertaConfiguracionEntrada, request: Req
                      tenant_id: UUID | None = None, prestador_id: UUID | None = None):
     t, p = duenio(actor, tenant_id, prestador_id)
     cat = await svc.obtener_catalogo(db, clave)
-    if cat.fase == 2 and datos.activa:
-        raise ErrorAPI(422, "ALERTA_FASE_2", f"{cat.clave} depende de datos que llegan en Fase 2 y no puede activarse",
-                       [{"campo": "activa", "fase": 2}])
+    svc.validar_fase(cat, activa=datos.activa)
     antes, despues = await svc.configurar(db, clave, t, p, umbral_valor=datos.umbral_valor, parametros=datos.parametros,
                                           canales=datos.canales, destinatarios_roles=datos.destinatarios_roles, activa=datos.activa)
     await auditoria.registrar_actor(db, actor, "alertas.umbral_configurado", request, tenant_id=t, prestador_id=p,

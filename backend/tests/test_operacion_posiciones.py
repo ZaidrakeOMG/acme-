@@ -32,7 +32,8 @@ async def test_el_aviso_de_ubicacion_se_acepta_una_vez(cliente, auth, datos):
     assert estado["frecuencias"] == {"jornada_activa_s": 30, "pausa_s": 300, "bateria_baja_s": 120,
                                      "bateria_baja_pct": 20}
     assert estado["geocerca_radio_m"] == 150 and estado["horas_recorrido"] == 2
-    assert "Fase 2" in estado["desvio_ruta"]
+    # F2-06: el texto ya explica cómo se mide el desvío en vez de prometerlo para la Fase 2.
+    assert "corredor" in estado["desvio_ruta"] and "Fase 2" not in estado["desvio_ruta"]
 
 
 async def test_una_jornada_a_la_vez_y_pausa_con_motivo(cliente, auth, datos):

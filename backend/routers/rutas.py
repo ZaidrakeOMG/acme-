@@ -373,6 +373,53 @@ async def refrescar_eta(plan_id: UUID, db: DB, actor: ActorActual, tecnico_id: U
     return {"plan_id": str(plan_id), "tecnico_id": str(tecnico_id), "paradas": salida}
 
 
+@router_operacion.get("/mi-ruta", summary="La ruta del día del técnico que la pide",
+                      description="Sus paradas del plan publicado de hoy, en orden, con la hora estimada y las "
+                                  "coordenadas de cada unidad para abrir la navegación. El técnico solo ve la "
+                                  "suya: los endpoints de `/api/rutas` son del prestador.")
+async def mi_ruta(db: DB, actor: ActorActual):
+    from datetime import date
+
+    from geoalchemy2 import Geometry
+
+    from models.base import Rol
+    from models.folios import Folio
+    from models.rutas import EstadoPlanRuta
+    from models.unidades import UnidadNegocio
+
+    if not actor.es_superadmin and actor.rol != Rol.tecnico:
+        raise ErrorAPI(403, "SOLO_TECNICO", "Esta es la ruta del técnico; el despachador la ve en «Rutas del día»")
+    filas = (await db.execute(
+        select(RutaParada, Folio, UnidadNegocio, RutaPlan,
+               func.ST_Y(UnidadNegocio.ubicacion.cast(Geometry())),
+               func.ST_X(UnidadNegocio.ubicacion.cast(Geometry())))
+        .join(RutaPlan, RutaPlan.id == RutaParada.plan_id)
+        .join(Folio, Folio.id == RutaParada.folio_id)
+        .join(UnidadNegocio, UnidadNegocio.id == Folio.un_id)
+        .where(RutaParada.tecnico_id == actor.id, RutaPlan.fecha == date.today(),
+               RutaPlan.estado.in_((EstadoPlanRuta.publicado, EstadoPlanRuta.en_curso)))
+        .order_by(RutaParada.orden))).all()
+    if not filas:
+        return {"tiene_ruta": False, "paradas": [],
+                "mensaje": "Todavía no hay ruta publicada para hoy. El despachador la publica al inicio del día."}
+    plan = filas[0][3]
+    return {
+        "tiene_ruta": True, "plan_id": str(plan.id), "fecha": plan.fecha,
+        "km": float(sum(p.distancia_desde_anterior_km for p, *_ in filas)),
+        "paradas": [{
+            "folio_id": str(folio.id), "numero_folio": folio.numero_folio, "orden": parada.orden,
+            "un_codigo": un.codigo, "un_nombre": un.nombre, "direccion": un.direccion,
+            "estado_folio": folio.estado.value, "tipo_folio": folio.tipo_folio.value,
+            "llegada_estimada": parada.llegada_estimada, "fin_estimado": parada.fin_estimado,
+            "minutos_servicio": parada.minutos_servicio,
+            "minutos_desde_anterior": parada.minutos_desde_anterior,
+            "km_desde_anterior": float(parada.distancia_desde_anterior_km),
+            "lat": float(lat) if lat is not None else None,
+            "lng": float(lng) if lng is not None else None,
+        } for parada, folio, un, _plan, lat, lng in filas],
+    }
+
+
 @router_operacion.post("/incidencia", response_model=IncidenciaSalida, status_code=201,
                        summary="El técnico reporta una incidencia",
                        description="Vehículo, salud u otra causa que le impide continuar (§6.8.2). Dispara el "

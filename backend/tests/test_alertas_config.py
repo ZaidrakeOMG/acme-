@@ -1,15 +1,16 @@
 """Configuración central de alertas (§6.9.6): conciliación de claves con alias, rango del Superadmin, default sin
-configuración propia, alertas de Fase 2 etiquetadas e inactivas, panel del usuario y supresión temporal."""
+configuración propia, el candado de las alertas de Fase 2 (hoy no queda ninguna), panel del usuario y supresión
+temporal."""
 from datetime import UTC, datetime, timedelta
 
 from tests.folios_utiles import AE, AP, AUN, DES, MC, OP, SA, TEC
 from tests.sla_utiles import panel_alertas
 
-# F2-01 saco CERTIFICACION_VENCIDA de esta lista (su fuente, `tecnico_cursos`, ya existe), F2-03 saco
-# TECNICO_TIEMPO_MUERTO y TECNICO_SIN_SENAL (ya hay posiciones GPS de donde salir) y F2-04 saco
-# MEDIDOR_PROXIMO_PM (ya hay medidores de activos). El desvio de ruta es lo unico que sigue en Fase 2: necesita la
-# ruta planeada del bloque de optimizacion de rutas.
-FASE_2 = {"TECNICO_DESVIO_RUTA"}
+# La lista se fue vaciando prompt por prompt a medida que cada alerta consiguio su fuente de datos: F2-01 saco
+# CERTIFICACION_VENCIDA, F2-03 saco TECNICO_TIEMPO_MUERTO y TECNICO_SIN_SENAL, F2-04 saco MEDIDOR_PROXIMO_PM y
+# F2-06 saco TECNICO_DESVIO_RUTA, que era la ultima: ahora tiene la ruta planeada. **Hoy no queda ninguna.** El
+# candado del servidor se queda igual, para la siguiente alerta que se registre sin fuente.
+FASE_2: set[str] = set()
 
 
 async def _catalogo(cliente, auth, email=AP) -> dict:
@@ -42,10 +43,12 @@ async def test_catalogo_conciliado_con_las_claves_literales_del_documento(client
     assert alertas_service.canonica("SEGUIMIENTO_INTERNO_SIN_ACTUALIZAR") == "SEGUIMIENTO_SIN_UPDATE"
 
 
-async def test_alertas_de_fase_2_visibles_inactivas_y_no_activables(cliente, auth, datos):
+async def test_ninguna_alerta_quedo_en_fase_2(cliente, auth, datos):
     cat = await _catalogo(cliente, auth)
-    for clave in FASE_2:
-        assert cat[clave]["fase"] == 2 and cat[clave]["activa_por_defecto"] is False
+    # El catalogo entero esta en Fase 1: ninguna alerta quedo esperando su fuente de datos.
+    assert {c["clave"] for c in cat.values() if c["fase"] == 2} == FASE_2 == set()
+    # La ultima que salio fue el desvio de ruta, con F2-06, y quedo activa por defecto.
+    assert cat["TECNICO_DESVIO_RUTA"]["fase"] == 1 and cat["TECNICO_DESVIO_RUTA"]["activa_por_defecto"] is True
     # Las de Fase 1 siguen en fase 1; CERTIFICACION_VENCIDA dejo de ser de Fase 2 con F2-01, y el tiempo muerto
     # y «sin señal» con F2-03.
     assert cat["SLA_INCUMPLIDO"]["fase"] == 1
@@ -56,15 +59,32 @@ async def test_alertas_de_fase_2_visibles_inactivas_y_no_activables(cliente, aut
     for clave in ("TECNICO_TIEMPO_MUERTO", "TECNICO_SIN_SENAL", "MEDIDOR_PROXIMO_PM", "MEDIDOR_SIN_LECTURA",
                   "MEDIDOR_LECTURA_ANOMALA"):
         assert cat[clave]["fase"] == 1 and cat[clave]["activa_por_defecto"] is True
+    # Y el desvio ya se puede activar y configurar como cualquier otra: hasta F2-05 esto devolvia ALERTA_FASE_2.
     r = await cliente.put("/api/alertas/configuracion/TECNICO_DESVIO_RUTA", headers=await auth(AP),
-                          json={"umbral_valor": "500", "parametros": {}, "canales": ["app"],
+                          json={"umbral_valor": "800", "parametros": {}, "canales": ["app"],
                                 "destinatarios_roles": ["despachador"], "activa": True})
-    assert r.status_code == 422 and r.json()["codigo"] == "ALERTA_FASE_2"
-    # Configurarla inactiva sí se permite (queda etiquetada en la pantalla).
-    r = await cliente.put("/api/alertas/configuracion/TECNICO_DESVIO_RUTA", headers=await auth(AP),
-                          json={"umbral_valor": "500", "parametros": {}, "canales": ["app"],
-                                "destinatarios_roles": ["despachador"], "activa": False})
-    assert r.status_code == 200 and r.json()["activa"] is False
+    assert r.status_code == 200, r.text
+    assert r.json()["activa"] is True and float(r.json()["umbral_valor"]) == 800
+
+
+async def test_el_candado_de_fase_2_sigue_en_pie_para_la_siguiente_alerta(cliente, auth, datos):
+    """No queda ninguna alerta de Fase 2, pero el candado se queda: la siguiente que se registre sin fuente de
+    datos no se podra activar por error. Se prueba sobre el servicio, porque no hay ninguna que etiquetar."""
+    from types import SimpleNamespace
+
+    from core.errors import ErrorAPI
+    from services import alertas_service
+
+    # Un doble en lugar de una fila: el candado solo mira la fase y la clave, y asi la prueba no depende de las
+    # columnas del catalogo ni mete una alerta inventada en la base.
+    cat = SimpleNamespace(clave="ALERTA_INVENTADA_FASE_2", fase=2)
+    try:
+        alertas_service.validar_fase(cat, activa=True)
+    except ErrorAPI as e:
+        assert e.codigo == "ALERTA_FASE_2"
+    else:
+        raise AssertionError("una alerta de Fase 2 no se puede activar")
+    alertas_service.validar_fase(cat, activa=False)   # inactiva si se permite
 
 
 async def test_umbral_dentro_del_rango_y_default_sin_configuracion(cliente, auth, datos):

@@ -5,6 +5,9 @@ import { Aviso, Boton, Encabezado, Insignia, Tarjeta } from '../../components/ui
 import { useAuth } from '../../contexts/AuthContext'
 import { mensajeDeError } from '../../services/api'
 import { atenderAlerta, cerrarJornadaDe, recorridoDe, suscribirOperacion, tablero } from '../../services/operacion'
+import { aceptarPropuesta, propuestasPendientes, rechazarPropuesta } from '../../services/rutas'
+import type { Propuesta } from '../../types/rutas'
+import { NOMBRE_DISPARADOR, hora as horaRuta } from '../../types/rutas'
 import type {
   AlertaEnTablero, EventoOperacion, FolioEnTablero, PuntoRecorrido, Tablero, TecnicoEnTablero,
 } from '../../types/operaciones'
@@ -55,8 +58,9 @@ class SiFallaElMapa extends Component<{ children: ReactNode }, { fallo: boolean 
  * de SLA, feed de alertas con acción directa e indicadores globales de jornada. Se actualiza por WebSocket (con
  * respaldo SSE) y refresca el tablero completo cada minuto por si se perdió algún evento.
  *
- * Lo que no está, por decisión de Dirección: la alerta de desvío de ruta y el ETA por tráfico, que necesitan la
- * ruta planeada del bloque de optimización de rutas. Su lugar en la pantalla queda preparado.
+ * F2-06 cerró lo que faltaba: el desvío de ruta pinta la fila de amarillo y las propuestas de reasignación
+ * automática se aceptan desde aquí. La hora estimada de llegada por parada vive en «Rutas del día», que es donde
+ * está la ruta completa; lo único que sigue dependiendo de un proveedor de pago es el ETA **con tráfico**.
  */
 export function Operaciones() {
   const { usuario } = useAuth()
@@ -157,13 +161,14 @@ export function Operaciones() {
             ))}
             <button className="rounded border border-slate-300 px-2 py-0.5 hover:bg-slate-50"
               onClick={() => setCentrarEn({ lat: 19.4326, lng: -99.1332, zoom: 11 })}>Todo el mercado</button>
-            <span className="text-slate-400">· El amarillo de desvío de ruta queda reservado para el bloque de rutas.</span>
+            <span className="text-slate-400">· Fila roja: alerta activa. Fila amarilla: desvío de ruta (§6.8.4).</span>
           </div>
 
           <PanelFolios folios={datos?.folios ?? []} />
         </div>
 
         <div className="space-y-4">
+          <PanelPropuestas />
           <PanelTecnicos tecnicos={tecnicos} orden={orden} alOrdenar={setOrden} seleccionado={seleccionado}
             alElegir={(id) => void verRecorrido(id)} />
           {elegido && (
@@ -275,6 +280,62 @@ function Indicadores({ datos, enJornada, ultimoEvento }: {
   )
 }
 
+/**
+ * Propuestas de reasignación automática por decidir (§6.8.2). F2-06.
+ *
+ * Vive en el tablero porque es donde el despachador está mirando cuando algo se mueve, y se acepta o se rechaza
+ * con un toque. Mientras nadie decide, **nada cambia**: eso es lo que dice el texto de la tarjeta.
+ */
+function PanelPropuestas() {
+  const [propuestas, setPropuestas] = useState<Propuesta[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  const cargar = useCallback(async () => {
+    try { setPropuestas(await propuestasPendientes()) } catch { setPropuestas([]) }
+  }, [])
+  useEffect(() => { void cargar() }, [cargar])
+
+  if (propuestas.length === 0) return null
+  return (
+    <Tarjeta titulo={`Reasignaciones propuestas (${propuestas.length})`}>
+      <p className="mb-2 text-xs text-slate-600">Nada cambia hasta que aceptas.</p>
+      <ul className="space-y-2 text-sm" data-testid="panel-propuestas">
+        {error && <li className="text-xs text-red-700">{error}</li>}
+        {propuestas.map((p) => (
+          <li key={p.id} className="rounded-lg border border-amber-200 bg-amber-50 p-2">
+            <p className="font-medium text-slate-800">{NOMBRE_DISPARADOR[p.disparador]}</p>
+            <p className="text-xs text-slate-600">{p.motivo}</p>
+            <ul className="mt-1 space-y-0.5 text-xs text-slate-700">
+              {p.movimientos.slice(0, 4).map((m) => (
+                <li key={m.folio_id}>{`${m.numero_folio} → llega ${horaRuta(m.llegada_estimada)}`}</li>
+              ))}
+              {p.movimientos.length > 4 && <li>{`y ${p.movimientos.length - 4} más`}</li>}
+            </ul>
+            <div className="mt-2 flex gap-2">
+              <Boton onClick={async () => {
+                setError(null)
+                try { await aceptarPropuesta(p.id); await cargar() } catch (e) { setError(mensajeDeError(e)) }
+              }}>Aceptar</Boton>
+              <Boton variante="secundario" onClick={async () => {
+                setError(null)
+                try { await rechazarPropuesta(p.id, 'Rechazada desde el tablero'); await cargar() }
+                catch (e) { setError(mensajeDeError(e)) }
+              }}>Rechazar</Boton>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Tarjeta>
+  )
+}
+
+
+/** §6.8.4: el desvío pinta la fila de amarillo; cualquier otra alerta, de rojo. F2-06. */
+function esDesvio(t: TecnicoEnTablero): boolean {
+  return (t.alerta?.tipo ?? '').toUpperCase().includes('DESVIO')
+}
+
+
 function PanelTecnicos({ tecnicos, orden, alOrdenar, seleccionado, alElegir }: {
   tecnicos: TecnicoEnTablero[]
   orden: 'estatus' | 'folios' | 'tiempo'
@@ -297,7 +358,8 @@ function PanelTecnicos({ tecnicos, orden, alOrdenar, seleccionado, alElegir }: {
         {tecnicos.length === 0 && <li className="text-slate-400">Sin técnicos activos.</li>}
         {tecnicos.map((t) => (
           <li key={t.tecnico_id}
-            className={`rounded-lg border p-2 ${t.alerta ? 'border-red-300 bg-red-50' : 'border-slate-200'} ${
+            className={`rounded-lg border p-2 ${esDesvio(t) ? 'border-amber-300 bg-amber-50'
+              : t.alerta ? 'border-red-300 bg-red-50' : 'border-slate-200'} ${
               t.tecnico_id === seleccionado ? 'ring-2 ring-primario/30' : ''}`}>
             <button className="w-full text-left" onClick={() => alElegir(t.tecnico_id)}>
               <div className="flex flex-wrap items-center justify-between gap-1">

@@ -1,5 +1,5 @@
 """Detección automática de §6.8.4: tiempo muerto con push al técnico y escalación, sin señal sin emergencia, y el
-desvío de ruta que sigue en Fase 2. F2-03."""
+desvío de ruta, que con F2-06 salió de Fase 2 (su regla se prueba en `test_desvio_ruta.py`). F2-03."""
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -184,17 +184,19 @@ async def test_sin_senal_avisa_pero_no_genera_emergencia(cliente, auth, datos):
     assert await evaluar("TECNICO_SIN_SENAL") == 0  # no se repite
 
 
-async def test_el_desvio_de_ruta_sigue_en_fase_2(cliente, auth, datos):
-    """Decisión de Dirección: el desvío necesita la ruta planeada del bloque de rutas."""
+async def test_el_desvio_de_ruta_ya_salio_de_fase_2(cliente, auth, datos):
+    """F2-03 lo dejó registrado e inactivo porque faltaba la ruta planeada; F2-06 la trajo y lo activa."""
     from workers.tareas import EVALUADORES
 
-    assert "TECNICO_DESVIO_RUTA" not in EVALUADORES, "no debe tener evaluador todavía"
+    assert "TECNICO_DESVIO_RUTA" in EVALUADORES, "F2-06 le dio su evaluador"
     r = await cliente.get("/api/alertas/catalogo", headers=await auth(AP))
     catalogo = {c["clave"]: c for c in r.json()}
-    assert catalogo["TECNICO_DESVIO_RUTA"]["fase"] == 2
-    assert catalogo["TECNICO_DESVIO_RUTA"]["activa_por_defecto"] is False
-    assert "optimización de rutas" in catalogo["TECNICO_DESVIO_RUTA"]["descripcion"]
-    # Y las dos que sí se activaron dejaron de ser de Fase 2.
+    assert catalogo["TECNICO_DESVIO_RUTA"]["fase"] == 1
+    # Activa por defecto: inactiva no la dispara nadie, porque `disparar` respeta la configuración efectiva.
+    assert catalogo["TECNICO_DESVIO_RUTA"]["activa_por_defecto"] is True
+    assert float(catalogo["TECNICO_DESVIO_RUTA"]["umbral_default"]) == 500
+    assert catalogo["TECNICO_DESVIO_RUTA"]["tipo_umbral"] == "metros"
+    # Y las dos de F2-03 siguen en Fase 1.
     for clave in ("TECNICO_TIEMPO_MUERTO", "TECNICO_SIN_SENAL"):
         assert catalogo[clave]["fase"] == 1 and catalogo[clave]["activa_por_defecto"] is True
     assert catalogo["TECNICO_TIEMPO_MUERTO"]["parametros_default"]["radio_m"] == 50

@@ -42,6 +42,7 @@ import { EnlaceCorto } from './pages/EnlaceCorto'
 import { Notificaciones } from './pages/Notificaciones'
 import { Medidores } from './pages/medidores/Medidores'
 import { Iso55000 } from './pages/criticidad/Iso55000'
+import { PlanDelDia } from './pages/rutas/PlanDelDia'
 import { Mensajeria } from './pages/mensajeria/Mensajeria'
 import { Operaciones } from './pages/operaciones/Operaciones'
 import { Activos } from './pages/activos/Activos'
@@ -84,6 +85,7 @@ const PAGINAS: Record<string, ReactNode> = {
   mensajeria: <Mensajeria />,
   medidores: <Medidores />,
   iso55000: <Iso55000 />,
+  rutas: <PlanDelDia />,
   operaciones: <Operaciones />,
   trabajos_especiales: <TrabajosEspeciales />,
   oc_activos: <OcActivos />,

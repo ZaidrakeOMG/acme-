@@ -413,8 +413,9 @@ async def jornada(db: AsyncSession, f: Filtro) -> dict[str, Any]:
             "tecnicos_activos": int((await db.execute(activos)).scalar_one() or 0),
             "alertas_abiertas": await alertas_abiertas(db, dia),
             "tiempo_promedio_atencion_horas": str(Decimal(sum(horas) / len(horas)).quantize(CENTAVO)) if horas else "0.00",
-            # F2-03 trajo el mapa en vivo y el GPS; lo que sigue esperando es el bloque de rutas.
-            "aviso_fase_2": "El desvío de ruta y el ETA por tráfico llegan con el bloque de optimización de rutas (Fase 2)"}
+            # F2-06 trajo el desvío y el ETA; el tráfico en vivo sigue pendiente de contratar Google Routes.
+            "aviso_fase_2": ("El desvío de ruta y el ETA ya operan con distancias estimadas; el tráfico en "
+                             "vivo requiere activar Google Routes")}
 
 
 # ------------------------------------------------------- jerarquía §6.8.5

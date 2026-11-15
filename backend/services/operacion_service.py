@@ -99,7 +99,9 @@ async def parametros(db: AsyncSession, prestador_id: UUID | None) -> dict[str, A
         "max_lote": MAX_LOTE,
         "precision_maxima_m": PRECISION_MAXIMA_M,
         "horas_recorrido": HORAS_RECORRIDO,
-        "desvio_ruta": "El desvío de ruta llega con el bloque de optimización de rutas (Fase 2)",
+        # F2-06: la regla de desvío ya opera; el texto explica cómo se mide para que el tablero lo diga igual.
+        "desvio_ruta": ("El desvío se marca cuando el técnico se sale del corredor de su ruta más de los "
+                        "metros y los minutos configurados en Rutas del día"),
     }
 
 

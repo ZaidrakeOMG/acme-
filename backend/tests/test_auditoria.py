@@ -99,10 +99,10 @@ async def test_evaluar_alertas_registra_en_historial(datos):
     # pueden disparar según la fecha (p. ej. CALENDARIO_MES_SIN_PUBLICAR a partir del día 25). F2-02 agregó dos
     # alertas sin evaluador (las de mensajería, que se disparan en el momento del envío) y F2-03 agregó dos
     # evaluadores para alertas que ya existían, así que la cuenta vuelve a ser la misma.
-    # Las de Fase 2 (desvío de ruta y medidores) y las informativas siguen sin evaluador; desde F2-03 el tiempo
-    # muerto y «sin señal» sí lo tienen, y CERTIFICACION_VENCIDA ya tiene
-    # el suyo desde F2-01, y la alerta informativa que agrego no lleva evaluador: la cuenta no cambia.
-    assert resumen["disparadas"] >= 1 and resumen["sin_evaluador"] == 8
+    # Las informativas (y las dos de mensajería, que se disparan en el momento del envío) siguen sin
+    # evaluador; el tiempo muerto y «sin señal» lo tienen desde F2-03, CERTIFICACION_VENCIDA desde F2-01,
+    # y **el desvío de ruta desde F2-06**, que es el que baja la cuenta de 8 a 7.
+    assert resumen["disparadas"] >= 1 and resumen["sin_evaluador"] == 7
     async with nueva_sesion(CONTEXTO_SISTEMA) as db:
         h = (await db.execute(select(AlertaHistorial).where(AlertaHistorial.clave_alerta == clave))).scalars().all()
     assert any(x.datos_contexto_json == {"consumo": 72} and float(x.umbral_en_momento) == 70 for x in h)

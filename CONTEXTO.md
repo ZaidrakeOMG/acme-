@@ -1,6 +1,6 @@
 # CONTEXTO — Estado del proyecto ACMA (desarrollo nuevo)
 
-> Se actualiza al cierre de cada prompt. Última actualización: **2026-11-11 · F2-05 ISO 55000: criticidad de activos y gestión del riesgo**.
+> Se actualiza al cierre de cada prompt. Última actualización: **2026-11-13 · F2-06 Rutas del día y reasignación automática**.
 
 ## Ubicación y relación con acma-proyecto
 
@@ -30,6 +30,7 @@
 | F2-03 | Pantalla de operaciones en tiempo real: jornada del técnico con GPS, mapa en vivo con OpenStreetMap, estatus automático, geocerca de llegada, tiempo muerto y sin señal | ✅ 2026-11-10 |
 | F2-04 | Medidores de activos y planes de mantenimiento por uso: los seis tipos de medidor, lecturas por los cuatro métodos, los cuatro triggers que faltaban, depreciación por unidades producidas y llaves de API para recibir lecturas | ✅ 2026-11-11 |
 | F2-05 | ISO 55000: criticidad A/B/C/D calculada como probabilidad × impacto, FMEA simplificado con mitigaciones y su efectividad medida, implicaciones por nivel como alerta o restricción y cinco reportes de certificación | ✅ 2026-11-11 |
+| F2-06 | Rutas del día con VRPTW en OR-Tools (habilidades, ventanas, SLA, criticidad, jornada y refacciones), recálculo parcial con propuestas que vencen, reasignación automática en dos modos, ETA para el cliente, alerta de desvío de ruta y navegación gratuita en la app del técnico | ✅ 2026-11-13 |
 
 ## Verificación al cierre de F2-05
 
@@ -1292,9 +1293,118 @@ al negocio están en [`docs/decisiones_para_validar.md`](docs/decisiones_para_va
   **criticidad automática A/B/C/D**, el **FMEA** y la **matriz de riesgo**. El **MTBF y el MTTR por activo** en la
   ficha siguen pendientes (en el tablero ya están desde P10).
 
+### Rutas y reasignación automática (F2-06)
+
+**Qué resuelve.** Cada mañana hay que decidir quién atiende cada folio y en qué orden, respetando a la vez la
+habilidad certificada del técnico, la ventana de horario de la unidad, el SLA del contrato, la criticidad del
+activo, la jornada y si el técnico trae la refacción. Es un VRPTW (ruteo de vehículos con ventanas de tiempo) y lo
+resuelve **OR-Tools 9.15.6755**, que es una librería de Python: no se contrató ningún proveedor.
+
+**El motor corre en un contenedor, no en el proceso de la API.** `backend/services/rutas/modelo_ortools.py` es
+deliberadamente autónomo (solo `ortools` y la librería estándar) para que **el mismo archivo** sirva en proceso y
+dentro del contenedor `acma_nuevo_solver` (puerto 8099), que lo monta de solo lectura. El selector
+`RUTAS_MOTOR_TRANSPORTE` acepta `auto | en_proceso | sidecar`. En esta máquina queda en `sidecar` por dos razones
+concretas, las dos anotadas en el código: **Smart App Control de Windows** bloqueó `_pywrapcp.pyd` al principio
+(Code Integrity 3077/3033), y aunque después lo dejó cargar, **OR-Tools revienta con segfault dentro de pytest**,
+así que `tests/conftest.py` fija el transporte en `sidecar`. En producción (Linux) `en_proceso` ahorra el salto HTTP.
+
+**La función objetivo, en pesos configurables** (`rutas_configuracion.pesos_json`). Cada peso dice «cuántos minutos
+de ruta vale la pena gastar para evitar esto»:
+
+| Peso | Valor de hoy | Qué castiga |
+|---|---|---|
+| `folio_sin_asignar` | 5,000 | Dejar un folio fuera de la ruta. Es el más alto a propósito: ACMA prefiere una ruta larga a un folio sin atender |
+| `sla` | 600 | Entregar un folio con su SLA ya vencido |
+| `sin_refaccion` | 400 | Mandar a quien no trae la refacción en su vehículo |
+| `criticidad` | 300 | No adelantar un activo crítico (un A pesa el triple que un C) |
+| `horas_extra` | 240 | Pasarse de la jornada, por cada hora de más |
+| `distancia` | 1 | El costo base, en metros, contra el que compiten los demás |
+
+**Cómo entra cada restricción en el modelo** (lo que no es obvio quedó comentado en el archivo):
+
+- **Habilidad certificada**: `routing.VehicleVar(nodo).SetValues([-1, *permitidos])`. El `-1` va **siempre**,
+  porque es el valor que representa «este nodo no se visita»: sin él, un folio que nadie puede atender vuelve
+  **todo el modelo** no factible y el plan sale vacío en lugar de salir con ese folio reportado.
+- **La dimensión de tiempo está en minutos, no en segundos.** Con segundos, la penalización del SLA competía contra
+  la de dejar el folio fuera en otra escala y el plan salía casi vacío.
+- **El coeficiente del SLA está acotado**: `tope_sla = max(1, (pesos["folio_sin_asignar"] - 1) // jornada_max)`.
+  Sin el tope, un SLA muy vencido costaba más que no visitar el folio y el motor prefería abandonarlo.
+- **La criticidad no es una penalización sino una cota**: con factor ≥ 2 (activos A y B) la llegada se acota al
+  inicio de su ventana, que es lo que de verdad los adelanta.
+- **Las paradas en ejecución son fijas**: entran con `AddDisjunction([indice], penalizacion * 100)`, tan caro que el
+  motor nunca las suelta, sin volver el modelo infactible si algo no cuadra.
+- **Búsqueda**: `PARALLEL_CHEAPEST_INSERTION` + búsqueda local guiada, con un reintento en `AUTOMATIC` /
+  `GREEDY_DESCENT`. `PATH_CHEAPEST_ARC` no encontraba ni una primera solución con muchos nodos opcionales.
+
+**El plan nace en borrador.** Calcular no asigna nada: los técnicos no ven el plan hasta que alguien lo **publica**,
+y publicar es lo que escribe la asignación del folio (respetando §6.8.6: primero `reasignado`, después `asignado`).
+Mover una parada a mano valida la habilidad igual que al asignar, y la pantalla ofrece **«¿Qué pasa si lo muevo?»**:
+una simulación que no escribe nada y contesta en kilómetros y en paradas fuera de ventana.
+
+**Recálculo parcial, no recálculo del día.** Durante la jornada se recalculan solo los folios pendientes del técnico
+afectado más los huérfanos, partiendo de dónde está cada uno **ahora**, y nunca lo que ya empezó. Los siete
+disparadores de §6.8.2 (`desvio`, `tiempo_muerto`, `sla_en_riesgo`, `incidencia_tecnico`, `folio_nuevo_urgente`,
+`reasignacion_forzada`, `manual`) tienen su razón en texto, que es lo que lee el despachador.
+
+**Reasignación automática en dos modos.** Hoy `solo_sugerir`: la propuesta queda pendiente y **nada cambia hasta que
+alguien acepta**; vence sola a los 20 minutos porque describe la operación de ese momento. El modo
+`aplicar_y_avisar` está implementado y se activa con un selector. Lo aplicado queda en `reasignaciones` con su
+`recalculo_id`, así que siempre se puede ver qué movimiento salió de qué recálculo.
+
+**La alerta de desvío (`TECNICO_DESVIO_RUTA`), que quedaba pendiente de F2-03**, queda en fase 1 **y activa por
+defecto**: `alertas_service.disparar` respeta la configuración efectiva, así que dejarla inactiva por defecto habría
+sido darle evaluador a una alerta que nadie dispara. Con esto **el catálogo se queda sin ninguna alerta de Fase 2**;
+el candado que impide activar una alerta sin fuente de datos se quedó en pie (ahora en
+`alertas_service.validar_fase`) para la siguiente que se registre. La regla se evalúa de dos maneras según lo
+que haya: con el **trazo** del plan publicado se mide la distancia del técnico al corredor de su ruta; sin plan, con
+la distancia al **segmento** hacia su siguiente parada. Dispara con más de 500 m fuera del corredor (pasillo de
+300 m) durante más de 10 minutos y solo si el tráfico no lo explica. En el tablero pinta la fila **en ámbar y con el
+texto «Desvío de ruta»** (no solo color), porque un desvío casi siempre tiene una razón; las demás alertas siguen en
+rojo.
+
+**La ETA es para el cliente, y es una hora, no una posición.** `GET /api/operacion/eta` devuelve la hora estimada de
+llegada del folio y, si no está en una ruta publicada, lo dice en lugar de inventar una hora. **No expone el GPS del
+técnico**: eso se decidió en F2-03 (§6.9.5) y la ETA no lo cambia. Se refresca cada 5 minutos y avisa 15 antes.
+
+**Los tiempos de servicio se miden, no se adivinan**: la **mediana** (`percentile_cont(0.5)`) de los folios cerrados
+por tipo de trabajo y tipo de equipo, descartando muestras de más de 8 horas. Con el promedio y sin descarte, un
+folio que alguien dejó abierto el fin de semana daba 1,440 minutos y la ruta salía con **una parada por técnico**.
+Sin historial, 60 minutos.
+
+**Distancias sin contratar nada.** `ProveedorEstimado` usa la línea recta por un factor de sinuosidad de 1.35 y
+velocidades por franja (18 / 28 / 16 / 35 km/h). `ProveedorGoogleRoutes` está escrito y **sin llave devuelve el
+estimado diciendo que lo es**. Para activar Google Routes en producción: poner `GOOGLE_ROUTES_API_KEY`, cambiar
+`proveedor_distancias` a `google_routes` en la configuración del prestador y fijarle un tope de gasto como el de
+WhatsApp de F2-02 (una ruta de 30 paradas pide una matriz grande en cada recálculo). Las medidas se guardan en Redis
+y en `distancias_cache`, así que un recálculo no vuelve a pedir lo que ya preguntó.
+
+**Rendimiento (ACT-2.2, medido el 13 de noviembre de 2026).** El tiempo lo fija el presupuesto de cálculo, no el
+tamaño del problema: con 50 técnicos y 300 folios coloca **los 300** tanto con 3 segundos (3,610 ms) como con 10
+(10,719 ms), y el recálculo parcial termina en **2.5 segundos**. Con 25 técnicos y 150 folios, también los 150. Con
+10 técnicos y 50 folios quedan 4 sin asignar, y no es un fallo del motor: nadie del turno tiene certificada esa
+habilidad, y el plan lo reporta con ese motivo. El detalle está en
+[`docs/rendimiento/resultados.md`](docs/rendimiento/resultados.md).
+
+- **Tablas (0018)**: `mercados` y `mercado_unidades` (la ruta se calcula por mercado), `rutas_configuracion`
+  (pesos, jornada, velocidades, umbrales de desvío, modo de reasignación y presupuesto de cálculo),
+  `rutas_tiempos_servicio`, `rutas_planes`, `rutas_paradas`, `rutas_trazos`, `rutas_recalculos` y
+  `distancias_cache`; más `reasignaciones.recalculo_id`. RLS forzada por `prestador_id` en todas, **y validación de
+  multitenancy también en el servicio**, no solo en la base.
+- **Los triggers de inmutabilidad no se tocaron en este prompt**, en ninguna forma: ni se desactivaron, ni se
+  recrearon, ni se les dio una excepción.
+- **Celery**: `calcular-rutas-del-dia` a las 06:00, `refrescar-eta` cada 5 minutos y `expirar-propuestas-ruta` cada
+  5 minutos.
+- **`scripts/seed_rutas.py` se puede volver a correr** y deja la demostración como el inicio de un día: reusa el
+  mercado, refresca las jornadas que llevan más de dos horas abiertas y cierra el plan publicado anterior antes de
+  volver a calcular (el servicio no recalcula sobre un plan publicado, y hace bien). En la base de desarrollo hay
+  casi cien folios autorizados en las tres UN del mercado, así que el plan coloca lo que cabe en la jornada de los
+  técnicos del demo y el resto sale **con su motivo**: eso es lo que hay que leer, no el total.
+- Las siete preguntas que esto le deja al negocio están en
+  [`docs/decisiones_para_validar.md`](docs/decisiones_para_validar.md) (51 a 57).
+
 ### Frontend
-- `src/config/modulos.ts` define los 29 módulos con pantalla (27 de Fase 1 + `medidores` de F2-04 e `iso55000`
-  de F2-05), su prompt y los
+- `src/config/modulos.ts` define los 30 módulos con pantalla (27 de Fase 1 + `medidores` de F2-04,
+  `iso55000` de F2-05 y `rutas` de F2-06), su prompt y los
   roles que los ven. Desde P10 **todos tienen
   `ruta`**: no queda ninguno con la etiqueta «Disponible en el prompt Pxx».
 - Gráficas con Recharts 3.10.1; cada valor va también en texto junto a la gráfica (accesibilidad).
