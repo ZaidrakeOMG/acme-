@@ -44,7 +44,7 @@ jobs:
       - name: Instalar dependencias mínimas para pruebas sin DB
         run: python -m pip install 'fastapi>=0.115,<1' 'httpx>=0.28' 'starlette>=0.41'
       - name: Sintaxis de nuevas integraciones
-        run: python -m compileall -q backend/core/frontend_integrado.py backend/services/almacenamiento_supabase.py backend/scripts/bootstrap_superadmin.py scripts/test_migracion_sin_db.py
+        run: python -m compileall -q backend/core/frontend_integrado.py backend/core/esquema_postgresql.py backend/services/almacenamiento_supabase.py backend/scripts/bootstrap_superadmin.py backend/scripts/preflight_supabase.py scripts/test_migracion_sin_db.py
       - name: Smoke test sin Docker ni conexiones reales
         run: python scripts/test_migracion_sin_db.py
 
