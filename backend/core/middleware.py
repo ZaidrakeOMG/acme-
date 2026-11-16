@@ -9,17 +9,11 @@ from fastapi import FastAPI, Request
 from sqlalchemy import insert
 
 from core.config import config
+from core.csp import politica_csp_para_ruta
 from core.rls import ContextoRLS
 from core.security import TIPO_ACCESO, decodificar_jwt
 
 log = logging.getLogger("acma.middleware")
-
-_CSP_API = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
-# Swagger/ReDoc cargan sus recursos de jsdelivr.
-_CSP_DOCS = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com; "
-             "frame-ancestors 'none'")
-
 
 def _uuid_o_none(valor: str | None) -> uuid.UUID | None:
     return uuid.UUID(valor) if valor else None
@@ -57,10 +51,12 @@ def instalar_middleware(app: FastAPI) -> None:
         respuesta = await call_next(request)
 
         ruta = request.url.path
-        # `unsafe-inline` solo existe para Swagger/ReDoc, que no se publican en produccion (main.py los apaga);
-        # aun asi la politica estricta se fuerza por entorno y no por ruta. P11a.
-        es_docs = ruta.startswith(("/docs", "/redoc")) and not config.es_produccion
-        respuesta.headers["Content-Security-Policy"] = _CSP_DOCS if es_docs else _CSP_API
+        # La CSP de API niega scripts; la SPA React requiere cargar el bundle
+        # propio de Vite. Nunca aplicar default-src 'none' al HTML de /
+        # porque eso deja la página blanca aun cuando FastAPI responde 200.
+        respuesta.headers["Content-Security-Policy"] = politica_csp_para_ruta(
+            ruta, es_produccion=config.es_produccion
+        )
         if config.es_produccion:  # en HTTP local un HSTS cacheado dejaria el navegador exigiendo TLS
             respuesta.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         respuesta.headers["X-Frame-Options"] = "DENY"
