@@ -1,6 +1,7 @@
 """Tests offline del asistente de Supabase; nunca conecta ni modifica la BD."""
 import tempfile
 import httpx
+import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -86,7 +87,7 @@ class TestConfiguracion(unittest.TestCase):
                     200, json={"id": "acma", "name": "acma", "public": False}
                 )
             if peticion.url.path == "/storage/v1/bucket" and peticion.method == "POST":
-                self.assertEqual(peticion.read().decode("utf-8").count('"public":false'), 1)
+                self.assertIs(json.loads(peticion.read())["public"], False)
                 estado["existe"] = True
                 return httpx.Response(200, json={"name": "acma"})
             return httpx.Response(500)
