@@ -218,6 +218,7 @@ def main() -> None:
     ejecutar_script("scripts.seed_produccion", "--email", email, "--nombre", nombre)
     print("\nConfiguración web lista para probar. Ejecuta iniciar_acma_web_pruebas.bat.")
     print("Guarda la contraseña temporal que apareció UNA sola vez en consola.")
+    input("Pulsa ENTER después de guardar la contraseña temporal en un lugar seguro... ")
     print("Para producción configura Redis, Celery, HTTPS y pruebas móviles.")
 
 
