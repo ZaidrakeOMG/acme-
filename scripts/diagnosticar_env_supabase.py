@@ -158,13 +158,27 @@ def main() -> int:
     print("  No se muestran URLs completas, usuarios, claves ni contraseñas.")
 
     if not (postgres and storage_url and almacenamiento and secret):
-        print("\nERROR: .env es antiguo o todavía no tiene toda la configuración Supabase.")
-        print("No basta con agregar DB_SCHEMA=acma si PostgreSQL aún apunta al Docker.")
-        print("Copia el archivo .env a un lugar PRIVADO fuera del repositorio.")
-        print("Renombra .env a .env.respaldo_anterior (no lo elimines).")
-        print("Después ejecuta PROBAR_ACMA_WEB.bat y completa el asistente local.")
-        print("No compartas .env ni la copia de seguridad.")
-        return 2
+        print("\nSe encontró un .env antiguo o incompleto para Supabase.")
+        print("El sistema conservará el archivo anterior SIN modificar su contenido.")
+        print("Se guardará como .env.respaldo_anterior (con sufijo si existe).")
+        print("La copia queda IGNORADA por Git, pero contiene secretos: guárdala segura.")
+        print("Después se abrirá el asistente para configurar PostgreSQL y Storage.")
+        respuesta = input("Escribe RESPALDAR para renombrar .env y continuar: ").strip()
+        if respuesta != "RESPALDAR":
+            print("Cancelado: no se cambió ningún archivo ni base de datos.")
+            return 2
+        numero = 0
+        while True:
+            nombre = ".env.respaldo_anterior" + (f"_{numero}" if numero else "")
+            destino = ROOT / nombre
+            if not destino.exists():
+                break
+            numero += 1
+        # Rename atómico, no borra secretos y no sustituye respaldos previos.
+        ENV.rename(destino)
+        print("Respaldo local guardado: " + destino.name)
+        print("El asistente puede crear un .env NUEVO para Supabase.")
+        return 3
 
     if esquema != "acma":
         corregir_solo_esquema(original, valores)
