@@ -40,3 +40,31 @@ def test_rechaza_claves_fuera_del_bucket():
         cliente.leer("x\\y")
     with pytest.raises(ValueError):
         AlmacenamientoSupabase(url="http://inseguro", key="test", bucket="acma")
+
+
+def test_sb_secret_no_se_envia_como_token_jwt():
+    """Las nuevas claves opacas se envían en apikey, no en Authorization."""
+    clave = "sb_secret_valor_falso_solo_para_pruebas"
+    peticiones = []
+
+    def responder(peticion: httpx.Request) -> httpx.Response:
+        peticiones.append(peticion)
+        return httpx.Response(200, json={"id": "acma", "public": False})
+
+    storage = AlmacenamientoSupabase(
+        url="https://prueba.supabase.co",
+        key=clave,
+        bucket="acma",
+        transport=httpx.MockTransport(responder),
+    )
+    storage.comprobar()
+    assert peticiones[0].headers["apikey"] == clave
+    assert "authorization" not in peticiones[0].headers
+
+
+def test_jwt_legacy_si_conserva_header_bearer():
+    token = "eyJhbGciOiJIUzI1NiJ9.e30.firma_ficticia"
+    storage = AlmacenamientoSupabase(
+        url="https://prueba.supabase.co", key=token, bucket="acma",
+    )
+    assert storage._headers["Authorization"] == f"Bearer {token}"
