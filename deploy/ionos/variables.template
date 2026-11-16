@@ -1,0 +1,41 @@
+# PLANTILLA DE VARIABLES PRIVADAS IONOS VPS.
+# En el VPS copiar SOLO lo que realmente se utiliza a /opt/acma/.env.
+# NUNCA guardar credenciales reales en GitHub ni enviarlas por chat.
+# Esto NO conecta a la base hasta reemplazar los valores.
+#
+# Subdominio que apuntara por registro A a la IP publica del VPS.
+ACMA_DOMINIO=acma.tu-dominio.com
+
+# Base PostgreSQL ACTUAL de ACMA en Supabase; cuenta acma_api (no postgres/owner).
+# Copia DATABASE_URL desde tu .env local que ya funciona; no crear tablas nuevas.
+# Si el VPS tiene solo IPv4, utiliza el session pooler compatible de Supabase.
+DATABASE_URL=postgresql+asyncpg://USUARIO_ACMA_API:CONTRASENA@HOST_POOLER:5432/postgres?ssl=require
+
+# Storage PRIVADO de Supabase; no usar nunca anon/publishable para el backend.
+SUPABASE_URL=https://TU_PROYECTO.supabase.co
+SUPABASE_SECRET_KEY=REEMPLAZAR_EN_VPS_CON_CLAVE_PRIVADA_VIGENTE
+
+# Reutilizar las MISMAS claves de la instalación ACMA ya funcionando.
+# Cambiarlas puede romper autenticacion MFA, sesiones o lectura de datos cifrados.
+JWT_SECRETO=REEMPLAZAR_CON_SECRETO_ORIGINAL_SEGURO
+CLAVE_CIFRADO=REEMPLAZAR_CON_BASE64_ORIGINAL_DE_32_BYTES
+
+# Modo BASICO (solo Web + FastAPI): sin workers ni colas programadas.
+# Para modo COMPLETO, con Redis + Celery + Beat, activar redis aqui y
+# ejecutar bash deploy/ionos/desplegar.sh --completo.
+TIEMPO_REAL_MODO=local
+NOTIFICACIONES_ENVIO_INLINE=false
+
+# Variables opcionales, según funcionalidades contratadas:
+# SMTP_HOST=
+# SMTP_USER=
+# SMTP_PASSWORD=
+# VAPID_CLAVE_PUBLICA=
+# VAPID_CLAVE_PRIVADA=
+# GOOGLE_ROUTES_API_KEY=
+#
+# El Compose configura automáticamente:
+# ACMA_ENTORNO=produccion, DB_SCHEMA=acma, MFA_OBLIGATORIO=true,
+# ALMACENAMIENTO_MODO=supabase, SUPABASE_BUCKET=acma,
+# CORS_ORIGENES, APP_URL_PUBLICA, y los puertos internos.
+# NO pegar DATABASE_MIGRATIONS_URL, password del owner ni claves admin en este archivo.
