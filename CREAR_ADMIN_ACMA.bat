@@ -16,8 +16,10 @@ echo.
 "backend\.venv\Scripts\python.exe" scripts\crear_admin_acma.py
 if errorlevel 1 (
   echo ERROR: no se creo el administrador.
+  pause
   exit /b 1
 )
 echo.
 echo Guarda la contraseña temporal que aparecio en esta consola.
+pause
 exit /b 0
