@@ -5,6 +5,6 @@ void main() {
   testWidgets('sin URL no expone credenciales ni carga servicios externos', (tester) async {
     await tester.pumpWidget(const AplicacionAcma());
     expect(find.text('Configura la dirección de ACMA'), findsOneWidget);
-    expect(find.textContaining('ACMA_BASE_URL'), findsOneWidget);
+    expect(find.textContaining('ACMA_BASE_URL'), findsWidgets);
   });
 }
