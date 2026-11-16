@@ -52,6 +52,15 @@ class SmokeSinBase(unittest.TestCase):
             self.assertEqual(cliente.get("/assets/no-existe.js").status_code, 404)
             self.assertEqual(cliente.get("/assets/app.js").status_code, 200)
 
+    def test_header_storage_secret_no_es_jwt(self):
+        cliente = AlmacenamientoSupabase(
+            url="https://supabase-prueba.example.com",
+            key="sb_secret_clave_inventada_para_test",
+            bucket="acma",
+        )
+        self.assertEqual(cliente._headers["apikey"], "sb_secret_clave_inventada_para_test")
+        self.assertNotIn("Authorization", cliente._headers)
+
     def test_storage_rechaza_bucket_publico(self):
         def responder(_peticion):
             return httpx.Response(200, json={"id": "acma", "public": True})
