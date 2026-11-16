@@ -89,7 +89,7 @@ def solicitar_clave_secreta() -> str:
         print("La clave local guardada no tiene el formato sb_secret_.")
         CLAVE_TEMPORAL.unlink(missing_ok=True)
 
-    print("\\nPara conectar Supabase Storage necesitas una Secret API key sb_secret_.")
+    print("\nPara conectar Supabase Storage necesitas una Secret API key sb_secret_.")
     print("Al pegar en CMD, no aparecen letras ni asteriscos. Pega y pulsa ENTER.")
     for intento in range(1, 4):
         valor = getpass.getpass("Secret API key (oculta): ").strip()
@@ -101,7 +101,7 @@ def solicitar_clave_secreta() -> str:
             continue
         try:
             with CLAVE_TEMPORAL.open("x", encoding="utf-8") as archivo:
-                archivo.write(valor + "\\n")
+                archivo.write(valor + "\n")
             try:
                 os.chmod(CLAVE_TEMPORAL, 0o600)
             except OSError:
