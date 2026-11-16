@@ -21,6 +21,10 @@ from urllib.parse import quote, urlencode, urlsplit, urlunsplit, parse_qsl
 ROOT = Path(__file__).resolve().parents[1]
 ENV = ROOT / ".env"
 
+# Identificador público del proyecto ACMA confirmado por el usuario.
+# Nunca incluir ni guardar claves secretas en el repositorio.
+PROYECTO_ACMA_URL = "https://mrtmwmqzueqamzfveyev.supabase.co"
+
 
 def referencia_proyecto(url: str) -> str:
     partes = urlsplit(url.rstrip("/"))
@@ -172,7 +176,10 @@ def main() -> None:
     print("\nACMA - Configuración segura de WEB + Supabase\n")
     if ENV.exists():
         raise FileExistsError("Ya existe .env. No modificaré sus credenciales.")
-    project_url = input("URL pública Supabase (https://...supabase.co): ").strip().rstrip("/")
+    print("Proyecto ACMA: " + PROYECTO_ACMA_URL)
+    project_url = PROYECTO_ACMA_URL
+    # La URL de /rest/v1/ no es la conexión de PostgreSQL.
+    # Para los archivos se usa únicamente la URL HTTPS raíz del proyecto.
     ref = referencia_proyecto(project_url)
     print(
         "Antes de continuar, ejecuta docs/01_CREAR_BUCKET_PRIVADO_ACMA.sql\n"
@@ -199,7 +206,7 @@ def main() -> None:
             "[YOUR-PASSWORD]", quote(clave_postgres, safe="")
         )
     partes, pooler = validar_dsn_privilegiado(dsn_postgres, ref)
-    print("Solo cambiaré la contraseña SQL de acma_api y crearé .env local.")
+    print("Se preparará el rol SQL acma_api y se creará un .env PRIVADO en tu equipo.")
     if input("Escribe CONFIGURAR para continuar: ").strip() != "CONFIGURAR":
         print("Cancelado. No hubo cambios.")
         return
@@ -216,7 +223,7 @@ def main() -> None:
     if not email or not nombre:
         raise ValueError("Correo y nombre requeridos. Puedes ejecutar seed_produccion después.")
     ejecutar_script("scripts.seed_produccion", "--email", email, "--nombre", nombre)
-    print("\nConfiguración web lista para probar. Ejecuta iniciar_acma_web_pruebas.bat.")
+    print("\nConfiguración web lista. Volviendo al lanzador PROBAR_ACMA_WEB.bat.")
     print("Guarda la contraseña temporal que apareció UNA sola vez en consola.")
     input("Pulsa ENTER después de guardar la contraseña temporal en un lugar seguro... ")
     print("Para producción configura Redis, Celery, HTTPS y pruebas móviles.")
