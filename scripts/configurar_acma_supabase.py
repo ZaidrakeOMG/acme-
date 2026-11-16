@@ -72,6 +72,32 @@ def dsn_para_acma(partes, ref: str, pooler: bool, contrasena: str) -> str:
     ))
 
 
+
+def solicitar_clave_secreta() -> str:
+    """Lee una clave SECRET sin mostrarla; explica por qué se rechaza un intento."""
+    print("\\nLa clave se pega aqui desde Supabase > Project Settings > API Keys.")
+    print("Selecciona una SECRET key nueva, que comienza con sb_secret_.")
+    print("IMPORTANTE: al pegar en CMD no aparecen letras ni asteriscos.")
+    print("Haz clic derecho para pegar (o Ctrl+V), y luego pulsa ENTER.")
+    for intento in range(1, 4):
+        valor = getpass.getpass("Pega la nueva Secret API key (oculta): ").strip()
+        if not valor:
+            print(f"[{intento}/3] Entrada VACIA. Probablemente no se pego la clave.")
+            print("Copia la clave del panel de Supabase y pegala con clic derecho.")
+            continue
+        if valor.startswith("sb_publishable_"):
+            print(f"[{intento}/3] Esa es PUBLICABLE; selecciona una SECRET key.")
+            continue
+        if not valor.startswith("sb_secret_"):
+            print(f"[{intento}/3] Formato no valido; debe comenzar con sb_secret_.")
+            continue
+        print("Clave secreta recibida (contenido oculto).")
+        return valor
+    raise ValueError(
+        "No se recibio una Secret API key valida tras 3 intentos. "
+        "No se modifico la base de datos. Vuelve a ejecutar PROBAR_ACMA_WEB.bat."
+    )
+
 def comprobar_bucket(project_url: str, key: str) -> None:
     import httpx
 
@@ -185,9 +211,7 @@ def main() -> None:
         "Antes de continuar, ejecuta docs/01_CREAR_BUCKET_PRIVADO_ACMA.sql\n"
         "La clave 'secret' solo se escribe aquí y queda en tu .env local."
     )
-    key = getpass.getpass("Secret API key de Supabase (oculta): ").strip()
-    if not key or key.startswith("sb_publishable_"):
-        raise ValueError("La clave publicable no tiene permisos de Storage para ACMA.")
+    key = solicitar_clave_secreta()
     comprobar_bucket(project_url, key)
     print("Bucket acma privado: verificado.")
     print(
