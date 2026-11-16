@@ -49,6 +49,7 @@ jobs:
         run: |
           trap 'rm -f .env' EXIT
           bash -n deploy/ionos/desplegar.sh
+          bash -n deploy/ionos/preparar-vps-ubuntu.sh
           printf 'ACMA_DOMINIO=acma.test.invalid\nDATABASE_URL=postgresql+asyncpg://dummy:dummy@example.invalid:5432/postgres\nSUPABASE_URL=https://example.invalid\nSUPABASE_SECRET_KEY=placeholder\nJWT_SECRETO=placeholder_32_character_secret_1234\nCLAVE_CIFRADO=placeholder\n' > .env
           docker compose --env-file .env -f deploy/ionos/compose.yml config --quiet
           docker compose --profile completo --env-file .env -f deploy/ionos/compose.yml config --quiet
