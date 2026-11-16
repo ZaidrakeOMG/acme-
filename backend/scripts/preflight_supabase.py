@@ -53,8 +53,18 @@ async def comprobar_bd() -> None:
                     raise RuntimeError("Faltan tablas/permisos o se está omitiendo RLS")
     finally:
         await engine.dispose()
-    print("ACMA: conexión PostgreSQL a Supabase correcta; usuario acma_api, esquema acma, RLS activo.")
-    print("Pendiente verificar 0018, Storage, Redis/Celery y pruebas completas del sistema.")
+
+    if config.almacenamiento_modo != "supabase":
+        raise RuntimeError("Configura ALMACENAMIENTO_MODO=supabase para conservar evidencias en Storage")
+    from services.almacenamiento_supabase import AlmacenamientoSupabase
+    almacenamiento = AlmacenamientoSupabase(
+        url=config.supabase_url,
+        key=config.supabase_secret_key,
+        bucket=config.supabase_bucket,
+    )
+    await asyncio.to_thread(almacenamiento.comprobar)
+    print("ACMA: DB PostgreSQL con rol acma_api y bucket PRIVADO acma: verificados.")
+    print("El modo de prueba web no incluye Redis/Celery ni tareas periódicas.")
 
 
 def main() -> None:
