@@ -44,6 +44,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     TZ=America/Mexico_City
 EXPOSE 8000
-# El VPS usa PORT=8000; los PaaS pueden asignar PORT. Iniciar con un worker para Supabase.
+# Railway entrega PORT y RAILWAY_PUBLIC_DOMAIN; en un VPS Compose entrega PORT y el dominio HTTPS.
+# El lanzador configura origen, MFA y pool antes de que FastAPI importe la configuracion.
 # Nunca se incluyen JWT_SECRETO, CLAVE_CIFRADO ni SUPABASE_SECRET_KEY en la imagen.
-CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${UVICORN_WORKERS:-1}"]
+CMD ["python", "railway_start.py"]
