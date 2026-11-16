@@ -16,6 +16,7 @@ Es un **cliente de transición** y NO equivale a una reimplementación nativa de
 ```powershell
 flutter create --platforms=android,ios --project-name acma_mobile .
 flutter pub get
+dart run flutter_launcher_icons
 flutter test
 flutter analyze
 ```
