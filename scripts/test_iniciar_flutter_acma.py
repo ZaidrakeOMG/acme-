@@ -45,6 +45,7 @@ class LanzadorFlutter(unittest.TestCase):
                   patch.object(m, "buscar_flutter", return_value="flutter"),
                   patch.object(m, "buscar_adb", return_value="adb"),
                   patch.object(m, "validar_backend"),
+                  patch.object(m, "comprobar_ndk"),
                   patch.object(m, "dispositivos_android", return_value=["emulator-5554"]),
                   patch.object(m, "ejecutar") as ejecutar,
                   patch.object(m.subprocess, "run", return_value=CompletedProcess([], 0)) as correr):
