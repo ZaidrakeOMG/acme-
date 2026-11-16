@@ -112,6 +112,17 @@ class LanzadorFlutter(unittest.TestCase):
             with patch.object(m, "ruta_sdk_android", return_value=sdk):
                 m.comprobar_plataforma_android()
 
+    def test_web_bat_no_exige_py_con_venv_existente(self):
+        lanzador = (ROOT / "PROBAR_ACMA_WEB.bat").read_text(encoding="utf-8")
+        self.assertIn(
+            'if not exist "backend\\.venv\\Scripts\\python.exe" (\n  where py',
+            lanzador,
+        )
+        self.assertIn(
+            '"backend\\.venv\\Scripts\\python.exe" scripts\\diagnosticar_env_supabase.py',
+            lanzador,
+        )
+
     def test_bat_usa_python_existente_y_no_exige_launcher_py(self):
         lanzador = (ROOT / "PROBAR_ACMA_FLUTTER_ANDROID.bat").read_text(encoding="utf-8")
         self.assertIn('if exist "backend\\.venv\\Scripts\\python.exe" goto :python_venv', lanzador)
