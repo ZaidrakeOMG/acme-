@@ -26,7 +26,12 @@ El `flutter create` genera los directorios de plataforma faltantes. Revisar iden
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 ```
+
+En iOS, configurar `ios/Runner/Info.plist` con `NSCameraUsageDescription` y `NSLocationWhenInUseUsageDescription` explicando los usos. Si se usa CocoaPods, revisar las macros de `permission_handler` (CAMERA y LOCATION_WHENINUSE). La app solicita permisos cuando el sitio ACMA pide cámara o GPS. Los permisos deben comprobarse en Android/iPhone reales.
 
 No habilitar `usesCleartextTraffic` en producción. La URL de ACMA debe ser HTTPS. Para permisos de GPS/cámara, agregar permisos y solicitudes de consentimiento solo después de validar los flujos por plataforma.
 
