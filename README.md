@@ -332,3 +332,13 @@ Pasos completos para un servidor nuevo, actualización y reversión:
   a abrirlo. No uses "Reset to factory defaults": borra los volúmenes de todos los proyectos.
 - **`DLL load failed … Control de aplicaciones`** al importar asyncpg: el Control de aplicaciones de Windows bloquea asyncpg
   0.32. `requirements.txt` fija la 0.31.0.
+
+## Migración opcional sin Docker y Android/iPhone
+
+Se trabaja **sin reemplazar este sistema** en la rama de desarrollo `migracion-supabase-segura-20261115`. El React original permanece intacto y el build puede ser servido por FastAPI. La base móvil Flutter conserva temporalmente la UI React mediante WebView mientras se verifica paridad pantalla por pantalla; todavía NO es una conversión nativa completa ni un despliegue validado en Supabase.
+
+- [Alcance y reglas de preservación de funciones](docs/migracion_supabase_flutter.md)
+- [Proyecto Flutter Android/iOS y manual](mobile_flutter/README.md)
+- `iniciar_acma_sin_docker.bat` solo funciona una vez migradas y configuradas las dependencias remotas de ACMA.
+
+**Nunca conectar a la nube usando credenciales de otra aplicación; no subir claves a Git.**
