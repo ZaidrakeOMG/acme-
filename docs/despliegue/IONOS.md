@@ -1,7 +1,8 @@
 # ACMA listo para VPS IONOS: Web + Android por HTTPS, Supabase sin mover
 
 **Estado del repositorio:** preparados `Dockerfile`, `deploy/ionos/compose.yml`,
-`deploy/ionos/Caddyfile`, `deploy/ionos/desplegar.sh` y
+`deploy/ionos/Caddyfile`, `deploy/ionos/desplegar.sh`,
+`deploy/ionos/preparar-vps-ubuntu.sh`, `deploy/ionos/variables.template` y
 `GENERAR_APK_ACMA_IONOS.bat`. La imagen React + FastAPI y el archivo Compose
 se validan en GitHub Actions.
 
@@ -10,7 +11,20 @@ tiene **IONOS Hosting compartido** o **VPS/Cloud Linux**. Esa distinción es
 decisiva; no se puede ejecutar FastAPI/Redis/Celery persistente en un hosting
 que solo admite subir archivos web estáticos/PHP.
 
-## 1. Qué producto comprobar en IONOS
+## 1. Qué contratar en IONOS
+
+**Comprar VPS L+ Linux (8 GB RAM, 4 vCPU o superior) con Ubuntu 24.04 LTS**,
+acceso root por SSH y una IPv4 pública. Este tamaño es una recomendación
+inicial para **API + React + Redis + Celery**; se deberá ajustar tras pruebas de
+carga y observar la RAM real. VPS M+ de 4 GB puede servir para pruebas básicas
+pero NO está garantizado para el perfil completo. Evitar VPS S+ de 2 GB para
+ACMA completo. No comprar Hosting Web compartido, WordPress ni Windows VPS.
+
+El dominio puede ser existente: usaremos un subdominio `acma.` sin cambiar
+la web principal ni correo del cliente. Costes, promociones y periodos de
+contratación se verifican en https://www.ionos.mx/servidores/vps antes de pagar.
+
+## 2. Qué producto comprobar en IONOS
 
 Entrar al panel IONOS del cliente → **Mis productos / Contratos**.
 
@@ -26,7 +40,7 @@ Modificar solo el DNS de ese subdominio (A → IP pública del VPS), sin cambiar
 registros de correo MX ni del dominio principal. Si hay registros AAAA,
 solo añadirlos si el VPS admite esa IPv6 y está configurada correctamente.
 
-## 2. Arquitectura
+## 3. Arquitectura
 
 ```text
 PC, Chrome, iPhone navegador       APK Android Flutter
@@ -44,7 +58,7 @@ PC, Chrome, iPhone navegador       APK Android Flutter
 el puerto 8000 al exterior ni usar `adb reverse` en el APK final.
 El bucket privado y los usuarios con MFA se conservan.
 
-## 3. Requisitos previos del VPS
+## 4. Requisitos previos del VPS
 
 - Ubuntu/Debian Linux con Docker Engine + Docker Compose plugin instalados;
   SSH con sudo/root para configuración inicial.
@@ -62,7 +76,7 @@ El bucket privado y los usuarios con MFA se conservan.
 los puertos 80/443 sin revisar el proxy/reverse proxy existente. En ese caso,
 el Compose preparado debe integrarse al proxy que ya existe; no detener sitios.
 
-## 4. Instalación inicial en VPS IONOS
+## 5. Instalación inicial en VPS IONOS
 
 Con SSH y el repositorio disponible:
 
@@ -74,40 +88,66 @@ cd /opt/acma
 Si el repo es privado, configurar Deploy Key SSH en GitHub; nunca poner un
 token GitHub en una URL que pudiera quedar en el historial de comandos.
 
-Subir el `.env` vigente de ACMA desde Windows al VPS **por SCP/SFTP cifrado**,
-en `/opt/acma/.env`. Comprobar que el archivo tenga solo los secretos de ACMA,
-sin los de otros proyectos y sin credenciales de migraciones/owner si no hacen falta.
-Por seguridad, `chmod 600 /opt/acma/.env`, y restringir acceso al usuario
-que ejecuta Docker; el servicio Docker tendrá sus variables mediante
-`env_file`. No pegar el contenido en GitHub ni en este chat.
+**En un VPS NUEVO con Ubuntu 24.04 LTS**, instalar Docker Engine y Compose
+con nuestro script, que utiliza el repositorio oficial de Docker:
 
-Agregar en `.env` (solo ejemplos de variables públicas):
-
-```dotenv
-ACMA_DOMINIO=acma.dominio-cliente.com
+```bash
+cd /opt/acma
+sudo bash deploy/ionos/preparar-vps-ubuntu.sh
 ```
 
-Debe contener además los **valores reales existentes** de
-`DATABASE_URL` (usuario ACMA API), `SUPABASE_URL`,
-`SUPABASE_SECRET_KEY`, `JWT_SECRETO` y `CLAVE_CIFRADO`.
-No inventar ni regenerar esas claves: el MFA, archivos cifrados y
-sesiones dependen de su continuidad.
-Si la clave `SUPABASE_SECRET_KEY` se expuso, rotarla coordinadamente.
+**No ejecutar ese script en servidores compartidos con otras aplicaciones**
+sin revisar primero las versiones de Docker, servicios y puertos ya ocupados.
+Si Docker ya existe, el instalador conserva la instalación. Los firewalls y
+DNS se configuran desde IONOS Cloud Panel y deben permitir 80/443; no exponer
+PostgreSQL/Redis ni 8000 a Internet.
+
+
+**Crear el .env PRIVADO en el VPS desde la plantilla segura**; NO copiar
+sin revisar el archivo .env completo de Windows, pues podría contener una
+credencial con más privilegios que el servicio API necesita:
+
+```bash
+cd /opt/acma
+cp deploy/ionos/variables.template .env
+nano .env
+chmod 600 .env
+```
+
+Reemplazar el dominio ficticio por el subdominio verdadero y pegar
+**solamente los valores reales** de `DATABASE_URL` (cuenta `acma_api`),
+`SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `JWT_SECRETO` y
+`CLAVE_CIFRADO`, tomados de la instalación ACMA que ya funciona.
+**No pegar `DATABASE_MIGRATIONS_URL` del propietario, credenciales de
+administración, contraseñas SSH ni otros secretos no necesarios.**
+
+No regenerar `CLAVE_CIFRADO` ni `JWT_SECRETO`: los datos históricos
+cifrados y sesiones pueden dejar de ser válidos. Si una clave secreta de
+Supabase fue expuesta, rotarla coordinadamente en el backend.
+No subir `.env` a GitHub, no enviarlo por chat, y no capturar su contenido
+al compartir pantallas.
 
 El Compose fuerza: `ACMA_ENTORNO=produccion`, MFA obligatorio,
 `DB_SCHEMA=acma`, Storage Supabase privado, URL pública HTTPS y CORS
 del subdominio. No hace migraciones de BD ni crea administradores.
 
-**Instalación básica:**
+**Verificar configuración ANTES de arrancar contenedores:**
 
 ```bash
 cd /opt/acma
-bash deploy/ionos/desplegar.sh
+bash deploy/ionos/desplegar.sh --verificar
 ```
 
-El script valida con `docker compose config --quiet` y construye
-Web React + FastAPI. Enciende **solo** API + Caddy HTTPS;
-Redis y los procesos de tareas quedan desactivados.
+**Instalación básica (para pruebas limitadas):**
+
+```bash
+cd /opt/acma
+bash deploy/ionos/desplegar.sh --basico
+```
+
+El script valida sin imprimir secretos, construye React + FastAPI y
+enciende API + Caddy HTTPS. No arranca Redis ni Celery en modo básico;
+no garantiza operaciones programadas, chat distribuido ni avisos asíncronos.
 
 Diagnóstico:
 
@@ -120,7 +160,7 @@ docker compose --env-file .env -f deploy/ionos/compose.yml logs --tail=80 caddy
 No ejecutar `docker compose config` sin `--quiet` ni publicar
 capturas de los logs si incluyen datos sensibles.
 
-## 5. Verificar la web publicada
+## 6. Verificar la web publicada
 
 1. `https://acma.dominio-cliente.com/api/salud` → JSON con `estado: ok`.
 2. `https://acma.dominio-cliente.com/` → login React, estilos y navegación.
@@ -133,14 +173,14 @@ capturas de los logs si incluyen datos sensibles.
 El servidor del cliente puede requerir ajustes de red/puertos/DNS que no
 pueden completarse solo con GitHub.
 
-## 6. Perfil opcional: ACMA completo con Redis y Celery en el mismo VPS
+## 7. Perfil completo: ACMA con Redis y Celery en el mismo VPS
 
 ACMA incluye chat multiinstancia, notificaciones, preventivos, cálculos
 programados y otras tareas. El modo básico no enciende esos procesos.
 **Cuando el VPS tenga recursos suficientes**:
 
-1. En `.env`, definir `TIEMPO_REAL_MODO=redis`.
-2. Ejecutar:
+1. Confirmar VPS con **al menos 8 GB RAM recomendados**, DNS y conexión a Supabase.
+2. Ejecutar (el script configura automáticamente `TIEMPO_REAL_MODO=redis` en la API):
    ```bash
    cd /opt/acma
    bash deploy/ionos/desplegar.sh --completo
@@ -154,7 +194,7 @@ programados y otras tareas. El modo básico no enciende esos procesos.
 No es otro hosting: corre en el mismo VPS, pero consume más memoria y CPU.
 Verificar tamaño del plan y backups antes de activar tareas.
 
-## 7. Generar APK Android con dominio IONOS
+## 8. Generar APK Android con dominio IONOS
 
 Una vez que **Web + API + MFA** funcionen mediante HTTPS, en tu PC Windows:
 
@@ -168,7 +208,7 @@ Este lanzador:
 - Comprueba URL HTTPS para no compilar el APK apuntando a localhost.
 - Prepara el AndroidManifest RELEASE generado localmente por Flutter
   con permisos de Internet, cámara y ubicación; no habilita HTTP en release.
-- Ejecuta `flutter pub get` y `flutter build apk --release`.
+- Ejecuta `flutter pub get`, genera el icono original de ACMA y compila `flutter build apk --release`.
 - Deja el APK en
   `mobile_flutter\build\app\outputs\flutter-apk\app-release.apk`.
 
@@ -177,12 +217,12 @@ en Play Store: revisar firma propia, ID del paquete, icono, permisos y
 funcionamiento real en dispositivos. Si el servidor está caído, ambos
 clientes —Web y Android— fallarán; la base permanece en Supabase.
 
-## 8. Qué falta para ponerlo en Internet
+## 9. Qué falta para ponerlo en Internet
 
-- Confirmar el tipo de contrato IONOS del cliente (VPS vs Hosting).
+- Contratar VPS Linux Ubuntu 24.04 LTS (VPS L+ de 8 GB RAM recomendado).
 - Si tiene VPS: conocer la IP pública y el subdominio elegido; configurar
   SSH, Docker, DNS y firewall sin cambiar las webs existentes.
-- Transferir `.env` de ACMA de forma privada.
+- Crear el `.env` seguro desde la plantilla, transfiriendo únicamente los valores necesarios.
 - Ejecutar el script, revisar logs y completar pruebas funcionales.
 
 Nada de esto toca la base de datos actual, ni hace un deploy real sin
