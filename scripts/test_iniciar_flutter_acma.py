@@ -59,6 +59,24 @@ class LanzadorFlutter(unittest.TestCase):
                 self.assertIn("--dart-define=ACMA_ALLOW_HTTP=true", args)
                 self.assertFalse(any("sb_secret" in argumento for argumento in args))
 
+    def test_ndk_faltante_da_instrucciones_antes_de_compilar(self):
+        with tempfile.TemporaryDirectory() as temporal:
+            sdk = Path(temporal)
+            with patch.object(m, "ruta_sdk_android", return_value=sdk):
+                with self.assertRaisesRegex(RuntimeError, "SDK Tools") as fallo:
+                    m.comprobar_ndk()
+                self.assertIn("28.2.13676358", str(fallo.exception))
+                self.assertIn("Show Package Details", str(fallo.exception))
+
+    def test_ndk_instalado_no_bloquea_flutter(self):
+        with tempfile.TemporaryDirectory() as temporal:
+            sdk = Path(temporal)
+            path = sdk / "ndk" / m.NDK_VERSION / "source.properties"
+            path.parent.mkdir(parents=True)
+            path.write_text("Pkg.Revision = 28.2.13676358\n", encoding="utf-8")
+            with patch.object(m, "ruta_sdk_android", return_value=sdk):
+                m.comprobar_ndk()
+
     def test_bat_usa_python_existente_y_no_exige_launcher_py(self):
         lanzador = (ROOT / "PROBAR_ACMA_FLUTTER_ANDROID.bat").read_text(encoding="utf-8")
         self.assertIn('if exist "backend\\.venv\\Scripts\\python.exe" goto :python_venv', lanzador)
