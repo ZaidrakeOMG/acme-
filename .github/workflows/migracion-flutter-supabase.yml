@@ -55,6 +55,8 @@ jobs:
         run: python scripts/test_crear_superadmin_zaid_offline.py
       - name: Probar lanzador Windows Android y permisos solo debug
         run: python scripts/test_iniciar_flutter_acma.py
+      - name: Probar manifest de produccion y dominios HTTPS para IONOS
+        run: python scripts/test_preparar_flutter_release_acma.py
 
   frontend:
     runs-on: ubuntu-latest
