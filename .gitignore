@@ -13,3 +13,12 @@ coverage/
 # P11a: datos y resultados que genera la prueba de carga en cada corrida
 backend/pruebas_carga/datos_carga.json
 backend/pruebas_carga/informe.html
+
+# Flutter Android/iOS: no versionar cache ni builds; conservar codigo nativo generado.
+mobile_flutter/.dart_tool/
+mobile_flutter/build/
+mobile_flutter/.flutter-plugins
+mobile_flutter/.flutter-plugins-dependencies
+mobile_flutter/.pub/
+mobile_flutter/.idea/
+mobile_flutter/*.iml
