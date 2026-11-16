@@ -92,6 +92,9 @@ def _comprobar_minio_sincrono() -> None:
     # salud, tumbaba las otras tres pruebas por tiempo de espera.
     almacen = obtener_almacenamiento()
     backend = almacen.backend if isinstance(almacen, AlmacenamientoCifrado) else almacen
+    if hasattr(backend, "comprobar"):
+        backend.comprobar()  # Supabase Storage, bucket privado y token servidor
+        return
     if not hasattr(backend, "cliente"):
         return  # modo memoria (pruebas): no hay nada que comprobar
     backend.cliente.bucket_exists(backend.bucket)
