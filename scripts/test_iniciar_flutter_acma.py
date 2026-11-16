@@ -46,6 +46,7 @@ class LanzadorFlutter(unittest.TestCase):
                   patch.object(m, "buscar_adb", return_value="adb"),
                   patch.object(m, "validar_backend"),
                   patch.object(m, "comprobar_ndk"),
+                  patch.object(m, "comprobar_plataforma_android"),
                   patch.object(m, "dispositivos_android", return_value=["emulator-5554"]),
                   patch.object(m, "ejecutar") as ejecutar,
                   patch.object(m.subprocess, "run", return_value=CompletedProcess([], 0)) as correr):
@@ -77,6 +78,39 @@ class LanzadorFlutter(unittest.TestCase):
             path.write_text("Pkg.Revision = 28.2.13676358\n", encoding="utf-8")
             with patch.object(m, "ruta_sdk_android", return_value=sdk):
                 m.comprobar_ndk()
+
+    def test_plataforma_36_faltante_se_detecta_antes_de_compilar(self):
+        with tempfile.TemporaryDirectory() as temporal:
+            sdk = Path(temporal)
+            with patch.object(m, "ruta_sdk_android", return_value=sdk):
+                with self.assertRaisesRegex(RuntimeError, "SDK Platforms") as fallo:
+                    m.comprobar_plataforma_android()
+                self.assertIn("android-36", str(fallo.exception))
+                self.assertIn("Android 16.0", str(fallo.exception))
+
+    def test_plataforma_36_incompleta_no_pasa_verificacion(self):
+        with tempfile.TemporaryDirectory() as temporal:
+            sdk = Path(temporal)
+            carpeta = sdk / "platforms" / "android-36"
+            carpeta.mkdir(parents=True)
+            (carpeta / "source.properties").write_text(
+                "Pkg.Revision = 2\n", encoding="utf-8"
+            )
+            with patch.object(m, "ruta_sdk_android", return_value=sdk):
+                with self.assertRaisesRegex(RuntimeError, "incompleta"):
+                    m.comprobar_plataforma_android()
+
+    def test_plataforma_36_completa_pasa_verificacion(self):
+        with tempfile.TemporaryDirectory() as temporal:
+            sdk = Path(temporal)
+            carpeta = sdk / "platforms" / "android-36"
+            carpeta.mkdir(parents=True)
+            (carpeta / "source.properties").write_text(
+                "Pkg.Revision = 2\n", encoding="utf-8"
+            )
+            (carpeta / "android.jar").write_bytes(b"PRUEBA")
+            with patch.object(m, "ruta_sdk_android", return_value=sdk):
+                m.comprobar_plataforma_android()
 
     def test_bat_usa_python_existente_y_no_exige_launcher_py(self):
         lanzador = (ROOT / "PROBAR_ACMA_FLUTTER_ANDROID.bat").read_text(encoding="utf-8")
