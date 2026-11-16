@@ -60,16 +60,17 @@ class TestDiagnosticoEnv(unittest.TestCase):
                 original,
             )
 
-    def test_env_docker_no_se_mueve_si_usuario_cancela(self):
+    def test_env_docker_se_respalda_automaticamente_sin_esperar_input(self):
         with tempfile.TemporaryDirectory() as carpeta:
             raiz = Path(carpeta)
             env = raiz / ".env"
             original = "DB_SCHEMA=public\n"
             env.write_text(original, encoding="utf-8")
             with patch.object(d, "ENV", env), patch.object(d, "ROOT", raiz):
-                with patch("builtins.input", return_value="CANCELAR"):
-                    self.assertEqual(d.main(), 2)
-            self.assertEqual(env.read_text(encoding="utf-8"), original)
+                with patch("builtins.input", side_effect=AssertionError("NO debe pedir RESPALDAR")):
+                    self.assertEqual(d.main(), 3)
+            self.assertFalse(env.exists())
+            self.assertEqual((raiz / ".env.respaldo_anterior").read_text(encoding="utf-8"), original)
 
     def test_no_hay_cambio_sin_confirmacion(self):
         with tempfile.TemporaryDirectory() as carpeta:
