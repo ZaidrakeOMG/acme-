@@ -275,7 +275,16 @@ def main() -> None:
         "La clave 'secret' solo se escribe aquí y queda en tu .env local."
     )
     key = solicitar_clave_secreta()
-    comprobar_bucket(project_url, key)
+    try:
+        comprobar_bucket(project_url, key)
+    except RuntimeError as error:
+        # No reutilizar indefinidamente una clave caducada o revocada.
+        texto = str(error)
+        if ("HTTP 401" in texto or "HTTP 403" in texto
+                or "InvalidJWT" in texto or "InvalidKey" in texto):
+            CLAVE_TEMPORAL.unlink(missing_ok=True)
+            print("La clave local fue descartada: copia una nueva Secret API key.")
+        raise
     print("Bucket acma privado: verificado.")
     print(
         "\nEn Supabase > Connect selecciona 'Session pooler' puerto 5432"
