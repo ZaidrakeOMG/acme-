@@ -20,6 +20,50 @@ ROOT = Path(__file__).resolve().parents[1]
 MOBILE = ROOT / "mobile_flutter"
 SALUD = "http://127.0.0.1:8000/api/salud"
 BASE_ANDROID = "http://localhost:8000"
+# Flutter 3.50.0 solicita este NDK para compilar la app Android en Windows.
+NDK_VERSION = "28.2.13676358"
+
+
+def ruta_sdk_android() -> Path | None:
+    """Localiza Android SDK sin requerir la variable ANDROID_HOME."""
+    candidatos: list[Path] = []
+    for variable in ("ANDROID_SDK_ROOT", "ANDROID_HOME"):
+        if os.environ.get(variable):
+            candidatos.append(Path(os.environ[variable]))
+    archivo_propiedades = MOBILE / "android" / "local.properties"
+    if archivo_propiedades.is_file():
+        for linea in archivo_propiedades.read_text(encoding="utf-8").splitlines():
+            if linea.startswith("sdk.dir="):
+                # Java Properties escapa las barras invertidas de Windows.
+                ruta = linea.partition("=")[2].strip()
+                ruta = ruta.replace(r"\:", ":").replace(r"\\", "\\")
+                candidatos.append(Path(ruta))
+    if os.environ.get("LOCALAPPDATA"):
+        candidatos.append(Path(os.environ["LOCALAPPDATA"]) / "Android" / "Sdk")
+    candidatos.append(Path.home() / "AppData" / "Local" / "Android" / "Sdk")
+    return next((ruta for ruta in candidatos if ruta.is_dir()), None)
+
+
+def comprobar_ndk() -> None:
+    """Mostrar la instrucción útil ANTES de una compilación de 5 minutos."""
+    sdk = ruta_sdk_android()
+    if sdk is None:
+        raise RuntimeError(
+            "Android SDK no localizado. Verifica flutter doctor y Android Studio SDK Manager."
+        )
+    ndk = sdk / "ndk" / NDK_VERSION / "source.properties"
+    if not ndk.is_file():
+        raise RuntimeError(
+            f"Falta Android NDK {NDK_VERSION} en {sdk / 'ndk'}.\n"
+            "SOLUCIÓN: Android Studio > More Actions > SDK Manager > SDK Tools >\n"
+            "Show Package Details > NDK (Side by side) > versión "
+            f"{NDK_VERSION} > Apply.\n"
+            "Después vuelve a abrir PROBAR_ACMA_FLUTTER_ANDROID.bat.\n"
+            "No necesitas reinstalar Flutter, el emulador ni Supabase."
+        )
+    print(f"NDK {NDK_VERSION}: instalado.")
+
+
 
 
 def buscar_flutter() -> str | None:
@@ -145,6 +189,8 @@ def main() -> int:
             "Falta AndroidManifest.xml de depuración en GitHub.\n"
             "Actualiza con git pull para tener el permiso HTTP solo para debug."
         )
+
+    comprobar_ndk()
 
     print("[4/5] Instalando dependencias Flutter y enlazando Android con localhost...")
     ejecutar([flutter, "pub", "get"], cwd=MOBILE)
