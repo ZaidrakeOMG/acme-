@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from configurar_acma_supabase import (
     referencia_proyecto, validar_dsn_privilegiado,
-    dsn_para_acma, escribir_env, PROYECTO_ACMA_URL,
+    dsn_para_acma, escribir_env, PROYECTO_ACMA_URL, solicitar_clave_secreta,
 )
 
 REF = "abcdefghijk1234567890"
@@ -45,6 +45,19 @@ class TestConfiguracion(unittest.TestCase):
         self.assertFalse(pooler)
         app = dsn_para_acma(p, REF, pooler, "valida")
         self.assertIn(f"acma_api:valida@db.{REF}.supabase.co:5432", app)
+
+    def test_secret_api_key_retry_paste_vacio_o_publicable(self):
+        with patch("configurar_acma_supabase.getpass.getpass", side_effect=[
+            "",
+            "sb_publishable_simulacion",
+            "sb_secret_esta-es-una-clave-falsa-para-test",
+        ]):
+            self.assertEqual(solicitar_clave_secreta(), "sb_secret_esta-es-una-clave-falsa-para-test")
+
+    def test_secret_api_key_no_vacia_las_tablas_ni_acepta_3_blancos(self):
+        with patch("configurar_acma_supabase.getpass.getpass", side_effect=["", " ", ""]):
+            with self.assertRaises(ValueError):
+                solicitar_clave_secreta()
 
     def test_env_secreto_no_se_sobrescribe(self):
         with tempfile.TemporaryDirectory() as carpeta:
