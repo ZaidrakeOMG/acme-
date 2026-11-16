@@ -45,6 +45,32 @@ class TestDiagnosticoEnv(unittest.TestCase):
             self.assertIn("SUPABASE_SECRET_KEY=valor_privado_que_no_se_imprime", actualizado)
             self.assertEqual((raiz / ".env.respaldo_antes_db_schema").read_text(encoding="utf-8"), original)
 
+    def test_env_docker_se_respalda_solo_con_confirmacion(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            raiz = Path(carpeta)
+            env = raiz / ".env"
+            original = "DATABASE_URL=postgresql+asyncpg://acma_api:clave@localhost:5442/acma\n"
+            env.write_text(original, encoding="utf-8")
+            with patch.object(d, "ENV", env), patch.object(d, "ROOT", raiz):
+                with patch("builtins.input", return_value="RESPALDAR"):
+                    self.assertEqual(d.main(), 3)
+            self.assertFalse(env.exists())
+            self.assertEqual(
+                (raiz / ".env.respaldo_anterior").read_text(encoding="utf-8"),
+                original,
+            )
+
+    def test_env_docker_no_se_mueve_si_usuario_cancela(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            raiz = Path(carpeta)
+            env = raiz / ".env"
+            original = "DB_SCHEMA=public\n"
+            env.write_text(original, encoding="utf-8")
+            with patch.object(d, "ENV", env), patch.object(d, "ROOT", raiz):
+                with patch("builtins.input", return_value="CANCELAR"):
+                    self.assertEqual(d.main(), 2)
+            self.assertEqual(env.read_text(encoding="utf-8"), original)
+
     def test_no_hay_cambio_sin_confirmacion(self):
         with tempfile.TemporaryDirectory() as carpeta:
             env = Path(carpeta) / ".env"
