@@ -1,4 +1,8 @@
 .env
+.env.*
+!.env.example
+!.env.production.example
+!.env.supabase.example
 __pycache__/
 *.pyc
 .venv/
