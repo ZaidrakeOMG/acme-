@@ -1,5 +1,6 @@
 """Tests offline del asistente de Supabase; nunca conecta ni modifica la BD."""
 import tempfile
+import httpx
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -7,6 +8,7 @@ from unittest.mock import patch
 from configurar_acma_supabase import (
     referencia_proyecto, validar_dsn_privilegiado,
     dsn_para_acma, escribir_env, PROYECTO_ACMA_URL, solicitar_clave_secreta,
+    comprobar_bucket,
 )
 
 REF = "abcdefghijk1234567890"
@@ -47,17 +49,63 @@ class TestConfiguracion(unittest.TestCase):
         self.assertIn(f"acma_api:valida@db.{REF}.supabase.co:5432", app)
 
     def test_secret_api_key_retry_paste_vacio_o_publicable(self):
-        with patch("configurar_acma_supabase.getpass.getpass", side_effect=[
-            "",
-            "sb_publishable_simulacion",
-            "sb_secret_esta-es-una-clave-falsa-para-test",
-        ]):
-            self.assertEqual(solicitar_clave_secreta(), "sb_secret_esta-es-una-clave-falsa-para-test")
+        with tempfile.TemporaryDirectory() as carpeta:
+            destino = Path(carpeta) / ".env.supabase_clave_local"
+            with patch("configurar_acma_supabase.CLAVE_TEMPORAL", destino):
+                with patch("configurar_acma_supabase.getpass.getpass", side_effect=[
+                    "", "sb_publishable_simulacion",
+                    "sb_secret_clave-falsa-para-pruebas",
+                ]):
+                    valor = solicitar_clave_secreta()
+                    self.assertEqual(valor, "sb_secret_clave-falsa-para-pruebas")
+                # No solicita de nuevo la contraseña, aun cuando falló Storage.
+                with patch("configurar_acma_supabase.getpass.getpass",
+                           side_effect=AssertionError("No volver a pedir clave")):
+                    self.assertEqual(solicitar_clave_secreta(), valor)
+            self.assertEqual(destino.read_text(encoding="utf-8").strip(), valor)
 
-    def test_secret_api_key_no_vacia_las_tablas_ni_acepta_3_blancos(self):
-        with patch("configurar_acma_supabase.getpass.getpass", side_effect=["", " ", ""]):
-            with self.assertRaises(ValueError):
-                solicitar_clave_secreta()
+    def test_secret_api_key_no_acepta_tres_entradas_vacias(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            with patch("configurar_acma_supabase.CLAVE_TEMPORAL", Path(carpeta) / "clave"):
+                with patch("configurar_acma_supabase.getpass.getpass", side_effect=["", " ", ""]):
+                    with self.assertRaises(ValueError):
+                        solicitar_clave_secreta()
+
+    def test_storage_sb_secret_solo_apikey_y_crea_bucket_privado_si_falta(self):
+        peticiones = []
+        estado = {"existe": False}
+
+        def responder(peticion):
+            peticiones.append(peticion)
+            self.assertEqual(peticion.headers.get("apikey"), "sb_secret_ficticia_test")
+            self.assertNotIn("authorization", peticion.headers)
+            if peticion.url.path == "/storage/v1/bucket/acma":
+                if not estado["existe"]:
+                    return httpx.Response(404, json={"code": "BucketNotFound"})
+                return httpx.Response(
+                    200, json={"id": "acma", "name": "acma", "public": False}
+                )
+            if peticion.url.path == "/storage/v1/bucket" and peticion.method == "POST":
+                self.assertEqual(peticion.read().decode("utf-8").count('"public":false'), 1)
+                estado["existe"] = True
+                return httpx.Response(200, json={"name": "acma"})
+            return httpx.Response(500)
+
+        cliente_real = httpx.Client
+        with patch("httpx.Client", side_effect=lambda **kw:
+                   cliente_real(transport=httpx.MockTransport(responder), **kw)):
+            comprobar_bucket("https://prueba.supabase.co", "sb_secret_ficticia_test")
+        self.assertEqual([p.method for p in peticiones], ["GET", "POST", "GET"])
+
+    def test_storage_invalid_jwt_explica_codigo_sin_imprimir_la_clave(self):
+        def responder(peticion):
+            self.assertNotIn("authorization", peticion.headers)
+            return httpx.Response(400, json={"code": "InvalidJWT"})
+        cliente_real = httpx.Client
+        with patch("httpx.Client", side_effect=lambda **kw:
+                   cliente_real(transport=httpx.MockTransport(responder), **kw)):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 400 .*InvalidJWT"):
+                comprobar_bucket("https://prueba.supabase.co", "sb_secret_ficticia_test")
 
     def test_env_secreto_no_se_sobrescribe(self):
         with tempfile.TemporaryDirectory() as carpeta:
