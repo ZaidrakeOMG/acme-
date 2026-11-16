@@ -1,8 +1,9 @@
-name: ACMA - validar contenedor web IONOS y Railway
+name: ACMA - validar contenedor Docker web y Railway
 
 on:
   push:
     branches:
+      - main
       - 'migracion-supabase-*'
     paths:
       - 'Dockerfile'
