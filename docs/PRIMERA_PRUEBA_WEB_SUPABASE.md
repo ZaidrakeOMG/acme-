@@ -33,13 +33,13 @@ Requiere Windows, Python 3.12, Node.js 22+ e internet. El lanzador crea el virtu
 La primera ejecución presenta un asistente. Los datos se introducen **SOLO en la consola local**:
 1. URL pública del proyecto exclusivo ACMA: https://PROJECT_REF.supabase.co.
 2. Supabase Secret API Key (oculta, nunca enviar por chat/GitHub).
-3. Conexión PostgreSQL con usuario postgres desde Supabase → Connect → Session pooler puerto 5432 en Windows/IPv4. Copiar host EXACTO, usuario postgres.PROJECT_REF y contraseña PostgreSQL (oculta). Si dispone de IPv6, puede usar Direct connection con postgres.
+3. Conexión PostgreSQL con usuario postgres desde Supabase → Connect → Session pooler puerto 5432 en Windows/IPv4. Copiar la cadena COMPLETA de Connect incluso si contiene [YOUR-PASSWORD]: el asistente pedirá la contraseña PostgreSQL por separado, oculta. Copiar host EXACTO y usuario postgres.PROJECT_REF. Si dispone de IPv6, puede usar Direct connection con postgres.
 4. Confirmar CONFIGURAR. El instalador verifica esquema Alembic 0018 y bucket privado, genera aleatoriamente una contraseña de DB para el rol acma_api (sin BYPASSRLS) y crea el archivo .env, EXCLUIDO DE GIT. No persiste la credencial de postgres.
 5. Escribir correo REAL y nombre del primer superadmin.
 
 El sistema reutiliza **backend/scripts/seed_produccion.py** del proyecto original: crea el superadmin + las cuatro plantillas iniciales de formularios y las plantillas de mensajería sin usuarios ni datos DEMO. Muestra la contraseña temporal aleatoria UNA vez. Guardarla inmediatamente. Exige MFA y cambio de contraseña. No ejecutar seed_dev.py.
 
-Si el asistente creó .env pero no completó la cuenta, ejecutar **CREAR_ADMIN_ACMA.bat**: retoma solo la parte del administrador sin sobrescribir secretos.
+Si ya tienes un .env viejo de Docker, guarda una copia FUERA del repositorio antes de configurar Supabase, ya que el asistente no sobrescribe credenciales. Si el asistente creó .env pero no completó la cuenta, ejecutar **CREAR_ADMIN_ACMA.bat**: retoma solo la parte del administrador sin sobrescribir secretos.
 
 ## 4. Entrar al sitio
 
