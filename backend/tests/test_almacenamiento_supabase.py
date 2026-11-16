@@ -12,7 +12,7 @@ def test_guardar_y_leer_misma_clave_sin_exponerla_en_url():
         if peticion.method == "POST":
             return httpx.Response(200, json={"Key": "folio/1.pdf"})
         if peticion.url.path.startswith("/storage/v1/bucket/"):
-            return httpx.Response(200, json={"name": "acma"})
+            return httpx.Response(200, json={"id": "acma", "name": "acma", "public": False})
         return httpx.Response(200, content=b"cifrado")
 
     cliente = AlmacenamientoSupabase(
