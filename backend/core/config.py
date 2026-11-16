@@ -26,6 +26,8 @@ class Configuracion(BaseSettings):
     acma_entorno: str = "desarrollo"
 
     database_url: str
+    # La instalación Supabase usa el esquema privado acma; Docker original usa public.
+    db_schema: str = "public"
     database_read_url: str = ""
     database_migrations_url: str = ""
     test_database_url: str = ""
@@ -124,6 +126,13 @@ class Configuracion(BaseSettings):
     # Ventana de 24 h de WhatsApp para mensajes de texto libre tras un mensaje del usuario (§6.1).
     mensajeria_ventana_libre_horas: int = 24
     mensajeria_max_por_minuto: int = 60  # límite de tasa por proveedor y por tenant
+
+    @field_validator("db_schema")
+    @classmethod
+    def _esquema_valido(cls, valor: str) -> str:
+        if valor not in {"public", "acma"}:
+            raise ValueError("DB_SCHEMA debe ser public o acma")
+        return valor
 
     @field_validator("acma_entorno")
     @classmethod
