@@ -56,3 +56,8 @@ class AlmacenamientoSupabase:
                 headers=self._headers,
             )
             respuesta.raise_for_status()
+            metadata = respuesta.json()
+            if metadata.get("id", self.bucket) != self.bucket or metadata.get("public") is not False:
+                raise RuntimeError(
+                    "El bucket de ACMA debe existir y ser PRIVADO; no cargar evidencias públicas"
+                )
