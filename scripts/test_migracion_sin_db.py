@@ -15,10 +15,22 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from core.frontend_integrado import instalar_frontend
+from core.esquema_postgresql import opciones_conexion
 from services.almacenamiento_supabase import AlmacenamientoSupabase
 
 
 class SmokeSinBase(unittest.TestCase):
+    def test_schema_original_sigue_en_public(self):
+        self.assertEqual(opciones_conexion('public'), {})
+
+    def test_supabase_usa_acma_sin_fallback_public(self):
+        opciones = opciones_conexion('acma')
+        self.assertEqual(opciones['connect_args']['server_settings']['search_path'], 'acma,extensions')
+
+    def test_no_se_admiten_esquemas_arbitrarios(self):
+        with self.assertRaises(ValueError):
+            opciones_conexion('public; DROP SCHEMA acma')
+
     def test_frontend_rutas_y_api(self):
         with tempfile.TemporaryDirectory() as tmp:
             carpeta = Path(tmp)
