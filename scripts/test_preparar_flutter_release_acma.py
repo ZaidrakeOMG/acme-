@@ -52,6 +52,7 @@ class ApkIonOS(unittest.TestCase):
             app = raiz.find("application")
             self.assertIsNotNone(app)
             self.assertNotEqual(app.get(m.ANDROID + "usesCleartextTraffic"), "true")
+            self.assertEqual(app.get(m.ANDROID + "label"), "ACMA")
 
     def test_rechazar_http_en_manifiesto_principal(self):
         with tempfile.TemporaryDirectory() as temporal:
