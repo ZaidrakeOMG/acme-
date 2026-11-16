@@ -52,11 +52,17 @@ async def crear_admin(email: str, nombre: str, contrasena: str) -> str:
     )
     try:
         async with engine.begin() as conn:
-            version = (await conn.execute(
-                text("SELECT version_num FROM acma.alembic_version")
-            )).scalar_one()
-            if version != "0018":
-                raise RuntimeError("Esquema incompatible; se esperaba Alembic 0018")
+            # El instalador REVOCA SELECT sobre alembic_version a acma_api.
+            # Jamás elevar el usuario del backend solo para leer esa tabla.
+            # La comprobación de revisión 0018 se realiza en SQL Editor.
+            tablas = (await conn.execute(text("""
+              SELECT
+                to_regclass('acma.usuarios') IS NOT NULL,
+                to_regclass('acma.rutas_planes') IS NOT NULL,
+                to_regclass('acma.criticidad_evaluaciones') IS NOT NULL
+            """))).one()
+            if not all(tablas):
+                raise RuntimeError("Faltan tablas estructurales de ACMA: verificar 0018 en SQL Editor")
 
             existentes = (await conn.execute(
                 text("SELECT count(*) FROM acma.usuarios")
