@@ -11,11 +11,14 @@ echo  Esta ventana NO se cerrara si hay un error.
 echo  No compartas tu archivo .env ni claves o contrasenas.
 echo.
 
-where py >nul 2>nul
-if errorlevel 1 (
-  echo [ERROR 01] No se encontro el lanzador de Python "py".
-  echo Instala Python 3.12. Prueba desde CMD: py -3.12 --version
-  goto :error
+rem Si el entorno virtual de ACMA ya existe, NO necesita el lanzador py.
+if not exist "backend\.venv\Scripts\python.exe" (
+  where py >nul 2>nul
+  if errorlevel 1 (
+    echo [ERROR 01] Falta el entorno Python de ACMA y no existe el lanzador py.
+    echo Para crear el entorno desde cero necesitas Python 3.12 con el lanzador py.
+    goto :error
+  )
 )
 where npm >nul 2>nul
 if errorlevel 1 (
