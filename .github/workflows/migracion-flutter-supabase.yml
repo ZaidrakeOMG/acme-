@@ -39,6 +39,9 @@ jobs:
       - name: Instalar dependencias
         working-directory: mobile_flutter
         run: flutter pub get
+      - name: Icono ACMA original para Android e iOS
+        working-directory: mobile_flutter
+        run: dart run flutter_launcher_icons
       - name: Analisis Flutter
         working-directory: mobile_flutter
         run: flutter analyze
