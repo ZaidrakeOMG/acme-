@@ -15,11 +15,29 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from core.frontend_integrado import instalar_frontend
+from core.csp import politica_csp_para_ruta, CSP_API, CSP_WEB, CSP_DOCS
 from core.esquema_postgresql import opciones_conexion
 from services.almacenamiento_supabase import AlmacenamientoSupabase
 
 
 class SmokeSinBase(unittest.TestCase):
+    def test_csp_react_permita_scripts_y_api_siga_cerrada(self):
+        # Regresión real: default-src 'none' en "/" hacía que ACMA quedara blanca.
+        pagina = politica_csp_para_ruta("/", es_produccion=False)
+        self.assertEqual(pagina, CSP_WEB)
+        self.assertIn("script-src 'self'", pagina)
+        self.assertIn("style-src 'self'", pagina)
+        self.assertNotIn("script-src 'unsafe-inline'", pagina)
+        self.assertIn("worker-src 'self'", pagina)
+        for ruta in ("/login", "/folios/nuevo", "/assets/index-demo.js",
+                     "/assets/index-demo.css", "/manifest.webmanifest"):
+            self.assertEqual(politica_csp_para_ruta(ruta, es_produccion=False), CSP_WEB)
+        for ruta in ("/api/salud", "/api/auth/login", "/ws/chat", "/openapi.json"):
+            self.assertEqual(politica_csp_para_ruta(ruta, es_produccion=False), CSP_API)
+            self.assertIn("default-src 'none'", CSP_API)
+        self.assertEqual(politica_csp_para_ruta("/docs", es_produccion=False), CSP_DOCS)
+        self.assertEqual(politica_csp_para_ruta("/docs", es_produccion=True), CSP_WEB)
+
     def test_schema_original_sigue_en_public(self):
         self.assertEqual(opciones_conexion('public'), {})
 
