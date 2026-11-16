@@ -22,6 +22,8 @@ SALUD = "http://127.0.0.1:8000/api/salud"
 BASE_ANDROID = "http://localhost:8000"
 # Flutter 3.50.0 solicita este NDK para compilar la app Android en Windows.
 NDK_VERSION = "28.2.13676358"
+# compileSdk del proyecto Android generado por Flutter/Android_file_picker.
+ANDROID_PLATFORM_API = 36
 
 
 def ruta_sdk_android() -> Path | None:
@@ -64,6 +66,35 @@ def comprobar_ndk() -> None:
     print(f"NDK {NDK_VERSION}: instalado.")
 
 
+
+
+def comprobar_plataforma_android() -> None:
+    """La imagen del emulador y Build-Tools no reemplazan Android SDK Platform."""
+    sdk = ruta_sdk_android()
+    if sdk is None:
+        raise RuntimeError(
+            "No se localiza Android SDK. Comprueba la ruta en Android Studio > SDK Manager."
+        )
+    plataforma = sdk / "platforms" / f"android-{ANDROID_PLATFORM_API}"
+    archivo = plataforma / "android.jar"
+    metadatos = plataforma / "source.properties"
+    if not archivo.is_file() or not metadatos.is_file():
+        estado = (
+            "Se detectó una instalación incompleta (android-36 existe pero faltan archivos)."
+            if plataforma.exists()
+            else "Android SDK Platform 36 no está instalado."
+        )
+        raise RuntimeError(
+            f"{estado}\\n"
+            f"Ruta requerida: {plataforma}\\n"
+            "Abre Android Studio > More Actions > SDK Manager > SDK Platforms.\\n"
+            "Instala Android 16.0 (Baklava) API 36.0, componente Android SDK Platform 36.\\n"
+            "Presiona Apply / OK hasta ver Installed.\\n"
+            "Si Android Studio indica Installed pero faltan esos archivos,\\n"
+            "desmarca esa plataforma, Apply, vuelve a marcarla e instálala.\\n"
+            "No es suficiente la imagen del emulador API 36 ni Build-Tools 36.0.0."
+        )
+    print("Android SDK Platform 36: instalado y archivos verificados.")
 
 
 def buscar_flutter() -> str | None:
@@ -191,6 +222,7 @@ def main() -> int:
         )
 
     comprobar_ndk()
+    comprobar_plataforma_android()
 
     print("[4/5] Instalando dependencias Flutter y enlazando Android con localhost...")
     ejecutar([flutter, "pub", "get"], cwd=MOBILE)
