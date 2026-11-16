@@ -59,6 +59,13 @@ class LanzadorFlutter(unittest.TestCase):
                 self.assertIn("--dart-define=ACMA_ALLOW_HTTP=true", args)
                 self.assertFalse(any("sb_secret" in argumento for argumento in args))
 
+    def test_bat_usa_python_existente_y_no_exige_launcher_py(self):
+        lanzador = (ROOT / "PROBAR_ACMA_FLUTTER_ANDROID.bat").read_text(encoding="utf-8")
+        self.assertIn('if exist "backend\\.venv\\Scripts\\python.exe" goto :python_venv', lanzador)
+        self.assertIn('"backend\\.venv\\Scripts\\python.exe" scripts\\iniciar_flutter_acma.py', lanzador)
+        self.assertIn("if not errorlevel 1 goto :python_path", lanzador)
+        self.assertNotIn("No se encontro el lanzador py de Python 3.12", lanzador)
+
     def test_manifest_android_solo_debug_permite_http(self):
         ruta = ROOT / "mobile_flutter/android/app/src/debug/AndroidManifest.xml"
         manifest = ET.parse(ruta).getroot()
