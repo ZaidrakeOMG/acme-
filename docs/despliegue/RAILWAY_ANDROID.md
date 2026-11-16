@@ -1,144 +1,135 @@
-# Publicar ACMA para Web y APK Android con Railway + Supabase
+# ACMA Web + Android con Railway (instalación sencilla)
 
-## Arquitectura elegida
+**Objetivo:** una única URL HTTPS de Railway para la **web React**, el **backend FastAPI** y el **APK Flutter WebView Android**. Los datos continúan en el Supabase actual de ACMA: **no se migran ni se borran tablas, usuarios, MFA ni archivos**.
 
-El repositorio existente ya tiene FastAPI capaz de servir `frontend/dist` desde `backend/core/frontend_integrado.py`.
-El `Dockerfile` de la raíz compila el React original con Node 22 y ejecuta FastAPI con Python 3.12.
-Así el mismo dominio HTTPS responde tanto `/` (React) como `/api/*` y `/ws/*` (FastAPI, websockets),
-sin CORS entre dos dominios ni dependencia del equipo Windows del desarrollador.
+El código de la rama `migracion-supabase-segura-20261115` ya contiene:
 
-Supabase **no se migra** ni se crea una base nueva: conservamos el esquema privado `acma`,
-las credenciales de aplicación, el bucket privado y los usuarios con MFA actuales.
-El Dockerfile no hace migraciones ni ejecuta scripts de creación de administradores.
+- `Dockerfile` en la raíz: construye React y FastAPI en un contenedor.
+- `backend/railway_start.py`: detecta `RAILWAY_PUBLIC_DOMAIN` y establece el origen HTTPS correcto para cookies y CORS. **No debe incluir claves secretas en el APK.**
+- `.railway/railway.ts`: configuración IaC opcional para Railway CLI. **No se activa automáticamente por estar en GitHub.**
+- `GENERAR_APK_ACMA_RAILWAY.bat`: compilación del APK en Windows con la dirección pública.
 
-Vercel puede hospedar un frontend estático, pero separar los orígenes implica tratar
-cookies HttpOnly, CSRF, PWA, WebSockets y proxy. Este primer despliegue conserva el diseño
-de un único origen seguro, que también utilizará Flutter WebView.
+## 1. Publicar ACMA desde el panel Railway
 
-## 1. Crear el servicio web
+1. Entra a https://railway.com/dashboard con tu nueva cuenta y conecta GitHub.
+2. Haz clic en **New Project → Deploy from GitHub Repo**.
+3. Autoriza el repositorio **`ZaidrakeOMG/acme-`** si Railway aún no puede verlo.
+4. Selecciona el repositorio; al crear el servicio, usa la rama
+   **`migracion-supabase-segura-20261115`**, NO la rama main.
+   Si Railway comienza a desplegar main automáticamente, entra en
+   **servicio → Settings → Source → Branch** y cámbiala ANTES de publicar.
+5. Deja **Root Directory** vacía (raíz del repo). Railway detectará el
+   `Dockerfile` de la raíz; no uses `frontend/`, `backend/` ni `mobile_flutter/`.
+6. Abre el servicio → **Settings → Networking → Public Networking → Generate Domain**.
+   Railway dará una dirección similar a `https://acma-web.up.railway.app`.
+   **Copia tu dirección real.** Generar el dominio es obligatorio para
+   que `backend/railway_start.py` configure la URL segura automáticamente.
+7. Abre **Variables** del mismo servicio y captura solo las **cinco variables
+   privadas** indicadas abajo. Las demás usan los valores seguros fijados por
+   el lanzador, salvo que un ajuste de tu instalación requiera lo contrario.
+8. Verifica en **Settings** que el healthcheck sea `/api/salud` y que exista
+   **una réplica**. Si aún no se ha activado IaC, pon el healthcheck desde el
+   panel. El Dockerfile arranca FastAPI y escucha en el `PORT` de Railway.
+9. Despliega los cambios pendientes y revisa **Deployments → Logs**.
+   Se debe ver `[ACMA] Arrancando FastAPI + React` y no errores de configuración.
 
-1. Abre https://railway.com/ y conecta tu cuenta GitHub.
-2. Crea un proyecto y elige **Deploy from GitHub Repo**:
-   `ZaidrakeOMG/acme-`.
-3. Selecciona **la rama** `migracion-supabase-segura-20261115` (no desplegar `main` aún).
-4. Deja la **Root Directory** como `/` (raíz del repositorio).
-5. Railway detectará el `Dockerfile` de la raíz; no el de `backend/` ni `frontend/`.
-   La compilación construye React y luego FastAPI en un solo contenedor.
-6. En **Settings → Networking → Public Networking → Generate Domain** crea el dominio temporal
-   `https://TU_SERVICIO.up.railway.app`. Railway gestiona el certificado TLS.
-7. En **Variables** configura los valores de la sección siguiente.
-   Configura **Healthcheck Path**: `/api/salud`.
-   No modifiques el comando de inicio; el Dockerfile escucha en el `$PORT` de Railway.
-8. Despliega y comprueba en el navegador
-   `https://TU_SERVICIO.up.railway.app/api/salud` y
-   `https://TU_SERVICIO.up.railway.app/`.
-   Para diagnóstico de dependencias consulta `/api/salud/detalle`.
+### Variables privadas (Railway → servicio → Variables)
 
-Importante: no se ha conectado todavía una cuenta Railway en esta conversación;
-este repositorio queda **preparado**, no publicado automáticamente.
-No marques el despliegue como validado hasta revisar logs, login, MFA y archivos.
+| Clave | Valor a proporcionar |
+| --- | --- |
+| `DATABASE_URL` | URL PostgreSQL **actual** de ACMA en Supabase con usuario API (`acma_api`), formato `postgresql+asyncpg://...` |
+| `SUPABASE_URL` | URL HTTPS del proyecto Supabase **ACMA** |
+| `SUPABASE_SECRET_KEY` | Clave **secreta del backend** vigente, solo dentro de Railway (nunca en Flutter ni frontend) |
+| `JWT_SECRETO` | **Exactamente la misma** clave JWT válida que está en el ACMA funcional |
+| `CLAVE_CIFRADO` | **Exactamente la misma** clave AES-256 base64 que usa el ACMA funcional |
 
-## 2. Variables de entorno privadas (Railway → Variables)
+**Crítico:** no subas ni pegues el `.env` a GitHub, ChatGPT o el APK. Tampoco uses contraseñas de PostgreSQL `postgres`/owner, credenciales de migración, ni claves de otros proyectos. Cambiar `CLAVE_CIFRADO` puede impedir descifrar MFA y archivos históricos; cambiar JWT invalida sesiones.
 
-Copiar los **valores reales** desde el `.env` local a Railway;
-NO crear un archivo `.env` en GitHub, NO compartir claves por chat,
-y NO pegar el `.env` en la configuración pública de Flutter/Vercel.
+El lanzador establece automáticamente en el contenedor los valores
+`ACMA_ENTORNO=produccion`, `DB_SCHEMA=acma`, `MFA_OBLIGATORIO=true`,
+`ALMACENAMIENTO_MODO=supabase`, `SUPABASE_BUCKET=acma`,
+`UVICORN_WORKERS=1`, `DB_POOL_SIZE=3`, `DB_POOL_OVERFLOW=2`,
+`TIEMPO_REAL_MODO=local` y `NOTIFICACIONES_ENVIO_INLINE=false`.
+Si `RAILWAY_PUBLIC_DOMAIN` está presente, también establece
+`APP_URL_PUBLICA=https://<dominio>` y `CORS_ORIGENES=https://<dominio>`.
 
-Variables fundamentales del servicio API:
+Si ya configuraste valores explícitos para el dominio, tienen prioridad;
+comprueba que coincidan exactamente con el dominio HTTPS actual de Railway.
+Si aparece `[ACMA CONFIG]` en los logs, corrige el dato nombrado y vuelve
+a desplegar. No se publica ninguna contraseña en el mensaje.
 
-```text
-ACMA_ENTORNO=produccion
-DB_SCHEMA=acma
-DATABASE_URL=<misma conexion PostgreSQL Supabase de ACMA, usuario acma_api>
-ALMACENAMIENTO_MODO=supabase
-SUPABASE_URL=<https://proyecto-ACMA.supabase.co>
-SUPABASE_SECRET_KEY=<solo en backend; rotar si ya fue expuesta>
-SUPABASE_BUCKET=acma
-JWT_SECRETO=<secreto actual seguro, de 32 caracteres o mas>
-CLAVE_CIFRADO=<exactamente la clave actual AES-256; no cambiar sin migracion>
-MFA_OBLIGATORIO=true
-APP_URL_PUBLICA=https://TU_SERVICIO.up.railway.app
-CORS_ORIGENES=https://TU_SERVICIO.up.railway.app
-UVICORN_WORKERS=1
-DB_POOL_SIZE=3
-DB_POOL_OVERFLOW=2
-LOG_JSON=true
-TIEMPO_REAL_MODO=redis
-```
+**Supabase no se mueve:** el contenedor solo se conecta a la base y al
+bucket privado originales. No ejecutar seeds, scripts de migración ni alta
+de superadmin durante el despliegue.
 
-Notas:
-- No pongas el `DATABASE_MIGRATIONS_URL` o credenciales de propietario de tablas en el
-  servicio web a menos que una operación administrativa separada realmente las necesite.
-  No ejecutar migraciones automáticas ni seeds sobre datos existentes.
-- `JWT_SECRETO` y `CLAVE_CIFRADO` deben mantenerse coherentes con la instalación actual
-  si se pretende conservar sesiones, TOTP y lectura de archivos. Cambiarlas sin plan
-  rompe sesiones y/o información cifrada.
-- `ACMA_ENTORNO=produccion` exige HTTPS, CORS explícito, MFA y secretos no ejemplificados.
-- `/api/salud` es un healthcheck ligero: que responda 200 **no** prueba la conexión a
-  PostgreSQL/Redis/Storage. Validar la app y el estado detallado.
-- No subir al repositorio certificados, contraseñas, service_role o claves de Supabase.
+## 2. Verificar la web ANTES de generar el APK
 
-## 3. Redis y tareas que ACMA necesita
+Abre estas direcciones usando tu dominio real:
 
-ACMA contiene chat en tiempo real, notificaciones, preventivos, cálculos diarios,
-y tareas programadas Celery. Publicar solamente FastAPI NO pone en marcha todo eso.
+- `https://TU-DOMINIO.up.railway.app/api/salud`: devuelve JSON con `estado: ok`.
+- `https://TU-DOMINIO.up.railway.app/`: abre el login React.
+- Inicia sesión y completa MFA. Prueba un módulo con lectura y guardado
+  autorizado, luego carga y descarga un archivo de Supabase Storage.
 
-Para operación completa agrega **Redis administrado** al mismo proyecto Railway
-(o un proveedor Redis externo compatible). Obtén sus URL privadas/TLS del panel del
-proveedor y configura estas variables **en la API y en los procesos Celery**:
+**Importante:** `/api/salud` solo indica que el servidor responde.
+No garantiza que Supabase, Storage, Redis ni Celery estén bien. Si falla
+login o archivos, revisar logs y variables en Railway sin publicarlas.
 
-```text
-REDIS_URL=<URL Redis para API/pubsub>
-CELERY_BROKER_URL=<URL Redis para broker de tareas>
-CELERY_RESULT_BACKEND=<URL Redis para resultados de tareas>
-TIEMPO_REAL_MODO=redis
-NOTIFICACIONES_ENVIO_INLINE=false
-```
+## 3. Generar el APK Android en Windows
 
-Luego crea dos servicios **privados** adicionales desde el mismo repo, rama y
-`Dockerfile`, usando estas órdenes de inicio (Settings → Deploy → Custom Start Command):
-
-- **Worker Celery:** `celery -A workers.celery_app worker --loglevel=info --concurrency=1`
-- **Planificador Celery Beat:** `celery -A workers.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule`
-
-Ambos comparten configuración privada de DB, cifrado y Redis. No abrir dominios públicos
-para Worker, Beat ni Redis. Mantener **una sola** réplica de Beat para evitar programación
-duplicada. El archivo temporal de Beat se recrea al reiniciar; para producción revisar
-persistencia y comportamiento de reintentos antes de activar tareas críticas.
-Activar los workers solo después de validar dependencias/colas y que las tareas tengan
-permisos de BD adecuados; la verificación de la API por sí sola no basta.
-
-## 4. Crear APK Android utilizable fuera de tu PC
-
-Una vez que la URL pública HTTPS abra ACMA y permita iniciar sesión con MFA:
+Cuando web + login + MFA funcionen desde Internet, abre CMD:
 
 ```bat
 cd /d C:\Users\camil\Downloads\acme-
 git pull --ff-only origin migracion-supabase-segura-20261115
-cd mobile_flutter
-flutter build apk --release --dart-define=ACMA_BASE_URL=https://TU_SERVICIO.up.railway.app
+GENERAR_APK_ACMA_RAILWAY.bat
 ```
 
-El archivo queda en `mobile_flutter\build\app\outputs\flutter-apk\app-release.apk`.
-Reemplazar `TU_SERVICIO.up.railway.app` por el dominio real en ambos lugares.
-Nunca usar `http://localhost:8000` ni `adb reverse` en el APK de producción.
+El archivo `.bat` solicitará **la URL HTTPS real de Railway**, por ejemplo
+`https://acma-web.up.railway.app`. No escribas `localhost` ni una URL HTTP.
 
-El APK generado para pruebas se puede instalar manualmente, pero para distribución
-formal es necesario revisar identificador de paquete, versión, icono, firma propia
-(keystore) y los permisos nativos. Probar en teléfonos reales el login/MFA,
-cámara, GPS, archivos y PDFs; no dar por verificadas funciones que aún no se probaron.
+El generador comprueba la URL, prepara permisos Android seguros en release,
+instala dependencias Flutter, aplica el logo original de ACMA y compila:
 
-## 5. Seguridad antes de abrir a usuarios reales
+`mobile_flutter\build\app\outputs\flutter-apk\app-release.apk`
 
-- Revisar log del primer despliegue; verificar Supabase/Storage y PostgreSQL desde Railway.
-- Usar `ACMA_ENTORNO=produccion`, MFA, cookies HTTPS, CORS específico y claves protegidas.
-- Rotar cualquier `SUPABASE_SECRET_KEY` que se haya compartido accidentalmente.
-- Comprobar `/api/salud/detalle` con Redis/Worker/Storage activos, antes de asumir
-  funcionamiento completo de tareas o tiempo real.
-- Probar al menos los flujos de usuarios de distintas empresas/tenants; no activar
-  cuentas de terceros hasta validar el aislamiento.
-- No ejecutar scripts de seed, bootstrap o migración de la base existente automáticamente.
-- Si el hosting reinicia, la DB y archivos persisten en Supabase, no en el disco de Railway.
+El APK corre en un **Android real** mediante Internet, sin `adb reverse` ni
+servidor local Windows. Es una WebView Flutter sobre el React original, no
+una aplicación nativa reconstruida pantalla por pantalla. Para Play Store
+se necesita identificador de paquete propio, keystore de firma permanente,
+versionado y pruebas de permisos/cámara/archivos/GPS en Android real.
 
-Documento basado en las rutas y configuración de ACMA; debe contrastarse con los
-logs del primer despliegue real.
+El **APK no se aloja como backend en Railway**: se instala en el teléfono.
+Solo requiere que ACMA Web/API permanezca accesible en el dominio HTTPS de Railway.
+
+## 4. Modo completo (etapa posterior)
+
+El arranque ligero de un servicio deja chat en modo local y no enciende tareas
+Celery programadas (preventivos, notificaciones en segundo plano, reportes).
+**No declarar ACMA completamente operativo solo con la API funcionando.**
+
+Para activar esas funciones se necesita:
+1. Redis como servicio privado;
+2. Celery Worker como servicio privado;
+3. Celery Beat (un solo programador activo), y Redis/Celery configurados en
+   todos los procesos implicados;
+4. pruebas de cada tarea, cuotas y costes de Railway.
+
+En la etapa inicial no se crean esos servicios para no gastar créditos de
+prueba sin necesidad. Se pueden activar después sin cambiar la URL del APK.
+
+## 5. Si el cliente quiere usar su dominio IONOS
+
+No requiere VPS. Una vez que Railway funcione, puedes conectar un subdominio
+como `acma.dominio-cliente.com` desde **Railway → Settings → Networking → Custom Domain**,
+y añadir en el panel DNS de IONOS los registros que Railway indique.
+Railway gestiona HTTPS. Evita cambiar el dominio principal, correo y MX.
+
+Si el APK se compila con la URL `*.up.railway.app` y después decides cambiar
+al dominio de IONOS, seguirá funcionando mientras conserve ese dominio de
+Railway. Para entregar un APK que use el dominio del cliente, recompílalo con
+el dominio HTTPS definitivo.
+
+**Estado actual:** el proyecto está preparado en GitHub, pero no hay una cuenta
+Railway conectada a esta conversación ni un despliegue público verificado.
+Revisar los logs reales antes de afirmar que está publicado.
