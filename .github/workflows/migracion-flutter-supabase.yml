@@ -3,6 +3,7 @@ name: ACMA - verificaciones sin Docker
 on:
   push:
     branches:
+      - main
       - 'migracion-supabase-*'
   pull_request:
     branches: [main]
