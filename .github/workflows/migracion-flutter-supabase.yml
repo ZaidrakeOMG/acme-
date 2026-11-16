@@ -11,6 +11,29 @@ permissions:
   contents: read
 
 jobs:
+  paridad_original:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No eliminar archivos del ACMA original
+        run: |
+          borrados="$(git diff --name-only --diff-filter=D origin/main...HEAD)"
+          if [ -n "$borrados" ]; then
+            echo "ERROR: Hay archivos originales eliminados:"
+            echo "$borrados"
+            exit 1
+          fi
+      - name: No alterar las 80 pantallas ni las 18 migraciones originales
+        run: |
+          cambios="$(git diff --name-only origin/main...HEAD -- frontend/src frontend/public backend/alembic/versions)"
+          if [ -n "$cambios" ]; then
+            echo "ERROR: Pantallas, recursos o migraciones originales fueron alterados:"
+            echo "$cambios"
+            exit 1
+          fi
+
   python:
     runs-on: ubuntu-latest
     steps:
