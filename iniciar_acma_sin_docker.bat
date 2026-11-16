@@ -23,6 +23,16 @@ if not exist "backend\.venv\Scripts\python.exe" (
   echo ERROR: falta Python 3.12 y el entorno backend\.venv.
   exit /b 1
 )
+REM Validar esquema y privilegios con la conexion PRIVADA de Supabase.
+pushd backend
+".venv\Scripts\python.exe" -m scripts.preflight_supabase
+if errorlevel 1 (
+  popd
+  echo ERROR: no se iniciara ACMA con una BD incorrecta.
+  exit /b 1
+)
+popd
+
 where npm >nul 2>nul
 if errorlevel 1 (
   echo ERROR: necesitas Node.js 22+ y npm.
