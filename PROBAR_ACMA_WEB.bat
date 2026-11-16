@@ -58,11 +58,31 @@ if not exist ".env" (
 echo.
 echo [3/5] Detectando configuracion anterior y esquema PostgreSQL...
 "backend\.venv\Scripts\python.exe" scripts\diagnosticar_env_supabase.py
-if errorlevel 1 (
+set "RESULTADO_ENV=%ERRORLEVEL%"
+if "%RESULTADO_ENV%"=="3" goto :configurar_tras_respaldo
+if not "%RESULTADO_ENV%"=="0" (
   echo [ERROR 06A] .env requiere ajustes, detallados arriba.
   echo IMPORTANTE: No borres las tablas ni copies secretos al chat.
   goto :error
 )
+goto :comprobar_supabase
+
+:configurar_tras_respaldo
+echo.
+echo [3/5] Iniciando asistente para el proyecto NUEVO de Supabase...
+"backend\.venv\Scripts\python.exe" scripts\configurar_acma_supabase.py
+if errorlevel 1 (
+  echo [ERROR 06B] El asistente se interrumpio.
+  echo Tu archivo antiguo sigue respaldado en .env.respaldo_anterior.
+  echo NO elimines .env si ya se creo; revisa el error.
+  goto :error
+)
+if not exist ".env" (
+  echo [ERROR 06C] No se pudo crear el .env nuevo.
+  goto :error
+)
+
+:comprobar_supabase
 echo.
 echo [3/5] Verificando Postgres acma_api, esquema acma y Storage...
 pushd backend
