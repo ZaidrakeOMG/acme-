@@ -1,0 +1,33 @@
+name: acma_mobile
+description: Aplicacion movil ACMA que conserva la interfaz web original durante la migracion a Flutter.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.10.0 <4.0.0'
+  flutter: '>=3.38.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: 4.14.1
+  webview_flutter_android: 4.14.1
+  url_launcher: 6.3.2
+  file_picker: 13.3.3
+  permission_handler: 12.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 6.0.0
+  flutter_launcher_icons: 0.14.4
+
+flutter:
+  uses-material-design: true
+
+# Usar el icono ORIGINAL de React: ningún emoji ni icono inventado.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: ../frontend/public/icono-512.png
+  remove_alpha_ios: true

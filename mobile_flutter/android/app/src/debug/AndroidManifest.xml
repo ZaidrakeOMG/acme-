@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exclusivo de compilaciones de depuración Flutter.
+     Android accede a http://localhost:8000 mediante adb reverse.
+     Esta excepción no se aplica a compilaciones de producción. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <application android:usesCleartextTraffic="true"/>
+</manifest>

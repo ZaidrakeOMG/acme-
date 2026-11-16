@@ -1,0 +1,334 @@
+"""Asistente de configuración LOCAL para ACMA + Supabase, sin Docker.
+
+Pide datos privados solo en la terminal del equipo del usuario, nunca por chat.
+El .env se excluye de git. No borra tablas ni ejecuta las migraciones.
+Crea una contraseña para el rol SQL acma_api y después inicializa la cuenta
+superadmin con el seed de PRODUCCIÓN original y su password temporal única.
+"""
+from __future__ import annotations
+
+import asyncio
+import base64
+import getpass
+import os
+from pathlib import Path
+import re
+import secrets
+import subprocess
+import sys
+from urllib.parse import quote, urlencode, urlsplit, urlunsplit, parse_qsl
+
+ROOT = Path(__file__).resolve().parents[1]
+ENV = ROOT / ".env"
+# Archivo temporal LOCAL e ignorado por Git; se borra tras crear el .env final.
+CLAVE_TEMPORAL = ROOT / ".env.supabase_clave_local"
+
+# Identificador público del proyecto ACMA confirmado por el usuario.
+# Nunca incluir ni guardar claves secretas en el repositorio.
+PROYECTO_ACMA_URL = "https://mrtmwmqzueqamzfveyev.supabase.co"
+
+
+def referencia_proyecto(url: str) -> str:
+    partes = urlsplit(url.rstrip("/"))
+    if partes.scheme != "https" or not partes.hostname:
+        raise ValueError("La URL pública de Supabase debe usar https.")
+    match = re.fullmatch(r"([a-z0-9]{8,32})\.supabase\.co", partes.hostname)
+    if not match or partes.path not in {"", "/"}:
+        raise ValueError("Copia la URL exacta https://TU-REF.supabase.co.")
+    return match.group(1)
+
+
+def validar_dsn_privilegiado(dsn: str, ref: str) -> tuple[object, bool]:
+    """Admite solo conexión directa o Session pooler del proyecto indicado."""
+    p = urlsplit(dsn)
+    if p.scheme not in {"postgres", "postgresql"} or not p.hostname:
+        raise ValueError("Copia la cadena PostgreSQL desde Supabase > Connect.")
+    if p.username is None or p.password is None or p.password.startswith("["):
+        raise ValueError("La cadena debe incluir la contraseña real de PostgreSQL.")
+    if p.port != 5432 or p.path != "/postgres":
+        raise ValueError("Se requiere puerto 5432 y base postgres (no Transaction pooler 6543).")
+    directo = p.hostname == f"db.{ref}.supabase.co"
+    pooler = p.hostname.endswith(".pooler.supabase.com")
+    if directo and p.username != "postgres":
+        raise ValueError("Para conexión directa el usuario debe ser postgres.")
+    if pooler and p.username != f"postgres.{ref}":
+        raise ValueError("En Session pooler el usuario debe ser postgres.REF.")
+    if not directo and not pooler:
+        raise ValueError("El host PostgreSQL no corresponde a Supabase.")
+    return p, pooler
+
+
+def dsn_para_acma(partes, ref: str, pooler: bool, contrasena: str) -> str:
+    """Construye DSN para SQLAlchemy/asyncpg con rol de mínimo privilegio."""
+    usuario = f"acma_api.{ref}" if pooler else "acma_api"
+    host = partes.hostname
+    parametros = dict(parse_qsl(partes.query, keep_blank_values=True))
+    parametros.pop("sslmode", None)
+    parametros["ssl"] = "require"
+    return urlunsplit((
+        "postgresql+asyncpg",
+        f"{usuario}:{quote(contrasena, safe='')}@{host}:5432",
+        "/postgres",
+        urlencode(parametros),
+        "",
+    ))
+
+
+
+def solicitar_clave_secreta() -> str:
+    """Reutiliza una clave recibida en esta PC si falla después el instalador.
+
+    Jamás se almacena en GitHub, frontend o consola. Al crear .env se retira
+    el archivo temporal; la clave permanece solo en el .env privado local.
+    """
+    if CLAVE_TEMPORAL.exists():
+        valor = CLAVE_TEMPORAL.read_text(encoding="utf-8").strip()
+        if valor.startswith("sb_secret_"):
+            print("Secret API key ya guardada LOCALMENTE. No es necesario pegarla otra vez.")
+            return valor
+        print("La clave local guardada no tiene el formato sb_secret_.")
+        CLAVE_TEMPORAL.unlink(missing_ok=True)
+
+    print("\nPara conectar Supabase Storage necesitas una Secret API key sb_secret_.")
+    print("Al pegar en CMD, no aparecen letras ni asteriscos. Pega y pulsa ENTER.")
+    for intento in range(1, 4):
+        valor = getpass.getpass("Secret API key (oculta): ").strip()
+        if not valor:
+            print(f"[{intento}/3] Entrada vacía; comprueba que la copiaste.")
+            continue
+        if not valor.startswith("sb_secret_"):
+            print(f"[{intento}/3] Debe comenzar con sb_secret_, no sb_publishable_.")
+            continue
+        try:
+            with CLAVE_TEMPORAL.open("x", encoding="utf-8") as archivo:
+                archivo.write(valor + "\n")
+            try:
+                os.chmod(CLAVE_TEMPORAL, 0o600)
+            except OSError:
+                pass
+            print("Clave recibida y guardada localmente para continuar sin repetirla.")
+        except OSError:
+            print("Clave recibida; no se pudo guardar temporalmente en disco.")
+        return valor
+
+    raise ValueError("No se recibió una Secret API key válida tras 3 intentos.")
+
+
+def _headers_storage(key: str) -> dict[str, str]:
+    """sb_secret es opaca, se envía SOLO en apikey; JWT legacy sí es Bearer."""
+    if key.startswith(("sb_secret_", "sb_publishable_")):
+        return {"apikey": key}
+    return {"apikey": key, "Authorization": f"Bearer {key}"}
+
+
+def _codigo_error_storage(respuesta) -> str:
+    """Devuelve exclusivamente el código del servidor, sin imprimir secretos."""
+    try:
+        dato = respuesta.json()
+        codigo = str(dato.get("code") or dato.get("error") or "")
+    except (ValueError, AttributeError):
+        codigo = ""
+    return codigo if re.fullmatch(r"[A-Za-z0-9_ -]{1,80}", codigo) else "sin_codigo"
+
+
+def comprobar_bucket(project_url: str, key: str) -> None:
+    """Valida Storage y crea únicamente el bucket privado acma si falta."""
+    import httpx
+
+    base = project_url.rstrip("/") + "/storage/v1"
+    headers = _headers_storage(key)
+    with httpx.Client(timeout=20) as client:
+        r = client.get(base + "/bucket/acma", headers=headers)
+        codigo = _codigo_error_storage(r)
+        faltante = (
+            r.status_code == 404
+            or (r.status_code == 400 and codigo in {
+                "NoSuchBucket", "BucketNotFound", "not_found",
+            })
+        )
+        if faltante:
+            print("Storage ACMA no existe. Creando bucket PRIVADO automáticamente...")
+            creado = client.post(
+                base + "/bucket",
+                headers=headers,
+                json={"id": "acma", "name": "acma", "public": False},
+            )
+            if creado.status_code not in (200, 201, 409):
+                raise RuntimeError(
+                    f"Supabase no pudo crear bucket acma: HTTP {creado.status_code} "
+                    f"({_codigo_error_storage(creado)})."
+                )
+            r = client.get(base + "/bucket/acma", headers=headers)
+        if not r.is_success:
+            if r.status_code in (400, 401, 403):
+                raise RuntimeError(
+                    f"Supabase Storage rechazó la autenticación/petición: "
+                    f"HTTP {r.status_code} ({_codigo_error_storage(r)}). "
+                    "Revisa la Secret API key del proyecto ACMA; "
+                    "la clave de PostgreSQL es diferente."
+                )
+            raise RuntimeError(
+                f"Error comprobando el bucket privado acma: HTTP {r.status_code} "
+                f"({_codigo_error_storage(r)})."
+            )
+        try:
+            b = r.json()
+        except ValueError as exc:
+            raise RuntimeError("Supabase Storage respondió sin metadatos JSON.") from exc
+        if b.get("id", "acma") != "acma" or b.get("public") is not False:
+            raise RuntimeError("El bucket acma debe existir y ser PRIVADO.")
+
+
+async def clave_rol_api(dsn_postgres: str, ref: str) -> tuple[str, bool]:
+    import asyncpg
+
+    partes, pooler = validar_dsn_privilegiado(dsn_postgres, ref)
+    conexion = await asyncpg.connect(dsn=dsn_postgres, ssl="require", timeout=25)
+    try:
+        if await conexion.fetchval("SELECT current_user") != "postgres":
+            raise RuntimeError("La conexión de administración debe usar el rol postgres.")
+        revision = await conexion.fetchval("SELECT version_num FROM acma.alembic_version")
+        if revision != "0018":
+            raise RuntimeError("ACMA no tiene Alembic 0018. No se tocará ningún rol.")
+        tablas = await conexion.fetchval("""
+            SELECT count(*) FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'acma' AND c.relkind IN ('r', 'p')
+        """)
+        if tablas < 181:
+            raise RuntimeError("Faltan tablas en ACMA. No se tocará ningún rol.")
+        rol = await conexion.fetchrow(
+            "SELECT rolcanlogin, rolbypassrls FROM pg_roles WHERE rolname='acma_api'"
+        )
+        if not rol or not rol["rolcanlogin"] or rol["rolbypassrls"]:
+            raise RuntimeError("acma_api no tiene el perfil de acceso seguro esperado.")
+        # Generación local y escape SQL realizado por el propio PostgreSQL.
+        # Nunca interpolamos texto aportado por el usuario a SQL privilegiado.
+        contrasena = secrets.token_urlsafe(36)
+        literal = await conexion.fetchval("SELECT quote_literal($1::text)", contrasena)
+        await conexion.execute(f"ALTER ROLE acma_api WITH PASSWORD {literal}")
+        return contrasena, pooler
+    finally:
+        await conexion.close()
+
+
+def escribir_env(dsn: str, project_url: str, secret_key: str) -> None:
+    if ENV.exists():
+        raise FileExistsError(
+            "Ya existe .env. No lo sobrescribo: haz una copia segura si necesitas reconfigurar."
+        )
+    jwt = secrets.token_urlsafe(48)
+    aes = base64.b64encode(os.urandom(32)).decode("ascii")
+    variables = [
+        "# ACMA: PRUEBA WEB con Supabase (secretos locales, nunca subir a GitHub)",
+        "ACMA_ENTORNO=pruebas",
+        "DB_SCHEMA=acma",
+        f"DATABASE_URL={dsn}",
+        "DATABASE_MIGRATIONS_URL=",
+        "DATABASE_READ_URL=",
+        f"SUPABASE_URL={project_url}",
+        f"SUPABASE_SECRET_KEY={secret_key}",
+        "SUPABASE_BUCKET=acma",
+        "ALMACENAMIENTO_MODO=supabase",
+        f"JWT_SECRETO={jwt}",
+        f"CLAVE_CIFRADO={aes}",
+        "MFA_OBLIGATORIO=true",
+        "APP_URL_PUBLICA=http://localhost:8000",
+        "CORS_ORIGENES=http://localhost:8000,http://127.0.0.1:8000",
+        "DB_POOL_SIZE=3",
+        "DB_POOL_OVERFLOW=1",
+        "DB_POOL_TIMEOUT=15",
+        "# Primera prueba: sin Redis/Celery; no operan tareas periódicas hasta configurar worker/beat.",
+        "TIEMPO_REAL_MODO=local",
+        "NOTIFICACIONES_ENVIO_INLINE=true",
+        "WHATSAPP_MODO=stub",
+        "SMS_MODO=stub",
+        "RUTAS_MOTOR_TRANSPORTE=en_proceso",
+    ]
+    # Exclusive create: no pisar otra instalación. UTF-8 sin BOM.
+    with ENV.open("x", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(variables) + "\n")
+
+
+def ejecutar_script(modulo: str, *args: str) -> None:
+    resultado = subprocess.run(
+        [sys.executable, "-m", modulo, *args], cwd=ROOT / "backend", check=False
+    )
+    if resultado.returncode:
+        raise RuntimeError(
+            f"El paso {modulo} falló con código {resultado.returncode}. "
+            "Revisa la salida de tu consola; no compartas archivos .env."
+        )
+
+
+def main() -> None:
+    print("\nACMA - Configuración segura de WEB + Supabase\n")
+    if ENV.exists():
+        raise FileExistsError("Ya existe .env. No modificaré sus credenciales.")
+    print("Proyecto ACMA: " + PROYECTO_ACMA_URL)
+    project_url = PROYECTO_ACMA_URL
+    # La URL de /rest/v1/ no es la conexión de PostgreSQL.
+    # Para los archivos se usa únicamente la URL HTTPS raíz del proyecto.
+    ref = referencia_proyecto(project_url)
+    print(
+        "Antes de continuar, ejecuta docs/01_CREAR_BUCKET_PRIVADO_ACMA.sql\n"
+        "La clave 'secret' solo se escribe aquí y queda en tu .env local."
+    )
+    key = solicitar_clave_secreta()
+    try:
+        comprobar_bucket(project_url, key)
+    except RuntimeError as error:
+        # No reutilizar indefinidamente una clave caducada o revocada.
+        texto = str(error)
+        if ("HTTP 401" in texto or "HTTP 403" in texto
+                or "InvalidJWT" in texto or "InvalidKey" in texto):
+            CLAVE_TEMPORAL.unlink(missing_ok=True)
+            print("La clave local fue descartada: copia una nueva Secret API key.")
+        raise
+    print("Bucket acma privado: verificado.")
+    print(
+        "\nEn Supabase > Connect selecciona 'Session pooler' puerto 5432"
+        " si tu PC no usa IPv6. Copia la cadena como usuario postgres"
+        " y reemplaza el marcador por la contraseña de PostgreSQL."
+    )
+    dsn_postgres = getpass.getpass("Cadena PostgreSQL del botón Connect (oculta): ").strip()
+    # Supabase copia normalmente una cadena con [YOUR-PASSWORD].
+    # Solicitar la clave por separado evita errores si contiene @, #, / o :.
+    if "[YOUR-PASSWORD]" in dsn_postgres:
+        clave_postgres = getpass.getpass("Contraseña PostgreSQL de Supabase (oculta): ")
+        if not clave_postgres:
+            raise ValueError("La contraseña de PostgreSQL está vacía")
+        dsn_postgres = dsn_postgres.replace(
+            "[YOUR-PASSWORD]", quote(clave_postgres, safe="")
+        )
+    partes, pooler = validar_dsn_privilegiado(dsn_postgres, ref)
+    print("Se preparará el rol SQL acma_api y se creará un .env PRIVADO en tu equipo.")
+    if input("Escribe CONFIGURAR para continuar: ").strip() != "CONFIGURAR":
+        print("Cancelado. No hubo cambios.")
+        return
+    pwd, pooler = asyncio.run(clave_rol_api(dsn_postgres, ref))
+    dsn = dsn_para_acma(partes, ref, pooler, pwd)
+    # Guardar de inmediato la clave, antes de probar el acceso, para poder
+    # recuperar la instalación incluso si la red falla tras ALTER ROLE.
+    escribir_env(dsn, project_url, key)
+    CLAVE_TEMPORAL.unlink(missing_ok=True)
+    print("\n.env local creado. Las credenciales de postgres NO se guardaron.")
+    ejecutar_script("scripts.preflight_supabase")
+    print("\nCuenta superadmin inicial de ACMA (sin datos de demostración).")
+    email = input("Tu correo real para entrar como administrador: ").strip().lower()
+    nombre = input("Nombre para el administrador: ").strip()
+    if not email or not nombre:
+        raise ValueError("Correo y nombre requeridos. Puedes ejecutar seed_produccion después.")
+    ejecutar_script("scripts.seed_produccion", "--email", email, "--nombre", nombre)
+    print("\nConfiguración web lista. Volviendo al lanzador PROBAR_ACMA_WEB.bat.")
+    print("Guarda la contraseña temporal que apareció UNA sola vez en consola.")
+    input("Pulsa ENTER después de guardar la contraseña temporal en un lugar seguro... ")
+    print("Para producción configura Redis, Celery, HTTPS y pruebas móviles.")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (Exception, KeyboardInterrupt) as error:
+        print(f"\nConfiguración detenida: {error}", file=sys.stderr)
+        sys.exit(1)

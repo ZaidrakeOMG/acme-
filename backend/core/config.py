@@ -26,6 +26,8 @@ class Configuracion(BaseSettings):
     acma_entorno: str = "desarrollo"
 
     database_url: str
+    # La instalación Supabase usa el esquema privado acma; Docker original usa public.
+    db_schema: str = "public"
     database_read_url: str = ""
     database_migrations_url: str = ""
     test_database_url: str = ""
@@ -35,12 +37,16 @@ class Configuracion(BaseSettings):
     celery_broker_url: str = "redis://localhost:6389/1"
     celery_result_backend: str = "redis://localhost:6389/2"
 
-    almacenamiento_modo: str = "minio"
+    almacenamiento_modo: str = "minio"  # minio | memoria | supabase
     minio_endpoint: str = "localhost:9010"
     minio_root_user: str = ""
     minio_root_password: str = ""
     minio_bucket: str = "acma"
     minio_seguro: bool = False
+    # Solo el backend usa la clave secreta: jamás se incluye en React/Flutter.
+    supabase_url: str = ""
+    supabase_secret_key: str = ""
+    supabase_bucket: str = "acma"
 
     jwt_secreto: str = Field(min_length=32)
     jwt_algoritmo: str = "HS256"
@@ -121,6 +127,13 @@ class Configuracion(BaseSettings):
     mensajeria_ventana_libre_horas: int = 24
     mensajeria_max_por_minuto: int = 60  # límite de tasa por proveedor y por tenant
 
+    @field_validator("db_schema")
+    @classmethod
+    def _esquema_valido(cls, valor: str) -> str:
+        if valor not in {"public", "acma"}:
+            raise ValueError("DB_SCHEMA debe ser public o acma")
+        return valor
+
     @field_validator("acma_entorno")
     @classmethod
     def _entorno_valido(cls, v: str) -> str:
@@ -148,6 +161,8 @@ class Configuracion(BaseSettings):
                                  "(scripts/generar_secretos.py), no la del .env.example")
             if self.almacenamiento_modo == "minio" and not (self.minio_root_user and self.minio_root_password):
                 raise ValueError("MinIO en produccion exige MINIO_ROOT_USER y MINIO_ROOT_PASSWORD")
+            if self.almacenamiento_modo == "supabase" and (not self.supabase_url.startswith("https://") or not self.supabase_secret_key or not self.supabase_bucket):
+                raise ValueError("Storage Supabase requiere URL HTTPS, secret key y bucket privado")
             if not self.app_url_publica.startswith("https://"):
                 raise ValueError("APP_URL_PUBLICA debe ser https en produccion (las cookies de sesion son Secure)")
         return self

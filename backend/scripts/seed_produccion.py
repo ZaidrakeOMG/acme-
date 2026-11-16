@@ -48,8 +48,20 @@ FAMILIAS_EJEMPLO = {
 
 def contrasena_temporal() -> str:
     """Cumple la política de §6.9.5 (10+, mayúscula, minúscula, número y símbolo) y se cambia al primer acceso."""
-    alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
-    return "".join(secrets.choice(alfabeto) for _ in range(14)) + secrets.choice("!#$%&*+?")
+    grupos = [
+        "ABCDEFGHJKLMNPQRSTUVWXYZ",
+        "abcdefghijkmnopqrstuvwxyz",
+        "23456789",
+        "!#$%&*+?",
+    ]
+    alfabeto = "".join(grupos)
+    # Una letra de CADA clase: el generador previo podía omitir los números
+    # por azar y producir contraseñas rechazadas en el primer cambio.
+    caracteres = [secrets.choice(grupo) for grupo in grupos]
+    caracteres += [secrets.choice(alfabeto) for _ in range(20)]
+    # secrets.SystemRandom asegura una mezcla criptográficamente segura.
+    secrets.SystemRandom().shuffle(caracteres)
+    return "".join(caracteres)
 
 
 async def crear_superadmin(db, email: str, nombre: str) -> str | None:

@@ -1,0 +1,105 @@
+name: ACMA - verificaciones sin Docker
+
+on:
+  push:
+    branches:
+      - main
+      - 'migracion-supabase-*'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  paridad_original:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No eliminar archivos del ACMA original
+        run: |
+          borrados="$(git diff --name-only --diff-filter=D origin/main...HEAD)"
+          if [ -n "$borrados" ]; then
+            echo "ERROR: Hay archivos originales eliminados:"
+            echo "$borrados"
+            exit 1
+          fi
+      - name: No alterar las 80 pantallas ni las 18 migraciones originales
+        run: |
+          cambios="$(git diff --name-only origin/main...HEAD -- frontend/src frontend/public backend/alembic/versions)"
+          if [ -n "$cambios" ]; then
+            echo "ERROR: Pantallas, recursos o migraciones originales fueron alterados:"
+            echo "$cambios"
+            exit 1
+          fi
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar dependencias mínimas para pruebas sin DB
+        run: python -m pip install 'fastapi>=0.115,<1' 'httpx>=0.28' 'starlette>=0.41'
+      - name: Sintaxis de nuevas integraciones
+        run: python -m compileall -q backend/core/frontend_integrado.py backend/core/esquema_postgresql.py backend/services/almacenamiento_supabase.py backend/scripts/bootstrap_superadmin.py backend/scripts/preflight_supabase.py backend/scripts/seed_produccion.py backend/scripts/crear_superadmin_zaid.py scripts/configurar_acma_supabase.py scripts/crear_admin_acma.py scripts/diagnosticar_env_supabase.py scripts/test_diagnosticar_env_supabase.py scripts/test_configurar_acma_supabase.py scripts/test_migracion_sin_db.py
+      - name: Smoke test sin Docker ni conexiones reales
+        run: python scripts/test_migracion_sin_db.py
+      - name: Pruebas de asistente Supabase sin conexión
+        run: python scripts/test_configurar_acma_supabase.py
+      - name: Pruebas de recuperación de .env sin secretos
+        run: python scripts/test_diagnosticar_env_supabase.py
+      - name: Verificar alta de superadmin sin contraseñas en Git
+        run: python scripts/test_crear_superadmin_zaid_offline.py
+      - name: Probar lanzador Windows Android y permisos solo debug
+        run: python scripts/test_iniciar_flutter_acma.py
+      - name: Probar manifest de produccion y dominios HTTPS para IONOS
+        run: python scripts/test_preparar_flutter_release_acma.py
+      - name: Validar arranque Railway y dominio automatico
+        run: python scripts/test_railway_start.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar dependencias React
+        working-directory: frontend
+        run: npm ci
+      - name: Compilar React original
+        working-directory: frontend
+        run: npm run build
+      - name: Pruebas unitarias React
+        working-directory: frontend
+        run: npm test
+
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generar plataformas faltantes
+        working-directory: mobile_flutter
+        run: flutter create --platforms=android,ios --project-name acma_mobile .
+      - name: Instalar dependencias
+        working-directory: mobile_flutter
+        run: flutter pub get
+      - name: Icono ACMA original para Android e iOS
+        working-directory: mobile_flutter
+        run: dart run flutter_launcher_icons
+      - name: Analisis Flutter
+        working-directory: mobile_flutter
+        run: flutter analyze
+      - name: Tests Flutter
+        working-directory: mobile_flutter
+        run: flutter test

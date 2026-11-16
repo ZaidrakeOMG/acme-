@@ -75,5 +75,18 @@ def dueno_de(tenant_id=None, prestador_id=None) -> str | None:
 
 @lru_cache
 def obtener_almacenamiento() -> Almacenamiento:
-    backend = AlmacenamientoMemoria() if config.almacenamiento_modo == "memoria" else AlmacenamientoMinio()
+    if config.almacenamiento_modo == "memoria":
+        backend = AlmacenamientoMemoria()
+    elif config.almacenamiento_modo == "minio":
+        backend = AlmacenamientoMinio()
+    elif config.almacenamiento_modo == "supabase":
+        from services.almacenamiento_supabase import AlmacenamientoSupabase
+
+        backend = AlmacenamientoSupabase(
+            url=config.supabase_url,
+            key=config.supabase_secret_key,
+            bucket=config.supabase_bucket,
+        )
+    else:
+        raise ValueError(f"ALMACENAMIENTO_MODO desconocido: {config.almacenamiento_modo}")
     return AlmacenamientoCifrado(backend)

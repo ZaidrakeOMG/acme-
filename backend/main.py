@@ -75,3 +75,8 @@ async def salud_detalle(respuesta: Response) -> dict:
     if estado["estado"] != "ok":
         respuesta.status_code = 503
     return {**estado, "entorno": config.acma_entorno, "version": app.version}
+
+# El frontend compilado se sirve desde este mismo proceso cuando existe frontend/dist.
+# Se registra al final para conservar la prioridad de /api, /ws y la documentación.
+from core.frontend_integrado import instalar_frontend
+instalar_frontend(app)

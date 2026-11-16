@@ -1,0 +1,145 @@
+# ACMA en IONOS: requiere VPS Linux o servidor Cloud con Docker, NO hosting compartido.
+# Inicio mínimo (Web + API + Android por HTTPS):
+#   docker compose --env-file .env -f deploy/ionos/compose.yml up -d --build
+# Para Redis + Celery Worker + Celery Beat, si el VPS tiene recursos suficientes:
+#   fijar TIEMPO_REAL_MODO=redis en .env y utilizar --profile completo.
+# Los secretos se guardan ÚNICAMENTE en el .env privado del VPS.
+name: acma-ionos
+
+services:
+  api:
+    image: acma-ionos:local
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      PORT: "8000"
+      ACMA_ENTORNO: produccion
+      DB_SCHEMA: acma
+      ALMACENAMIENTO_MODO: supabase
+      SUPABASE_BUCKET: acma
+      MFA_OBLIGATORIO: "true"
+      APP_URL_PUBLICA: "https://${ACMA_DOMINIO:?Define ACMA_DOMINIO en .env}"
+      CORS_ORIGENES: "https://${ACMA_DOMINIO:?Define ACMA_DOMINIO en .env}"
+      UVICORN_WORKERS: "1"
+      DB_POOL_SIZE: "3"
+      DB_POOL_OVERFLOW: "2"
+      LOG_JSON: "true"
+      TIEMPO_REAL_MODO: "${TIEMPO_REAL_MODO:-local}"
+      NOTIFICACIONES_ENVIO_INLINE: "false"
+      REDIS_URL: "redis://redis:6379/0"
+      CELERY_BROKER_URL: "redis://redis:6379/1"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/2"
+      RUTAS_MOTOR_TRANSPORTE: en_proceso
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/salud', timeout=4)"
+      interval: 30s
+      timeout: 6s
+      start_period: 90s
+      retries: 3
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    environment:
+      ACMA_DOMINIO: "${ACMA_DOMINIO:?Define ACMA_DOMINIO en .env}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # Opcional: perfiles completos para tareas y notificaciones automáticas.
+  # Mismo VPS, sin servicios externos de pago adicionales.
+  redis:
+    profiles: ["completo"]
+    image: redis:7.4.9-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  celery-worker:
+    profiles: ["completo"]
+    image: acma-ionos:local
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      ACMA_ENTORNO: produccion
+      DB_SCHEMA: acma
+      ALMACENAMIENTO_MODO: supabase
+      SUPABASE_BUCKET: acma
+      MFA_OBLIGATORIO: "true"
+      APP_URL_PUBLICA: "https://${ACMA_DOMINIO:?Define ACMA_DOMINIO en .env}"
+      CORS_ORIGENES: "https://${ACMA_DOMINIO:?Define ACMA_DOMINIO en .env}"
+      DB_POOL_SIZE: "2"
+      DB_POOL_OVERFLOW: "1"
+      REDIS_URL: "redis://redis:6379/0"
+      CELERY_BROKER_URL: "redis://redis:6379/1"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/2"
+      TIEMPO_REAL_MODO: redis
+      LOG_JSON: "true"
+    command: ["celery", "-A", "workers.celery_app", "worker", "--loglevel=info", "--concurrency=1"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+  celery-beat:
+    profiles: ["completo"]
+    image: acma-ionos:local
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      ACMA_ENTORNO: produccion
+      DB_SCHEMA: acma
+      ALMACENAMIENTO_MODO: supabase
+      SUPABASE_BUCKET: acma
+      MFA_OBLIGATORIO: "true"
+      APP_URL_PUBLICA: "https://${ACMA_DOMINIO:?Define ACMA_DOMINIO en .env}"
+      CORS_ORIGENES: "https://${ACMA_DOMINIO:?Define ACMA_DOMINIO en .env}"
+      DB_POOL_SIZE: "2"
+      DB_POOL_OVERFLOW: "1"
+      REDIS_URL: "redis://redis:6379/0"
+      CELERY_BROKER_URL: "redis://redis:6379/1"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/2"
+      TIEMPO_REAL_MODO: redis
+      LOG_JSON: "true"
+    command: ["celery", "-A", "workers.celery_app", "beat", "--loglevel=info", "--schedule=/var/lib/acma/celerybeat-schedule"]
+    volumes:
+      - celerybeat_data:/var/lib/acma
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:
+  redis_data:
+  celerybeat_data:

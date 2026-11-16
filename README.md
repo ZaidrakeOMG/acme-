@@ -1,5 +1,18 @@
 # ACMA — Sistema Integral de Gestión de Mantenimiento
 
+> **Nueva rama de pruebas Supabase sin Docker**: para probar primero la **web original React + FastAPI**
+> con la base Supabase en el esquema privado acma, leer
+> [docs/PRIMERA_PRUEBA_WEB_SUPABASE.md](docs/PRIMERA_PRUEBA_WEB_SUPABASE.md).
+> El proceso es: crear el bucket privado con
+> [docs/01_CREAR_BUCKET_PRIVADO_ACMA.sql](docs/01_CREAR_BUCKET_PRIVADO_ACMA.sql),
+> instalar Python 3.12 + Node.js 22+, ejecutar **PROBAR_ACMA_WEB.bat** desde Windows.
+> El asistente local configura PostgreSQL como acma_api, JWT, cifrado, Storage y el primer
+> superadmin con contraseña temporal aleatoria. No sube secretos ni datos de demostración.
+> Si se interrumpe el alta del usuario, ejecutar **CREAR_ADMIN_ACMA.bat**.
+> **Este modo no inicia Redis/Celery**, por lo que no valida tareas automáticas;
+> para todo el sistema usar infraestructura remota y el lanzador completo.
+> Las instrucciones Docker de abajo son exclusivamente del despliegue ORIGINAL.
+
 Plataforma SaaS multitenant que conecta empresas con múltiples unidades de negocio (tenants) con sus prestadores
 de servicio de mantenimiento. Referencia obligatoria: `ACMA_Documento_Diseno_v2.5.docx`. Alcance por fases:
 `ACMA_Alcance_Fases_v1.0.docx`. Estado del proyecto: [`CONTEXTO.md`](CONTEXTO.md). Registro de trabajo: [`BITACORA.md`](BITACORA.md).
@@ -332,3 +345,13 @@ Pasos completos para un servidor nuevo, actualización y reversión:
   a abrirlo. No uses "Reset to factory defaults": borra los volúmenes de todos los proyectos.
 - **`DLL load failed … Control de aplicaciones`** al importar asyncpg: el Control de aplicaciones de Windows bloquea asyncpg
   0.32. `requirements.txt` fija la 0.31.0.
+
+## Migración opcional sin Docker y Android/iPhone
+
+Se trabaja **sin reemplazar este sistema** en la rama de desarrollo `migracion-supabase-segura-20261115`. El React original permanece intacto y el build puede ser servido por FastAPI. La base móvil Flutter conserva temporalmente la UI React mediante WebView mientras se verifica paridad pantalla por pantalla; todavía NO es una conversión nativa completa ni un despliegue validado en Supabase.
+
+- [Alcance y reglas de preservación de funciones](docs/migracion_supabase_flutter.md)
+- [Proyecto Flutter Android/iOS y manual](mobile_flutter/README.md)
+- `iniciar_acma_sin_docker.bat` solo funciona una vez migradas y configuradas las dependencias remotas de ACMA.
+
+**Nunca conectar a la nube usando credenciales de otra aplicación; no subir claves a Git.**
