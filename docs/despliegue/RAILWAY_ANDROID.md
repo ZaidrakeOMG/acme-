@@ -2,7 +2,7 @@
 
 **Objetivo:** una única URL HTTPS de Railway para la **web React**, el **backend FastAPI** y el **APK Flutter WebView Android**. Los datos continúan en el Supabase actual de ACMA: **no se migran ni se borran tablas, usuarios, MFA ni archivos**.
 
-El código de la rama `migracion-supabase-segura-20261115` ya contiene:
+El código de la rama `main` ya contiene:
 
 - `Dockerfile` en la raíz: construye React y FastAPI en un contenedor.
 - `backend/railway_start.py`: detecta `RAILWAY_PUBLIC_DOMAIN` y establece el origen HTTPS correcto para cookies y CORS. **No debe incluir claves secretas en el APK.**
@@ -15,7 +15,7 @@ El código de la rama `migracion-supabase-segura-20261115` ya contiene:
 2. Haz clic en **New Project → Deploy from GitHub Repo**.
 3. Autoriza el repositorio **`ZaidrakeOMG/acme-`** si Railway aún no puede verlo.
 4. Selecciona el repositorio; al crear el servicio, usa la rama
-   **`migracion-supabase-segura-20261115`**, NO la rama main.
+   **`main`**, que ya integra el código preparado para Railway.
    Si Railway comienza a desplegar main automáticamente, entra en
    **servicio → Settings → Source → Branch** y cámbiala ANTES de publicar.
 5. Deja **Root Directory** vacía (raíz del repo). Railway detectará el
@@ -81,7 +81,7 @@ Cuando web + login + MFA funcionen desde Internet, abre CMD:
 
 ```bat
 cd /d C:\Users\camil\Downloads\acme-
-git pull --ff-only origin migracion-supabase-segura-20261115
+git pull --ff-only origin main
 GENERAR_APK_ACMA_RAILWAY.bat
 ```
 
