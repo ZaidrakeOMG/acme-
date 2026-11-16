@@ -1,0 +1,45 @@
+name: ACMA - validar contenedor web para Railway
+
+on:
+  push:
+    branches:
+      - 'migracion-supabase-*'
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'frontend/**'
+      - 'backend/**'
+      - '.github/workflows/ci-contenedor-railway.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contenedor_acma:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Clonar codigo
+        uses: actions/checkout@v4
+      - name: Habilitar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Compilar React y FastAPI en Docker, sin secretos
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: acma-railway:test
+      - name: Verificar que la imagen contenga React y FastAPI
+        run: |
+          docker run --rm --entrypoint sh acma-railway:test -ec '
+            test -f /app/frontend/dist/index.html
+            test -f /app/backend/main.py
+            test -f /app/backend/core/frontend_integrado.py
+            command -v uvicorn
+            ! test -f /app/.env
+            ! test -f /app/backend/.env
+            echo "Imagen ACMA lista: React + FastAPI, sin .env"
+          '
