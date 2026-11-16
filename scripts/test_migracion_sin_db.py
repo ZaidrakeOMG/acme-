@@ -52,6 +52,18 @@ class SmokeSinBase(unittest.TestCase):
             self.assertEqual(cliente.get("/assets/no-existe.js").status_code, 404)
             self.assertEqual(cliente.get("/assets/app.js").status_code, 200)
 
+    def test_storage_rechaza_bucket_publico(self):
+        def responder(_peticion):
+            return httpx.Response(200, json={"id": "acma", "public": True})
+
+        storage = AlmacenamientoSupabase(
+            url="https://supabase-prueba.example.com",
+            key="secret_test_servidor", bucket="acma",
+            transport=httpx.MockTransport(responder),
+        )
+        with self.assertRaises(RuntimeError):
+            storage.comprobar()
+
     def test_supabase_privado_lectura_escritura_y_bucket(self):
         solicitudes = []
 
@@ -60,7 +72,7 @@ class SmokeSinBase(unittest.TestCase):
             if peticion.method == "POST":
                 return httpx.Response(200, json={"Key": "pruebas/folio.jpg"})
             if peticion.url.path.startswith("/storage/v1/bucket/"):
-                return httpx.Response(200, json={"name": "acma"})
+                return httpx.Response(200, json={"id": "acma", "name": "acma", "public": False})
             return httpx.Response(200, content=b"contenido_cifrado")
 
         storage = AlmacenamientoSupabase(
