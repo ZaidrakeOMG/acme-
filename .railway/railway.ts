@@ -7,7 +7,7 @@ import { defineRailway, github, preserve, project, service } from "railway/iac";
 export default defineRailway(() => {
   const acmaWeb = service("acma-web", {
     source: github("ZaidrakeOMG/acme-", {
-      branch: "migracion-supabase-segura-20261115",
+      branch: "main",
     }),
     healthcheck: "/api/salud",
     healthcheckTimeout: 300,
