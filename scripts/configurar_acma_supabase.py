@@ -188,7 +188,16 @@ def main() -> None:
         " si tu PC no usa IPv6. Copia la cadena como usuario postgres"
         " y reemplaza el marcador por la contraseña de PostgreSQL."
     )
-    dsn_postgres = getpass.getpass("Cadena PostgreSQL de administración (oculta): ").strip()
+    dsn_postgres = getpass.getpass("Cadena PostgreSQL del botón Connect (oculta): ").strip()
+    # Supabase copia normalmente una cadena con [YOUR-PASSWORD].
+    # Solicitar la clave por separado evita errores si contiene @, #, / o :.
+    if "[YOUR-PASSWORD]" in dsn_postgres:
+        clave_postgres = getpass.getpass("Contraseña PostgreSQL de Supabase (oculta): ")
+        if not clave_postgres:
+            raise ValueError("La contraseña de PostgreSQL está vacía")
+        dsn_postgres = dsn_postgres.replace(
+            "[YOUR-PASSWORD]", quote(clave_postgres, safe="")
+        )
     partes, pooler = validar_dsn_privilegiado(dsn_postgres, ref)
     print("Solo cambiaré la contraseña SQL de acma_api y crearé .env local.")
     if input("Escribe CONFIGURAR para continuar: ").strip() != "CONFIGURAR":
