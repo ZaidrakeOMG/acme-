@@ -31,7 +31,7 @@ if exist "backend\.venv\Scripts\python.exe" (
   set "ACMA_PYTHON=python"
 )
 if not exist "mobile_flutter\android\app\src\main\AndroidManifest.xml" (
-  echo [1/4] Generando estructura Android que falta...
+  echo [1/5] Generando estructura Android que falta...
   pushd mobile_flutter
   call flutter create --platforms=android --project-name acma_mobile .
   if errorlevel 1 (
@@ -41,10 +41,10 @@ if not exist "mobile_flutter\android\app\src\main\AndroidManifest.xml" (
   )
   popd
 )
-echo [2/4] Verificando dominio HTTPS y permisos Android de produccion...
+echo [2/5] Verificando dominio HTTPS y permisos Android de produccion...
 "%ACMA_PYTHON%" scripts\preparar_flutter_release_acma.py "%ACMA_URL%"
 if errorlevel 1 goto :final
-echo [3/4] Instalando dependencias Flutter...
+echo [3/5] Instalando dependencias Flutter...
 pushd mobile_flutter
 call flutter pub get
 if errorlevel 1 (
@@ -52,7 +52,14 @@ if errorlevel 1 (
   echo [ERROR] Fallo flutter pub get.
   goto :final
 )
-echo [4/4] Compilando APK RELEASE para el dominio indicado...
+echo [4/5] Aplicando el icono original de ACMA al APK...
+call dart run flutter_launcher_icons
+if errorlevel 1 (
+  popd
+  echo [ERROR] No se pudo generar el icono original de ACMA.
+  goto :final
+)
+echo [5/5] Compilando APK RELEASE para el dominio indicado...
 call flutter build apk --release "--dart-define=ACMA_BASE_URL=%ACMA_URL%"
 if errorlevel 1 (
   popd
