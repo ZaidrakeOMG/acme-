@@ -53,6 +53,8 @@ jobs:
         run: python scripts/test_diagnosticar_env_supabase.py
       - name: Verificar alta de superadmin sin contraseñas en Git
         run: python scripts/test_crear_superadmin_zaid_offline.py
+      - name: Probar lanzador Windows Android y permisos solo debug
+        run: python scripts/test_iniciar_flutter_acma.py
 
   frontend:
     runs-on: ubuntu-latest
