@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from configurar_acma_supabase import (
     referencia_proyecto, validar_dsn_privilegiado,
-    dsn_para_acma, escribir_env,
+    dsn_para_acma, escribir_env, PROYECTO_ACMA_URL,
 )
 
 REF = "abcdefghijk1234567890"
@@ -15,6 +15,8 @@ URL = f"https://{REF}.supabase.co"
 
 class TestConfiguracion(unittest.TestCase):
     def test_proyecto_publico_valido(self):
+        self.assertEqual(PROYECTO_ACMA_URL, 'https://mrtmwmqzueqamzfveyev.supabase.co')
+        self.assertEqual(referencia_proyecto(PROYECTO_ACMA_URL), 'mrtmwmqzueqamzfveyev')
         self.assertEqual(referencia_proyecto(URL), REF)
         with self.assertRaises(ValueError):
             referencia_proyecto("http://inseguro.supabase.co")
