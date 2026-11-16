@@ -1,0 +1,60 @@
+# ACMA en VPS IONOS: React + FastAPI mismo origen HTTPS.
+# Uso: docker compose --env-file .env -f deploy/ionos/compose.yml up -d --build
+# Variables privadas exclusivamente en .env local del VPS (ignorado por Git).
+name: acma-ionos
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      PORT: "8000"
+      ACMA_ENTORNO: produccion
+      DB_SCHEMA: acma
+      ALMACENAMIENTO_MODO: supabase
+      SUPABASE_BUCKET: acma
+      MFA_OBLIGATORIO: "true"
+      APP_URL_PUBLICA: "https://${ACMA_DOMINIO:?Configura ACMA_DOMINIO en el .env del VPS}"
+      CORS_ORIGENES: "https://${ACMA_DOMINIO:?Configura ACMA_DOMINIO en el .env del VPS}"
+      UVICORN_WORKERS: "1"
+      DB_POOL_SIZE: "3"
+      DB_POOL_OVERFLOW: "2"
+      LOG_JSON: "true"
+      TIEMPO_REAL_MODO: local
+      NOTIFICACIONES_ENVIO_INLINE: "false"
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/salud', timeout=4)"
+      interval: 30s
+      timeout: 6s
+      start_period: 75s
+      retries: 3
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    environment:
+      ACMA_DOMINIO: "${ACMA_DOMINIO:?Configura ACMA_DOMINIO en el .env del VPS}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  caddy_data:
+  caddy_config:
