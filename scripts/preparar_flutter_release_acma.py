@@ -58,6 +58,8 @@ def preparar_manifest(ruta: Path) -> list[str]:
     aplicacion = raiz.find("application")
     if aplicacion is None:
         raise ValueError("AndroidManifest.xml debe tener application.")
+    if aplicacion.get(ANDROID + "label") in {None, "acma_mobile"}:
+        aplicacion.set(ANDROID + "label", "ACMA")
     if aplicacion.get(ANDROID + "usesCleartextTraffic") == "true":
         raise ValueError(
             "AndroidManifest principal permite HTTP sin cifrar. "
@@ -72,7 +74,7 @@ def preparar_manifest(ruta: Path) -> list[str]:
         elemento = ET.Element("uses-permission")
         elemento.set(ANDROID + "name", permiso)
         raiz.insert(indice, elemento)
-    if nuevos:
+    if nuevos or aplicacion.get(ANDROID + "label") == "ACMA":
         ET.indent(arbol, space="    ")
         arbol.write(ruta, encoding="utf-8", xml_declaration=True)
     return nuevos
