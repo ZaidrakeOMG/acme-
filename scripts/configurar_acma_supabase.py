@@ -20,6 +20,8 @@ from urllib.parse import quote, urlencode, urlsplit, urlunsplit, parse_qsl
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV = ROOT / ".env"
+# Archivo temporal LOCAL e ignorado por Git; se borra tras crear el .env final.
+CLAVE_TEMPORAL = ROOT / ".env.supabase_clave_local"
 
 # Identificador público del proyecto ACMA confirmado por el usuario.
 # Nunca incluir ni guardar claves secretas en el repositorio.
@@ -74,29 +76,43 @@ def dsn_para_acma(partes, ref: str, pooler: bool, contrasena: str) -> str:
 
 
 def solicitar_clave_secreta() -> str:
-    """Lee una clave SECRET sin mostrarla; explica por qué se rechaza un intento."""
-    print("\\nLa clave se pega aqui desde Supabase > Project Settings > API Keys.")
-    print("Selecciona una SECRET key nueva, que comienza con sb_secret_.")
-    print("IMPORTANTE: al pegar en CMD no aparecen letras ni asteriscos.")
-    print("Haz clic derecho para pegar (o Ctrl+V), y luego pulsa ENTER.")
+    """Reutiliza una clave recibida en esta PC si falla después el instalador.
+
+    Jamás se almacena en GitHub, frontend o consola. Al crear .env se retira
+    el archivo temporal; la clave permanece solo en el .env privado local.
+    """
+    if CLAVE_TEMPORAL.exists():
+        valor = CLAVE_TEMPORAL.read_text(encoding="utf-8").strip()
+        if valor.startswith("sb_secret_"):
+            print("Secret API key ya guardada LOCALMENTE. No es necesario pegarla otra vez.")
+            return valor
+        print("La clave local guardada no tiene el formato sb_secret_.")
+        CLAVE_TEMPORAL.unlink(missing_ok=True)
+
+    print("\\nPara conectar Supabase Storage necesitas una Secret API key sb_secret_.")
+    print("Al pegar en CMD, no aparecen letras ni asteriscos. Pega y pulsa ENTER.")
     for intento in range(1, 4):
-        valor = getpass.getpass("Pega la nueva Secret API key (oculta): ").strip()
+        valor = getpass.getpass("Secret API key (oculta): ").strip()
         if not valor:
-            print(f"[{intento}/3] Entrada VACIA. Probablemente no se pego la clave.")
-            print("Copia la clave del panel de Supabase y pegala con clic derecho.")
-            continue
-        if valor.startswith("sb_publishable_"):
-            print(f"[{intento}/3] Esa es PUBLICABLE; selecciona una SECRET key.")
+            print(f"[{intento}/3] Entrada vacía; comprueba que la copiaste.")
             continue
         if not valor.startswith("sb_secret_"):
-            print(f"[{intento}/3] Formato no valido; debe comenzar con sb_secret_.")
+            print(f"[{intento}/3] Debe comenzar con sb_secret_, no sb_publishable_.")
             continue
-        print("Clave secreta recibida (contenido oculto).")
+        try:
+            with CLAVE_TEMPORAL.open("x", encoding="utf-8") as archivo:
+                archivo.write(valor + "\\n")
+            try:
+                os.chmod(CLAVE_TEMPORAL, 0o600)
+            except OSError:
+                pass
+            print("Clave recibida y guardada localmente para continuar sin repetirla.")
+        except OSError:
+            print("Clave recibida; no se pudo guardar temporalmente en disco.")
         return valor
-    raise ValueError(
-        "No se recibio una Secret API key valida tras 3 intentos. "
-        "No se modifico la base de datos. Vuelve a ejecutar PROBAR_ACMA_WEB.bat."
-    )
+
+    raise ValueError("No se recibió una Secret API key válida tras 3 intentos.")
+
 
 def _headers_storage(key: str) -> dict[str, str]:
     """sb_secret es opaca, se envía SOLO en apikey; JWT legacy sí es Bearer."""
@@ -286,6 +302,7 @@ def main() -> None:
     # Guardar de inmediato la clave, antes de probar el acceso, para poder
     # recuperar la instalación incluso si la red falla tras ALTER ROLE.
     escribir_env(dsn, project_url, key)
+    CLAVE_TEMPORAL.unlink(missing_ok=True)
     print("\n.env local creado. Las credenciales de postgres NO se guardaron.")
     ejecutar_script("scripts.preflight_supabase")
     print("\nCuenta superadmin inicial de ACMA (sin datos de demostración).")
