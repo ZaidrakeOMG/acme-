@@ -98,22 +98,69 @@ def solicitar_clave_secreta() -> str:
         "No se modifico la base de datos. Vuelve a ejecutar PROBAR_ACMA_WEB.bat."
     )
 
+def _headers_storage(key: str) -> dict[str, str]:
+    """sb_secret es opaca, se envía SOLO en apikey; JWT legacy sí es Bearer."""
+    if key.startswith(("sb_secret_", "sb_publishable_")):
+        return {"apikey": key}
+    return {"apikey": key, "Authorization": f"Bearer {key}"}
+
+
+def _codigo_error_storage(respuesta) -> str:
+    """Devuelve exclusivamente el código del servidor, sin imprimir secretos."""
+    try:
+        dato = respuesta.json()
+        codigo = str(dato.get("code") or dato.get("error") or "")
+    except (ValueError, AttributeError):
+        codigo = ""
+    return codigo if re.fullmatch(r"[A-Za-z0-9_ -]{1,80}", codigo) else "sin_codigo"
+
+
 def comprobar_bucket(project_url: str, key: str) -> None:
+    """Valida Storage y crea únicamente el bucket privado acma si falta."""
     import httpx
 
+    base = project_url.rstrip("/") + "/storage/v1"
+    headers = _headers_storage(key)
     with httpx.Client(timeout=20) as client:
-        r = client.get(
-            project_url.rstrip("/") + "/storage/v1/bucket/acma",
-            headers={"apikey": key, "Authorization": f"Bearer {key}"},
+        r = client.get(base + "/bucket/acma", headers=headers)
+        codigo = _codigo_error_storage(r)
+        faltante = (
+            r.status_code == 404
+            or (r.status_code == 400 and codigo in {
+                "NoSuchBucket", "BucketNotFound", "not_found",
+            })
         )
-        if r.status_code == 404:
-            raise RuntimeError(
-                "Falta bucket acma: ejecuta docs/01_CREAR_BUCKET_PRIVADO_ACMA.sql en Supabase."
+        if faltante:
+            print("Storage ACMA no existe. Creando bucket PRIVADO automáticamente...")
+            creado = client.post(
+                base + "/bucket",
+                headers=headers,
+                json={"id": "acma", "name": "acma", "public": False},
             )
-        r.raise_for_status()
-        b = r.json()
+            if creado.status_code not in (200, 201, 409):
+                raise RuntimeError(
+                    f"Supabase no pudo crear bucket acma: HTTP {creado.status_code} "
+                    f"({_codigo_error_storage(creado)})."
+                )
+            r = client.get(base + "/bucket/acma", headers=headers)
+        if not r.is_success:
+            if r.status_code in (400, 401, 403):
+                raise RuntimeError(
+                    f"Supabase Storage rechazó la autenticación/petición: "
+                    f"HTTP {r.status_code} ({_codigo_error_storage(r)}). "
+                    "Revisa la Secret API key del proyecto ACMA; "
+                    "la clave de PostgreSQL es diferente."
+                )
+            raise RuntimeError(
+                f"Error comprobando el bucket privado acma: HTTP {r.status_code} "
+                f"({_codigo_error_storage(r)})."
+            )
+        try:
+            b = r.json()
+        except ValueError as exc:
+            raise RuntimeError("Supabase Storage respondió sin metadatos JSON.") from exc
         if b.get("id", "acma") != "acma" or b.get("public") is not False:
-            raise RuntimeError("Storage acma debe existir y ser un bucket PRIVADO.")
+            raise RuntimeError("El bucket acma debe existir y ser PRIVADO.")
 
 
 async def clave_rol_api(dsn_postgres: str, ref: str) -> tuple[str, bool]:
