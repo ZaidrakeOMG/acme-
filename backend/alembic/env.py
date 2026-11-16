@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from core.config import config as configuracion
+from core.esquema_postgresql import opciones_conexion
 from models import Base
 
 config = context.config
@@ -28,13 +29,14 @@ def _url() -> str:
 
 
 def _migrar(conexion) -> None:
-    context.configure(connection=conexion, target_metadata=target_metadata, transaction_per_migration=True)
+    context.configure(connection=conexion, target_metadata=target_metadata, transaction_per_migration=True,
+                      version_table_schema=(configuracion.db_schema if configuracion.db_schema != "public" else None))
     with context.begin_transaction():
         context.run_migrations()
 
 
 async def _correr() -> None:
-    engine = create_async_engine(_url(), poolclass=NullPool)
+    engine = create_async_engine(_url(), poolclass=NullPool, **opciones_conexion(configuracion.db_schema))
     async with engine.connect() as conexion:
         await conexion.run_sync(_migrar)
         await conexion.commit()
@@ -42,7 +44,8 @@ async def _correr() -> None:
 
 
 if context.is_offline_mode():
-    context.configure(url=_url(), target_metadata=target_metadata, literal_binds=True)
+    context.configure(url=_url(), target_metadata=target_metadata, literal_binds=True,
+                      version_table_schema=(configuracion.db_schema if configuracion.db_schema != "public" else None))
     with context.begin_transaction():
         context.run_migrations()
 else:
