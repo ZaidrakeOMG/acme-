@@ -56,6 +56,14 @@ if not exist ".env" (
   goto :error
 )
 echo.
+echo [3/5] Detectando configuracion anterior y esquema PostgreSQL...
+"backend\.venv\Scripts\python.exe" scripts\diagnosticar_env_supabase.py
+if errorlevel 1 (
+  echo [ERROR 06A] .env requiere ajustes, detallados arriba.
+  echo IMPORTANTE: No borres las tablas ni copies secretos al chat.
+  goto :error
+)
+echo.
 echo [3/5] Verificando Postgres acma_api, esquema acma y Storage...
 pushd backend
 ".venv\Scripts\python.exe" -m scripts.preflight_supabase
