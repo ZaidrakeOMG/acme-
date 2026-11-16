@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -83,6 +84,38 @@ class _VistaAcmaState extends State<VistaAcma> {
     // Adjunta el selector nativo de archivos para evidencias y documentos.
     if (controller.platform is AndroidWebViewController) {
       final android = controller.platform as AndroidWebViewController;
+      // Cámara y GPS se piden solo para el sitio ACMA y por solicitud real.
+      unawaited(android.setOnPlatformPermissionRequest((solicitud) {
+        unawaited(() async {
+          final urlActual = await controller.currentUrl();
+          final paginaActual = Uri.tryParse(urlActual ?? '');
+          final paginaPermitida = paginaActual != null && _origen != null &&
+              ConfiguracionAcma.mismoOrigen(_origen, paginaActual);
+          final soloCamara = solicitud.types.isNotEmpty &&
+              solicitud.types.every((tipo) => tipo == WebViewPermissionResourceType.camera);
+          if (!paginaPermitida || !soloCamara) {
+            await solicitud.deny();
+            return;
+          }
+          final permiso = await Permission.camera.request();
+          if (permiso.isGranted) {
+            await solicitud.grant();
+          } else {
+            await solicitud.deny();
+          }
+        }());
+      }));
+      unawaited(android.setGeolocationPermissionsPromptCallbacks(
+        onShowPrompt: (solicitud) async {
+          final origenSolicitud = Uri.tryParse(solicitud.origin);
+          if (origenSolicitud == null || _origen == null ||
+              !ConfiguracionAcma.mismoOrigen(_origen, origenSolicitud)) {
+            return const GeolocationPermissionsResponse(allow: false, retain: false);
+          }
+          final permiso = await Permission.locationWhenInUse.request();
+          return GeolocationPermissionsResponse(allow: permiso.isGranted, retain: false);
+        },
+      ));
       unawaited(android.setAllowFileAccess(true));
       unawaited(android.setAllowContentAccess(true));
       unawaited(android.setOnShowFileSelector((parametros) async {
