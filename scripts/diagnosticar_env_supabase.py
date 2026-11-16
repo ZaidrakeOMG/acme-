@@ -162,11 +162,8 @@ def main() -> int:
         print("El sistema conservará el archivo anterior SIN modificar su contenido.")
         print("Se guardará como .env.respaldo_anterior (con sufijo si existe).")
         print("La copia queda IGNORADA por Git, pero contiene secretos: guárdala segura.")
-        print("Después se abrirá el asistente para configurar PostgreSQL y Storage.")
-        respuesta = input("Escribe RESPALDAR para renombrar .env y continuar: ").strip()
-        if respuesta != "RESPALDAR":
-            print("Cancelado: no se cambió ningún archivo ni base de datos.")
-            return 2
+        print("Iniciando respaldo automático del .env anterior (sin borrarlo).")
+        print("Después se abrirá el asistente de PostgreSQL y Storage.")
         numero = 0
         while True:
             nombre = ".env.respaldo_anterior" + (f"_{numero}" if numero else "")
