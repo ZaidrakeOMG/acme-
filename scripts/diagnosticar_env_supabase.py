@@ -11,6 +11,7 @@ explícita, conservando una copia local ignorada por Git.
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import re
 import shutil
 import sys
@@ -114,6 +115,29 @@ def main() -> int:
 
     original = ENV.read_text(encoding="utf-8-sig")
     valores, duplicados = cargar_valores(original)
+
+    # Configuracion(BaseSettings) lee primero ROOT/.env y luego
+    # ROOT/backend/.env. El segundo archivo puede sobrescribir las claves
+    # incluso después de corregir el archivo de la raíz.
+    backend_env = ROOT / "backend" / ".env"
+    if backend_env.is_file() and backend_env.resolve() != ENV.resolve():
+        heredado, _ = cargar_valores(backend_env.read_text(encoding="utf-8-sig"))
+        claves_solapadas = sorted(set(heredado) & {
+            "DB_SCHEMA", "DATABASE_URL", "ALMACENAMIENTO_MODO",
+            "SUPABASE_URL", "SUPABASE_SECRET_KEY",
+        })
+        if claves_solapadas:
+            print("ERROR: backend/.env contiene variables que sustituyen las de .env.")
+            print("Variables duplicadas entre archivos: " + ", ".join(claves_solapadas))
+            print("Respalda backend/.env fuera del repositorio y revisa esas variables;")
+            print("no puedo decidir cuáles credenciales deben prevalecer.")
+            return 2
+    # Variables del sistema también tienen precedencia sobre los archivos.
+    esquema_sistema = os.environ.get("DB_SCHEMA")
+    if esquema_sistema and esquema_sistema != "acma":
+        print("ERROR: Windows define DB_SCHEMA con un valor distinto de acma.")
+        print("Revisa esa variable de entorno antes de iniciar el proceso.")
+        return 2
 
     print("Diagnóstico seguro de configuración (.env):")
     if duplicados:
