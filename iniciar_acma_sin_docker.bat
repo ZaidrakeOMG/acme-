@@ -13,11 +13,16 @@ if not errorlevel 1 (
   echo ERROR: .env apunta a PostgreSQL local. Sin Docker requiere PostgreSQL remoto.
   exit /b 1
 )
-findstr /r /i /c:"^CELERY_BROKER_URL=.*localhost" /c:"^CELERY_BROKER_URL=.*127\.0\.0\.1" ".env" >nul
-if not errorlevel 1 (
-  echo ERROR: Celery aun apunta a Redis local. Usa Redis remoto.
-  echo No se inicia porque se perderian alertas y tareas programadas.
-  exit /b 1
+REM En modo COMPLETO se exige que todas las URLs de Redis estén definidas:
+REM con valores ausentes config.py usaría los defaults localhost, perdiendo jobs.
+for %%V in (REDIS_URL CELERY_BROKER_URL CELERY_RESULT_BACKEND) do (
+  findstr /B /I /C:"%%V=rediss://" ".env" >nul
+  if errorlevel 1 (
+    echo ERROR: falta %%V=rediss://... en .env.
+    echo El modo completo necesita Redis REMOTO con TLS para Celery y chat.
+    echo Para probar solo la web usa PROBAR_ACMA_WEB.bat.
+    exit /b 1
+  )
 )
 if not exist "backend\.venv\Scripts\python.exe" (
   echo ERROR: falta Python 3.12 y el entorno backend\.venv.
