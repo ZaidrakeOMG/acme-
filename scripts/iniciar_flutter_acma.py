@@ -85,13 +85,13 @@ def comprobar_plataforma_android() -> None:
             else "Android SDK Platform 36 no está instalado."
         )
         raise RuntimeError(
-            f"{estado}\\n"
-            f"Ruta requerida: {plataforma}\\n"
-            "Abre Android Studio > More Actions > SDK Manager > SDK Platforms.\\n"
-            "Instala Android 16.0 (Baklava) API 36.0, componente Android SDK Platform 36.\\n"
-            "Presiona Apply / OK hasta ver Installed.\\n"
-            "Si Android Studio indica Installed pero faltan esos archivos,\\n"
-            "desmarca esa plataforma, Apply, vuelve a marcarla e instálala.\\n"
+            f"{estado}\n"
+            f"Ruta requerida: {plataforma}\n"
+            "Abre Android Studio > More Actions > SDK Manager > SDK Platforms.\n"
+            "Instala Android 16.0 (Baklava) API 36.0, componente Android SDK Platform 36.\n"
+            "Presiona Apply / OK hasta ver Installed.\n"
+            "Si Android Studio indica Installed pero faltan esos archivos,\n"
+            "desmarca esa plataforma, Apply, vuelve a marcarla e instálala.\n"
             "No es suficiente la imagen del emulador API 36 ni Build-Tools 36.0.0."
         )
     print("Android SDK Platform 36: instalado y archivos verificados.")
