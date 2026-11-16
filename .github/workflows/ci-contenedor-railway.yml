@@ -47,7 +47,9 @@ jobs:
 
       - name: Validar Docker Compose IONOS (simple y completo) sin claves
         run: |
-          printf 'ACMA_DOMINIO=acma.example.invalid\nDATABASE_URL=postgresql+asyncpg://dummy:dummy@example.invalid:5432/postgres\nSUPABASE_URL=https://example.invalid\nSUPABASE_SECRET_KEY=placeholder\nJWT_SECRETO=placeholder_32_character_secret_1234\nCLAVE_CIFRADO=placeholder\n' > .env
+          trap 'rm -f .env' EXIT
+          bash -n deploy/ionos/desplegar.sh
+          printf 'ACMA_DOMINIO=acma.test.invalid\nDATABASE_URL=postgresql+asyncpg://dummy:dummy@example.invalid:5432/postgres\nSUPABASE_URL=https://example.invalid\nSUPABASE_SECRET_KEY=placeholder\nJWT_SECRETO=placeholder_32_character_secret_1234\nCLAVE_CIFRADO=placeholder\n' > .env
           docker compose --env-file .env -f deploy/ionos/compose.yml config --quiet
           docker compose --profile completo --env-file .env -f deploy/ionos/compose.yml config --quiet
           docker compose --env-file .env -f deploy/ionos/compose.yml config --services | grep -qx api
@@ -55,6 +57,7 @@ jobs:
           docker compose --profile completo --env-file .env -f deploy/ionos/compose.yml config --services | grep -qx redis
           docker compose --profile completo --env-file .env -f deploy/ionos/compose.yml config --services | grep -qx celery-worker
           docker compose --profile completo --env-file .env -f deploy/ionos/compose.yml config --services | grep -qx celery-beat
+          bash deploy/ionos/desplegar.sh --verificar
           rm -f .env
       - name: Validar configuración Caddy para dominio IONOS
         run: |
