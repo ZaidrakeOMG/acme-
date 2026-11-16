@@ -1,4 +1,4 @@
-# ACMA: despliegue unificado React + FastAPI para Railway.
+# ACMA: despliegue unificado React + FastAPI para IONOS VPS / otras plataformas Docker.
 # Contexto de compilacion: RAIZ del repositorio (no backend/).
 # No contiene secretos, ni crea bases de datos, ni ejecuta migraciones.
 #
@@ -44,6 +44,6 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     TZ=America/Mexico_City
 EXPOSE 8000
-# Railway asigna PORT; usar un worker al inicio para no saturar el pool de Supabase.
+# El VPS usa PORT=8000; los PaaS pueden asignar PORT. Iniciar con un worker para Supabase.
 # Nunca se incluyen JWT_SECRETO, CLAVE_CIFRADO ni SUPABASE_SECRET_KEY en la imagen.
 CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${UVICORN_WORKERS:-1}"]
