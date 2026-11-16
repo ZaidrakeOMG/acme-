@@ -35,12 +35,16 @@ class Configuracion(BaseSettings):
     celery_broker_url: str = "redis://localhost:6389/1"
     celery_result_backend: str = "redis://localhost:6389/2"
 
-    almacenamiento_modo: str = "minio"
+    almacenamiento_modo: str = "minio"  # minio | memoria | supabase
     minio_endpoint: str = "localhost:9010"
     minio_root_user: str = ""
     minio_root_password: str = ""
     minio_bucket: str = "acma"
     minio_seguro: bool = False
+    # Solo el backend usa la clave secreta: jamás se incluye en React/Flutter.
+    supabase_url: str = ""
+    supabase_secret_key: str = ""
+    supabase_bucket: str = "acma"
 
     jwt_secreto: str = Field(min_length=32)
     jwt_algoritmo: str = "HS256"
@@ -148,6 +152,8 @@ class Configuracion(BaseSettings):
                                  "(scripts/generar_secretos.py), no la del .env.example")
             if self.almacenamiento_modo == "minio" and not (self.minio_root_user and self.minio_root_password):
                 raise ValueError("MinIO en produccion exige MINIO_ROOT_USER y MINIO_ROOT_PASSWORD")
+            if self.almacenamiento_modo == "supabase" and (not self.supabase_url.startswith("https://") or not self.supabase_secret_key or not self.supabase_bucket):
+                raise ValueError("Storage Supabase requiere URL HTTPS, secret key y bucket privado")
             if not self.app_url_publica.startswith("https://"):
                 raise ValueError("APP_URL_PUBLICA debe ser https en produccion (las cookies de sesion son Secure)")
         return self
