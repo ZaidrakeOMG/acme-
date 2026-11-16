@@ -8,6 +8,49 @@ Es un **cliente de transición** y NO equivale a una reimplementación nativa de
 
 **Nunca conectar a Supabase directamente desde la WebView con una clave secreta.** La sesión y las reglas de negocio permanecen en FastAPI.
 
+## Ver ACMA Android en Windows con el backend Supabase ya funcionando
+
+La manera más sencilla es ejecutar el **PROBAR_ACMA_FLUTTER_ANDROID.bat** de la
+raíz del repositorio (NO es necesario publicar todavía ACMA en Internet):
+
+1. Tener Flutter SDK 3.38+ y Android Studio con Android SDK Platform-Tools.
+   Verificar desde CMD: `flutter doctor`, `flutter devices`.
+2. Abrir **PROBAR_ACMA_WEB.bat** en una ventana CMD y **dejarla abierta**:
+   debe responder `http://127.0.0.1:8000/api/salud` con `estado: ok`.
+3. En Android Studio → Device Manager, encender un emulador Android.
+   Alternativamente conectar un teléfono Android por USB con depuración autorizada.
+4. En otra ventana CMD, desde la raíz:
+   
+   ```bat
+   git pull --ff-only origin migracion-supabase-segura-20261115
+   PROBAR_ACMA_FLUTTER_ANDROID.bat
+   ```
+
+El lanzador detecta Android, genera su estructura si aún no existe, instala
+paquetes Flutter, configura automáticamente `adb reverse tcp:8000 tcp:8000`
+y ejecuta:
+
+```bat
+flutter run -d ID_DEL_ANDROID --debug --dart-define=ACMA_BASE_URL=http://localhost:8000 --dart-define=ACMA_ALLOW_HTTP=true
+```
+
+**Por qué localhost y no 10.0.2.2**: el reenvío `adb reverse` permite que
+WebView trate `localhost` como un origen seguro, requisito para múltiples
+funciones web como Service Workers, geolocalización y cámara. El archivo
+`android/app/src/debug/AndroidManifest.xml` autoriza HTTP **solo en modo
+depuración**, no en release. No guardar secret keys ni passwords en Flutter.
+El API de FastAPI continúa conectado a Supabase a través de `.env` local.
+
+La primera versión es una **WebView**, no una reconstrucción Flutter nativa.
+Login y MFA deben probarse en un emulador o Android real. Las pruebas de
+geolocalización, notificaciones push y offline siguen pendientes en dispositivos.
+
+**Si no existe Flutter**: https://docs.flutter.dev/install y
+https://docs.flutter.dev/platform-integration/android/setup. Si no aparece
+Android en `flutter devices`, crea e inicia un emulador en Android Studio.
+`flutter run -d chrome` no es una vista equivalente: el proyecto móvil
+utiliza un WebView nativo diseñado para Android/iOS.
+
 ## Preparar el proyecto (Flutter 3.38+ / Dart 3.10+)
 
 1. Instalar Flutter SDK, Android Studio y las herramientas de compilación. Para iOS, además, macOS + Xcode.
