@@ -10,11 +10,11 @@ Ejemplo desde backend:
 import asyncio
 import getpass
 import re
-from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 from core.config import config
+from core.esquema_postgresql import opciones_conexion
 from core.security import errores_politica_contrasena, hashear_contrasena
 
 
@@ -35,6 +35,8 @@ def preparar_datos():
 
 
 async def crear_admin(email: str, nombre: str, contrasena: str) -> str:
+    if config.db_schema != "acma":
+        raise RuntimeError("Configura DB_SCHEMA=acma antes del bootstrap en Supabase")
     if not config.database_url.startswith("postgresql+asyncpg://"):
         raise ValueError("DATABASE_URL debe ser PostgreSQL con asyncpg")
     if "localhost" in config.database_url.lower() or "127.0.0.1" in config.database_url:
@@ -46,7 +48,7 @@ async def crear_admin(email: str, nombre: str, contrasena: str) -> str:
     engine = create_async_engine(
         config.database_url,
         poolclass=NullPool,
-        connect_args={"server_settings": {"search_path": "acma,extensions,public"}},
+        **opciones_conexion(config.db_schema),
     )
     try:
         async with engine.begin() as conn:
