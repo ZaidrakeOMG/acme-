@@ -29,6 +29,12 @@ class AlmacenamientoSupabase:
 
     @property
     def _headers(self) -> dict[str, str]:
+        # Las nuevas claves sb_secret_ son opacas, NO son JWT.
+        # Enviar Authorization: Bearer sb_secret_ provoca InvalidJWT (HTTP 400).
+        # La cabecera apikey es suficiente para claves sb_* en Supabase.
+        if self.key.startswith(("sb_secret_", "sb_publishable_")):
+            return {"apikey": self.key}
+        # Compatibilidad con claves legacy service_role, que SÍ son JWT.
         return {"apikey": self.key, "Authorization": f"Bearer {self.key}"}
 
     def guardar(self, clave: str, datos: bytes, tipo_contenido: str, *,
