@@ -1,9 +1,10 @@
 import { forwardRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
+import { IconoAcma } from './IconosAcma'
 
 type Variante = 'primario' | 'secundario' | 'peligro' | 'fantasma'
 
 const ESTILOS: Record<Variante, string> = {
-  primario: 'bg-primario text-white hover:brightness-110',
+  primario: 'bg-primario text-white shadow-sm hover:brightness-110 hover:shadow-md',
   secundario: 'bg-white text-primario border border-primario/30 hover:bg-primario/5',
   peligro: 'bg-red-600 text-white hover:bg-red-700',
   fantasma: 'text-slate-600 hover:bg-slate-100',
@@ -12,7 +13,7 @@ const ESTILOS: Record<Variante, string> = {
 export function Boton({ variante = 'primario', className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variante?: Variante }) {
   return (
     <button
-      className={`inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${ESTILOS[variante]} ${className}`}
+      className={`inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-[background-color,box-shadow,transform,filter] duration-200 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-50 ${ESTILOS[variante]} ${className}`}
       {...props}
     />
   )
@@ -32,7 +33,7 @@ export const Campo = forwardRef<HTMLInputElement, PropsCampo>(function Campo({ e
         ref={ref}
         id={idCampo}
         aria-invalid={error ? true : undefined}
-        className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 sm:text-sm outline-none focus:border-primario focus:ring-2 focus:ring-primario/20"
+        className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-base text-slate-900 shadow-sm sm:text-sm outline-none transition focus:border-primario focus:ring-[3px] focus:ring-primario/10"
         {...props}
       />
       {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
@@ -54,7 +55,7 @@ export const Selector = forwardRef<HTMLSelectElement, PropsSelector>(function Se
       <select
         ref={ref}
         id={idCampo}
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-primario focus:ring-2 focus:ring-primario/20"
+        className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-primario focus:ring-[3px] focus:ring-primario/10"
         {...props}
       >
         {opciones.map((o) => (
@@ -71,7 +72,7 @@ export const Selector = forwardRef<HTMLSelectElement, PropsSelector>(function Se
 export function Aviso({ tipo = 'error', children }: { tipo?: 'error' | 'exito' | 'info'; children: ReactNode }) {
   const color = { error: 'bg-red-50 text-red-800 border-red-200', exito: 'bg-green-50 text-green-800 border-green-200', info: 'bg-blue-50 text-blue-800 border-blue-200' }[tipo]
   return (
-    <div role={tipo === 'error' ? 'alert' : 'status'} className={`rounded-lg border px-4 py-3 text-sm ${color}`}>
+    <div role={tipo === 'error' ? 'alert' : 'status'} className={`rounded-xl border px-4 py-3 text-sm leading-relaxed ${color}`}>
       {children}
     </div>
   )
@@ -79,7 +80,7 @@ export function Aviso({ tipo = 'error', children }: { tipo?: 'error' | 'exito' |
 
 export function Tarjeta({ titulo, acciones, children }: { titulo?: string; acciones?: ReactNode; children: ReactNode }) {
   return (
-    <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+    <section className="min-w-0 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_4px_18px_rgba(15,23,42,.045)] sm:p-6">
       {(titulo || acciones) && (
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
           {titulo && <h2 className="text-base font-semibold text-slate-900">{titulo}</h2>}
@@ -142,11 +143,11 @@ export function Modal({ titulo, abierto, alCerrar, children }: { titulo: string;
   if (!abierto) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/50 px-2 py-4 sm:px-4" onClick={alCerrar}>
-      <div role="dialog" aria-modal="true" aria-label={titulo} className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-xl bg-white p-4 shadow-xl sm:p-6" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label={titulo} className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,.18)] sm:p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{titulo}</h2>
           <button aria-label="Cerrar" className="rounded p-1 text-slate-500 hover:bg-slate-100" onClick={alCerrar}>
-            ✕
+            <IconoAcma nombre="cerrar" className="h-5 w-5" />
           </button>
         </div>
         {children}
@@ -159,7 +160,7 @@ export function Encabezado({ titulo, descripcion, acciones }: { titulo: string; 
   return (
     <div className="mb-5 flex min-w-0 flex-wrap items-start justify-between gap-3 sm:mb-6 sm:items-end">
       <div>
-        <h1 className="max-w-full break-words text-xl font-semibold text-slate-900 sm:text-2xl">{titulo}</h1>
+        <h1 className="max-w-full break-words text-xl font-extrabold tracking-tight text-[#172d47] sm:text-2xl">{titulo}</h1>
         {descripcion && <p className="mt-1 max-w-full break-words text-sm text-slate-600">{descripcion}</p>}
       </div>
       {acciones}
