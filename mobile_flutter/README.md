@@ -1,5 +1,25 @@
 # ACMA móvil — Android / iPhone (Flutter)
 
+## Android + Google Play (Railway)
+
+El proyecto Android no necesita la carpeta iOS para generar sus íconos: 
+`flutter_launcher_icons.ios=false` evita el error `PathNotFoundException:
+ios/Runner/Assets.xcassets` en Windows.
+
+1. Actualiza `main` y genera el APK de prueba con
+   `GENERAR_APK_ACMA_RAILWAY.bat https://acme-production-ee493e67.up.railway.app`.
+2. Para Google Play se necesita el **AAB firmado con TU clave de subida**:
+   `GENERAR_AAB_ACMA_PLAYSTORE.bat`.
+3. **Lee antes de publicar:** `docs/despliegue/PLAYSTORE_ANDROID.md`.
+   Revisa el identificador único, Android API 36, Play Console, requisitos de
+   privacidad y las pruebas físicas; no hay garantía de funcionamiento al
+   100% sin probar cada módulo.
+
+La publicación de Android no requiere generar iOS. Para compilar una app iOS
+real se necesita un proyecto aparte en macOS/Xcode y volver a habilitar
+sus íconos específicamente.
+
+
 ## Qué conserva exactamente
 
 Esta primera versión **no rehace las pantallas**: incrusta la interfaz React existente en una WebView de Flutter. Así se conservan por diseño los componentes, tipografías, colores, navegación y flujos actuales; no se introducen emojis ni menús sustitutos. Los estados de carga y conexión añadidos por Flutter usan Material Icons.

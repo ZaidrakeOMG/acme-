@@ -26,3 +26,10 @@ mobile_flutter/.flutter-plugins-dependencies
 mobile_flutter/.pub/
 mobile_flutter/.idea/
 mobile_flutter/*.iml
+
+# Certificados privados de publicación Android / Play Store (NO subir a GitHub)
+mobile_flutter/android/key.properties
+mobile_flutter/android/*.jks
+mobile_flutter/android/*.keystore
+*.jks
+*.keystore
