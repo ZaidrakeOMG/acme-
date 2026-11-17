@@ -37,6 +37,7 @@ from models.preventivos import (
 )
 from models.unidades import GrupoUN, GrupoUNMiembro, UnidadNegocio, UsuarioGrupo, UsuarioUN
 from models.usuarios import HistorialContrasena, Sesion, Usuario
+from models.ubicacion_movil import UbicacionMovil, UbicacionMovilVisor
 
 from models.minutas import (
     CanalNotificacion, EstadoMinuta, EstadoNotificacion, EstadoRespuestaHallazgo, Hallazgo, Minuta, MinutaConfiguracion, MinutaDestinatario,

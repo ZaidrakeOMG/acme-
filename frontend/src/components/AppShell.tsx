@@ -5,12 +5,14 @@ import { useAuth } from '../contexts/AuthContext'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { IndicadorConectividad } from './IndicadorConectividad'
 import { IconoAcma } from './IconosAcma'
+import { useAppAndroid } from '../services/clienteAndroid'
 
 const GRUPOS: GrupoModulo[] = ['Operación', 'Seguimiento', 'Administración', 'Finanzas y activos', 'Análisis']
 
 function nombreActual(modulos: Modulo[], pathname: string): string {
   if (pathname === '/') return 'Centro de operaciones'
   if (pathname === '/seguridad') return 'Seguridad de la cuenta'
+  if (pathname === '/ubicacion-movil') return 'Ubicación de personal'
   const encontrados = modulos.filter(m => {
     const ruta = m.ruta.split('?')[0]
     return pathname === ruta || pathname.startsWith(ruta + '/')
@@ -18,10 +20,11 @@ function nombreActual(modulos: Modulo[], pathname: string): string {
   return encontrados[0]?.nombre ?? 'Espacio de trabajo'
 }
 
-function Navegacion({ modulos, alNavegar, rutaActual }: {
+function Navegacion({ modulos, alNavegar, rutaActual, android }: {
   modulos: Modulo[]
   alNavegar: () => void
   rutaActual: string
+  android: boolean
 }) {
   const [busqueda, setBusqueda] = useState('')
   const [gruposAbiertos, setGruposAbiertos] = useState<GrupoModulo[]>(['Operación'])
@@ -102,6 +105,14 @@ function Navegacion({ modulos, alNavegar, rutaActual }: {
             No encontramos módulos con ese nombre.
           </p>
         )}
+        {android && (!texto || 'ubicación gps personal mapa rastreo'.includes(texto)) && (
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <NavLink to="/ubicacion-movil" className={estiloEnlace} onClick={alNavegar}>
+              <span className="acma-nav-icono"><IconoAcma nombre="ubicación" /></span>
+              <span className="min-w-0 flex-1 truncate">Ubicación de personal</span>
+            </NavLink>
+          </div>
+        )}
         <div className="mt-4 border-t border-white/10 pt-4">
           <NavLink to="/seguridad" className={estiloEnlace} onClick={alNavegar}>
             <span className="acma-nav-icono"><IconoAcma nombre="seguridad" /></span>
@@ -119,6 +130,7 @@ export function AppShell() {
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [perfilAbierto, setPerfilAbierto] = useState(false)
   const ubicacion = useLocation()
+  const android = useAppAndroid()
   const [anchoMovil, setAnchoMovil] = useState(() =>
     typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
     window.matchMedia('(max-width: 767px)').matches)
@@ -194,7 +206,7 @@ export function AppShell() {
         </div>
 
         {(!anchoMovil || menuAbierto) && (
-          <Navegacion modulos={modulos} rutaActual={ubicacion.pathname} alNavegar={volverAlInicio} />
+          <Navegacion modulos={modulos} rutaActual={ubicacion.pathname} android={android} alNavegar={volverAlInicio} />
         )}
         <div className="mt-auto border-t border-white/10 pt-4">
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">

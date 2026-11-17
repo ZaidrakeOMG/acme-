@@ -88,8 +88,22 @@ class _VistaAcmaState extends State<VistaAcma> {
           onPageStarted: (_) {
             if (mounted) setState(() { _fallo = false; _progreso = 0; });
           },
-          onPageFinished: (_) {
+          onPageFinished: (url) {
             if (mounted) setState(() => _progreso = 100);
+            // Marca solo las páginas de ACMA como cliente Android.
+            // La web usa este evento únicamente para mostrar el módulo
+            // móvil: los permisos verdaderos siempre los comprueba FastAPI.
+            final destino = Uri.tryParse(url);
+            if (_origen != null && destino != null &&
+                ConfiguracionAcma.mismoOrigen(_origen, destino)) {
+              final activo = _controlador;
+              if (activo != null) {
+                unawaited(activo.runJavaScript(
+                  "window.__ACMA_ANDROID__=true;"
+                  "window.dispatchEvent(new Event('acma-android-ready'));",
+                ));
+              }
+            }
           },
           onWebResourceError: (error) {
             if (error.isForMainFrame == true && mounted) {

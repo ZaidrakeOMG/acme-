@@ -33,6 +33,7 @@ const matchMediaMovil = vi.fn().mockImplementation((query: string) => ({
 }))
 
 beforeEach(() => {
+  delete window.__ACMA_ANDROID__
   Object.defineProperty(window, 'matchMedia', { value: matchMediaMovil, writable: true, configurable: true })
 })
 
@@ -82,6 +83,23 @@ describe('ACMA en pantallas pequeñas', () => {
     fireEvent.click(administracion)
     expect(administracion).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('link', { name: 'Usuarios' })).toBeInTheDocument()
+  })
+
+  it('muestra ubicación de personal solamente al detectar la app Android', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>ACMA ubicación</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    expect(screen.queryByRole('link', { name: 'Ubicación de personal' })).not.toBeInTheDocument()
+    window.__ACMA_ANDROID__ = true
+    fireEvent(window, new Event('acma-android-ready'))
+    expect(screen.getByRole('link', { name: 'Ubicación de personal' })).toHaveAttribute('href', '/ubicacion-movil')
   })
 
   it('etiqueta todas las celdas para mostrarlas como fichas en móvil', () => {

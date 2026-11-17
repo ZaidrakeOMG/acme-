@@ -34,6 +34,10 @@ jobs:
             [ -z "$archivo" ] && continue
             case "$archivo" in
               frontend/src/components/AppShell.tsx|\
+              frontend/src/services/clienteAndroid.ts|\
+              frontend/src/pages/ubicacion/UbicacionMovil.tsx|\
+              frontend/src/pages/ubicacion/MapaPersonal.tsx|\
+              backend/alembic/versions/0019_ubicacion_movil_consentida.py|\
               frontend/src/components/IconosAcma.tsx|\
               frontend/public/icono.svg|\
               frontend/public/icono-192.png|\
@@ -94,6 +98,10 @@ jobs:
         run: |
           python -m compileall -q backend/services/notificaciones_service.py scripts/test_reset_email_link.py
           python scripts/test_reset_email_link.py
+      - name: Validar privacidad del GPS y permiso de visores
+        run: |
+          python -m compileall -q backend/routers/ubicacion_movil.py backend/alembic/versions/0019_ubicacion_movil_consentida.py
+          python scripts/test_ubicacion_movil.py
       - name: Validar iconos de ACMA para PWA y Android
         run: python scripts/test_marca_acma.py
 

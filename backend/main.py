@@ -12,7 +12,7 @@ from routers import (
     alertas, auditoria, auth, biblioteca, capacitacion, catalogos_equipos, catalogos_importar,
     catalogos_tecnicos, chat, configuracion, contratos, criticidad, medidores, mensajeria, operacion, rutas,
     activos, caja_chica, clasificacion, erp, folios, formularios, grupos_un, inventario, minutas, notificaciones, oc_activos, prestadores, presupuestos,
-    preventivos, push, reasignaciones, seguimiento, sla, bi, sync, tenants, trabajos_especiales, unidades_negocio, usuarios,
+    preventivos, push, reasignaciones, seguimiento, sla, bi, sync, tenants, trabajos_especiales, unidades_negocio, usuarios, ubicacion_movil,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -46,7 +46,7 @@ configurar_cors(app)
 for modulo in (auth, usuarios, tenants, prestadores, unidades_negocio, grupos_un, contratos, alertas, configuracion, auditoria,
                catalogos_tecnicos, catalogos_equipos, catalogos_importar, formularios, folios, chat, sync, push, preventivos, reasignaciones, minutas, seguimiento, clasificacion, notificaciones,
                trabajos_especiales, oc_activos, inventario, caja_chica, presupuestos, erp, activos, sla, bi,
-               capacitacion, biblioteca, mensajeria, operacion, medidores, criticidad):
+               capacitacion, biblioteca, mensajeria, operacion, medidores, criticidad, ubicacion_movil):
     app.include_router(modulo.router)
 
 # F2-03: el WebSocket del tablero va fuera de `/api` (como el del chat de P05), por el proxy de desarrollo.
