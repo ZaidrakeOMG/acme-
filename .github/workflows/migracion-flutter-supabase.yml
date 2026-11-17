@@ -40,7 +40,11 @@ jobs:
               frontend/src/index.css|\
               frontend/src/pages/RoleHub.tsx|\
               frontend/src/pages/folios/Folios.tsx|\
-              frontend/src/pages/auth/Marco.tsx)
+              frontend/src/pages/auth/Marco.tsx|\
+              frontend/src/App.tsx)
+                # App.tsx solo se modifica para permitir la ruta pública de
+                # recuperación con sesión activa; está cubierto por
+                # scripts/test_reset_email_link.py.
                 echo "Cambio responsive permitido: $archivo"
                 ;;
               *)
