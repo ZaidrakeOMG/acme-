@@ -36,6 +36,8 @@ class Correo:
 
 
 def modo() -> str:
+    if config.resend_api_key:
+        return "resend"
     return "smtp" if config.smtp_host else "stub"
 
 
@@ -98,6 +100,24 @@ async def enviar(c: Correo) -> tuple[str, str]:
         del ENVIADOS[:-200]
         log.info("Correo (stub) «%s» a %s%s", c.asunto, ", ".join(c.destinatarios), f" guardado en {clave}" if clave else "")
         return "enviada", f"stub:{clave}"
+    if modo() == "resend":
+        from services.resend_api import enviar_resend
+
+        estado, detalle = await enviar_resend(
+            api_key=config.resend_api_key,
+            remitente=c.remitente or config.resend_from,
+            destinatarios=list(c.destinatarios),
+            asunto=c.asunto,
+            html=c.html,
+            texto=c.texto or _texto_plano(c.html),
+            adjuntos=[(adjunto.nombre, adjunto.contenido) for adjunto in c.adjuntos],
+        )
+        # No registrar HTML/tokens ni la clave API en logs de Railway.
+        ENVIADOS.append({**registro, "modo": "resend", "estado": estado, "detalle": detalle})
+        del ENVIADOS[:-200]
+        if estado != "enviada":
+            log.warning("Envío Resend no aceptado: %s", detalle)
+        return estado, detalle
     import aiosmtplib
 
     try:

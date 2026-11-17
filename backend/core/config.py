@@ -10,7 +10,7 @@ RAIZ_REPO = Path(__file__).resolve().parents[2]
 # Campos que llevan secretos: en produccion ninguno puede quedarse con el valor de ejemplo del .env. P11a.
 SECRETOS = ("jwt_secreto", "clave_cifrado", "minio_root_password", "smtp_password", "vapid_clave_privada",
             "database_url", "database_migrations_url", "redis_url", "celery_broker_url", "celery_result_backend",
-            "whatsapp_token", "whatsapp_app_secret", "whatsapp_verify_token", "twilio_auth_token")
+            "whatsapp_token", "whatsapp_app_secret", "whatsapp_verify_token", "twilio_auth_token", "resend_api_key")
 MARCAS_DE_EJEMPLO = ("cambiar", "ejemplo", "changeme", "password", "secreto_dev", "acma_dev")
 # La CLAVE_CIFRADO del .env.example es base64 valido, asi que no la delata ninguna marca de texto.
 CLAVE_CIFRADO_EJEMPLO = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -101,6 +101,9 @@ class Configuracion(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = "ACMA <no-responder@acma.dev>"
     smtp_tls: str = "starttls"  # starttls | ssl | none
+    # Resend por HTTPS: compatible con Railway Free/Trial/Hobby, donde SMTP está bloqueado.
+    resend_api_key: str = ""
+    resend_from: str = ""  # Remitente del dominio verificado (e.g. ACMA <no-reply@correo.ejemplo.com>)
     # P07: URL pública de la app para los enlaces de correo y push.
     app_url_publica: str = "http://localhost:5173"
     # P07: enviar las notificaciones en la misma petición (pruebas / sin Celery) en lugar de encolarlas.

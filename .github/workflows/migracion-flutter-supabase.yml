@@ -76,6 +76,8 @@ jobs:
         run: python scripts/test_preparar_flutter_release_acma.py
       - name: Validar arranque Railway y dominio automatico
         run: python scripts/test_railway_start.py
+      - name: Validar Resend HTTPS y restablecimiento sin Redis
+        run: python scripts/test_resend_api.py
 
   frontend:
     runs-on: ubuntu-latest
