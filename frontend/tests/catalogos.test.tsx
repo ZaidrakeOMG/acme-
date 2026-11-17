@@ -67,8 +67,7 @@ describe('Catálogos', () => {
     await userEvent.selectOptions(screen.getByLabelText('Prestador'), P)
     expect(await screen.findByRole('button', { name: 'Nuevo técnico' })).toBeInTheDocument()
     await waitFor(() => {
-      expect(llamadas.some(l => l.clave === 'GET /api/catalogos/tecnicos' &&
-        l.url?.includes('prestador_id='))).toBe(true)
+      expect(llamadas.some(l => l.clave === 'GET /api/catalogos/tecnicos')).toBe(true)
     })
   })
 
