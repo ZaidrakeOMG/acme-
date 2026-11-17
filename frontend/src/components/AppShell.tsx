@@ -46,8 +46,8 @@ function Navegacion({ modulos, alNavegar, rutaActual }: {
     `acma-nav-enlace ${isActive ? 'acma-nav-enlace-activo' : ''}`
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-5 px-2">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mb-3 shrink-0 px-2">
         <label htmlFor="acma-buscar-modulo" className="sr-only">Buscar módulo</label>
         <div className="acma-nav-buscador">
           <IconoAcma nombre="buscar" className="h-[18px] w-[18px]" />
@@ -61,7 +61,7 @@ function Navegacion({ modulos, alNavegar, rutaActual }: {
           />
         </div>
       </div>
-      <nav aria-label="Módulos de ACMA" className="space-y-1 pb-5">
+      <nav aria-label="Módulos de ACMA" className="acma-menu-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pb-5 pr-1">
         <NavLink to="/" end className={estiloEnlace} onClick={alNavegar}>
           <span className="acma-nav-icono"><IconoAcma nombre="inicio" /></span>
           <span className="min-w-0 flex-1 truncate">Inicio</span>
@@ -172,9 +172,9 @@ export function AppShell() {
         aria-label="Navegación principal"
         aria-hidden={anchoMovil && !menuAbierto}
         inert={anchoMovil && !menuAbierto}
-        className={`acma-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(19rem,88vw)] flex-col overflow-y-auto overscroll-contain px-3 pb-4 pt-5 shadow-2xl transition-transform duration-300 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[17.5rem] lg:shrink-0 lg:translate-x-0 lg:shadow-none ${menuAbierto ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`acma-sidebar fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(19rem,88vw)] flex-col overflow-hidden px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl transition-transform duration-300 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-[100dvh] lg:w-[17.5rem] lg:shrink-0 lg:translate-x-0 lg:shadow-none ${menuAbierto ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className="mb-7 flex items-center justify-between gap-2 px-2">
+        <div className="mb-5 flex shrink-0 items-center justify-between gap-2 px-2">
           <NavLink to="/" className="flex min-w-0 items-center gap-3" onClick={volverAlInicio}>
             <div className="acma-logo-caja">
               <img src="/icono.svg" alt="Identidad ACMA" className="h-10 w-10 object-contain" />
@@ -190,7 +190,7 @@ export function AppShell() {
           </button>
         </div>
 
-        <div className="acma-sidebar-etiqueta mb-5 flex items-center gap-3 rounded-xl px-3 py-3">
+        <div className="acma-sidebar-etiqueta mb-4 flex shrink-0 items-center gap-3 rounded-xl px-3 py-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white"><IconoAcma nombre="cuadrícula" className="h-4 w-4" /></span>
           <span className="min-w-0">
             <span className="block text-[10px] uppercase tracking-[.14em] text-white/55">Espacio de trabajo</span>
@@ -201,7 +201,7 @@ export function AppShell() {
         {(!anchoMovil || menuAbierto) && (
           <Navegacion modulos={modulos} rutaActual={ubicacion.pathname} alNavegar={volverAlInicio} />
         )}
-        <div className="mt-auto border-t border-white/10 pt-4">
+        <div className="acma-sidebar-cuenta relative z-10 mt-3 shrink-0 border-t border-white/10 pt-3">
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
             <span className="acma-avatar bg-white/15 text-white">{iniciales || 'AC'}</span>
             <div className="min-w-0 flex-1">
