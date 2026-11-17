@@ -66,8 +66,7 @@ async def enviar_mailjet(
             "To": [{"Email": destinatario}],
             "Subject": asunto,
             "HTMLPart": html,
-            # Correo transaccional: no reescribir los enlaces con tracking (mjt.lu).
-            # Importante en enlaces temporales de recuperación y lectores móviles.
+            # Transaccional: no reescribir el enlace temporal con mjt.lu.
             "TrackClicks": "disabled",
             "TrackOpens": "disabled",
             "TextPart": texto,
