@@ -31,7 +31,7 @@ export default defineConfig({
         // Precache del shell y de los módulos de campo; la API va NetworkFirst con respaldo a caché solo en lecturas (P05).
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/ws\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/ws\//, /^\/restablecer\/seguro(?:\/|$)/],
         runtimeCaching: [
           {
             urlPattern: ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET' && !url.pathname.endsWith('/stream'),
