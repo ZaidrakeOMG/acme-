@@ -16,3 +16,91 @@ body {
   background: var(--color-fondo);
   color: #0f172a;
 }
+
+/* ACMA móvil: respeta los tamaños nativos, safe-area y la navegación Android/iPhone. */
+:root {
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html, body, #root { min-width: 0; min-height: 100%; }
+body { margin: 0; overscroll-behavior-x: none; }
+#root { min-height: 100dvh; }
+.acma-contenido, .acma-contenido > * { min-width: 0; }
+.acma-contenido :where(img, video, canvas, svg:not([viewBox])) { max-width: 100%; }
+.acma-contenido :where(pre) { max-width: 100%; overflow-x: auto; }
+.acma-contenido :where(p, h1, h2, h3, td, th) { overflow-wrap: anywhere; }
+.acma-contenido :where(.overflow-x-auto) { -webkit-overflow-scrolling: touch; }
+
+.acma-acceso-rapido {
+  display: flex;
+  min-width: 0;
+  min-height: 3.5rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .16rem;
+  font-size: .675rem;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+.acma-acceso-rapido:focus-visible { outline: 2px solid #1c3d8f; outline-offset: -4px; }
+.acma-barra-movil { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.acma-contenido { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 768px) {
+  .acma-contenido { padding-bottom: 2.5rem; }
+}
+/* Evitar que Safari amplíe automáticamente la pantalla al enfocar formularios. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    font-size: max(16px, 1rem);
+  }
+  button, a, select, input { touch-action: manipulation; }
+}
+/* Tabla reutilizada en múltiples módulos: vista de fichas legibles en teléfono.
+   Mantiene tabla semántica y los mismos datos, enlaces y acciones. */
+@media (max-width: 639px) {
+  .acma-tabla {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .acma-tabla thead { display: none; }
+  .acma-tabla tbody { display: grid; gap: .65rem; }
+  .acma-tabla tbody tr:not(.acma-tabla-vacia) {
+    display: block;
+    min-width: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: .75rem;
+    padding: .4rem .65rem;
+    background: white;
+    box-shadow: 0 1px 3px rgb(15 23 42 / 5%);
+  }
+  .acma-tabla tbody tr:not(.acma-tabla-vacia) td {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .35rem .75rem;
+    border-bottom: 1px solid #f1f5f9;
+    padding: .65rem .25rem;
+    overflow-wrap: anywhere;
+  }
+  .acma-tabla tbody tr:not(.acma-tabla-vacia) td:last-child { border-bottom: 0; }
+  .acma-tabla tbody tr:not(.acma-tabla-vacia) td::before {
+    content: attr(data-label);
+    flex: 0 0 36%;
+    color: #475569;
+    font-size: .75rem;
+    font-weight: 600;
+  }
+  .acma-tabla tbody tr:not(.acma-tabla-vacia) td > * { min-width: 0; max-width: 100%; }
+  .acma-tabla tbody tr.acma-tabla-vacia { display: block; }
+  .acma-tabla tbody tr.acma-tabla-vacia td { display: block; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .acma-contenido *, .acma-contenido *::before, .acma-contenido *::after {
+    scroll-behavior: auto;
+  }
+}

@@ -27,7 +27,7 @@ export function Buscador({ etiqueta, placeholder, minimo = 1, retardo = 250, alB
       placeholder={placeholder ?? etiqueta}
       value={texto}
       onChange={(e) => setTexto(e.target.value)}
-      className="w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-primario focus:ring-2 focus:ring-primario/20"
+      className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none sm:max-w-xs sm:text-sm focus:border-primario focus:ring-2 focus:ring-primario/20"
     />
   )
 }
@@ -94,7 +94,7 @@ export function SelectorBusqueda<T extends { id: string }>({ etiqueta, buscar, m
         onChange={(e) => setTexto(e.target.value)}
         onFocus={() => opciones.length && setAbierto(true)}
         onBlur={() => setTimeout(() => setAbierto(false), 150)}
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-primario focus:ring-2 focus:ring-primario/20"
+        className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none sm:text-sm focus:border-primario focus:ring-2 focus:ring-primario/20"
       />
       {abierto && (
         <ul id={`${id}-lista`} role="listbox" className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">

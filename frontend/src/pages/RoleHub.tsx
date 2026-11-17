@@ -10,9 +10,9 @@ export function RoleHub() {
 
   return (
     <div>
-      <div className="mb-8">
+      <div className="mb-5 sm:mb-8">
         <p className="text-sm text-slate-500">{NOMBRE_ROL[usuario.rol]}</p>
-        <h1 className="text-2xl font-semibold text-slate-900">Hola, {usuario.nombre.split(' ')[0]}</h1>
+        <h1 className="break-words text-xl font-semibold text-slate-900 sm:text-2xl">Hola, {usuario.nombre.split(' ')[0]}</h1>
       </div>
 
       {usuario.mfa_obligatorio && !usuario.mfa_habilitado && (
@@ -23,7 +23,7 @@ export function RoleHub() {
 
       <section aria-labelledby="modulos">
         <h2 id="modulos" className="mb-3 text-sm font-medium uppercase tracking-wide text-slate-500">Tus módulos</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           {modulos.map((m) => (
             <TarjetaModulo key={m.id} modulo={m} />
           ))}
@@ -47,7 +47,7 @@ function TarjetaModulo({ modulo }: { modulo: Modulo }) {
     <Link
       to={modulo.ruta}
       data-testid={`modulo-${modulo.id}`}
-      className="block rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primario/40 hover:shadow"
+      className="block min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition sm:p-5 hover:-translate-y-0.5 hover:border-primario/40 hover:shadow"
     >
       {contenido}
     </Link>

@@ -4,16 +4,16 @@ import { Aviso } from '../../components/ui'
 /** Tarjeta centrada con la marca que comparten las pantallas de acceso (entrar, cambiar y restablecer). P11a. */
 export function MarcoAuth({ error, children }: { error?: string | null; children: ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-fondo px-4 py-10">
+    <div className="flex min-h-dvh items-center justify-center bg-fondo px-3 py-5 sm:px-4 sm:py-10">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex items-center justify-center gap-3">
+        <div className="mb-5 flex items-center justify-center gap-3 sm:mb-8">
           <img src="/icono.svg" alt="" className="h-12 w-12" />
           <div>
             <p className="text-2xl font-semibold text-primario">ACMA</p>
             <p className="text-sm text-slate-500">Gestión de mantenimiento</p>
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
           {error && (
             <div className="mb-4">
               <Aviso>{error}</Aviso>
