@@ -82,6 +82,10 @@ jobs:
         run: |
           python -m compileall -q backend/services/mailjet_api.py backend/services/correo.py backend/core/config.py backend/services/auth_service.py scripts/test_mailjet_api.py
           python scripts/test_mailjet_api.py
+      - name: Validar correo de recuperación y enlace en navegador
+        run: |
+          python -m compileall -q backend/services/notificaciones_service.py scripts/test_reset_email_link.py
+          python scripts/test_reset_email_link.py
 
   frontend:
     runs-on: ubuntu-latest
