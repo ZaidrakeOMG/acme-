@@ -69,21 +69,24 @@ export function UbicacionMovil() {
   const observador = useRef<number | null>(null)
   const ultimoEnvio = useRef(0)
   const emitiendo = useRef(false)
+  const montado = useRef(true)
 
   const pararGPSLocal = useCallback(() => {
     if (observador.current !== null) navigator.geolocation?.clearWatch(observador.current)
     observador.current = null
     emitiendo.current = false
-    setEmitir(false)
+    if (montado.current) setEmitir(false)
   }, [])
 
   useEffect(() => {
+    montado.current = true
     const ocultar = () => {
       if (document.visibilityState === 'hidden') pararGPSLocal()
     }
     document.addEventListener('visibilitychange', ocultar)
     return () => {
       document.removeEventListener('visibilitychange', ocultar)
+      montado.current = false
       pararGPSLocal()
     }
   }, [pararGPSLocal])
@@ -149,7 +152,14 @@ export function UbicacionMovil() {
       // El permiso se solicita como consecuencia directa de pulsar el botón;
       // nunca al iniciar sesión ni automáticamente al abrir ACMA.
       const p = await ubicacionActual()
+      if (!montado.current || document.visibilityState === 'hidden') return
       await api('/ubicacion-movil/activar', { metodo: 'POST', cuerpo: { acepto: true } })
+      if (!montado.current || document.visibilityState === 'hidden') {
+        // Si el usuario salió mientras la API activaba el consentimiento,
+        // no conservamos una ubicación activa accidentalmente.
+        await api('/ubicacion-movil/detener', { metodo: 'POST' })
+        return
+      }
       emitiendo.current = true
       ultimoEnvio.current = 0
       await enviarPosicion(p)
