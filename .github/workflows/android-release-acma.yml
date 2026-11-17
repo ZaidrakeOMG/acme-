@@ -63,6 +63,19 @@ jobs:
         run: flutter build apk --release --dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app
       - name: Comprobar salida APK
         run: test -s mobile_flutter/build/app/outputs/flutter-apk/app-release.apk
+      - name: Crear firma TEMPORAL solo para prueba CI de App Bundle
+        run: |
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/acma-ci-upload.jks" -alias acma-ci -storetype JKS -keyalg RSA -keysize 2048 -validity 2 -dname "CN=ACMA CI test" -storepass CIonly123 -keypass CIonly123
+          printf "storePassword=CIonly123\nkeyPassword=CIonly123\nkeyAlias=acma-ci\nstoreFile=%s/acma-ci-upload.jks\n" "$RUNNER_TEMP" > mobile_flutter/android/key.properties
+      - name: Configurar firma Gradle y API 36
+        run: python scripts/preparar_android_play.py --application-id com.zaidrakeomg.acma --verificar-firma
+      - name: Compilar AAB firmado con certificado EFÍMERO (NO APTO PARA PUBLICAR)
+        working-directory: mobile_flutter
+        run: flutter build appbundle --release --dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app
+      - name: Verificar AAB de prueba y borrar llave de CI
+        run: |
+          test -s mobile_flutter/build/app/outputs/bundle/release/app-release.aab
+          rm -f mobile_flutter/android/key.properties "$RUNNER_TEMP/acma-ci-upload.jks"
       - name: Descargar APK generado (PRUEBAS, no listo para Play)
         uses: actions/upload-artifact@v4
         with:
