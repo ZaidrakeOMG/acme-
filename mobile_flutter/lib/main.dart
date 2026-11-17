@@ -14,6 +14,12 @@ import 'configuracion_acma.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Color(0xFF112846),
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: Color(0xFFF3F6FB),
+    systemNavigationBarIconBrightness: Brightness.dark,
+  ));
   runApp(const AplicacionAcma());
 }
 
@@ -25,9 +31,25 @@ class AplicacionAcma extends StatelessWidget {
         title: 'ACMA',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1C3D8F)),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF1C3D8F),
+            surface: const Color(0xFFF3F6FB),
+          ),
           useMaterial3: true,
-          scaffoldBackgroundColor: const Color(0xFFF5F7FB),
+          scaffoldBackgroundColor: const Color(0xFFF3F6FB),
+          textTheme: const TextTheme(
+            headlineSmall: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF172D47)),
+            titleLarge: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF172D47)),
+            bodyMedium: TextStyle(color: Color(0xFF4E6179), height: 1.45),
+          ),
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF1C3D8F),
+              foregroundColor: Colors.white,
+              minimumSize: const Size(160, 48),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
         ),
         home: const VistaAcma(),
       );
@@ -57,7 +79,7 @@ class _VistaAcmaState extends State<VistaAcma> {
 
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFFF5F7FB))
+      ..setBackgroundColor(const Color(0xFFF3F6FB))
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (valor) {
@@ -169,18 +191,12 @@ class _VistaAcmaState extends State<VistaAcma> {
       return Scaffold(
         body: SafeArea(child: Center(child: Padding(
           padding: const EdgeInsets.all(28),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.settings_ethernet, size: 58, color: Color(0xFF1C3D8F)),
-            const SizedBox(height: 18),
-            Text('Configura la dirección de ACMA', style: Theme.of(context).textTheme.titleLarge,
-                textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            const Text('Necesitas publicar ACMA con HTTPS y configurar ACMA_BASE_URL al compilar la app.',
-                textAlign: TextAlign.center),
-            const SizedBox(height: 14),
-            const SelectableText('--dart-define=ACMA_BASE_URL=https://tu-acma.com',
-                textAlign: TextAlign.center),
-          ]),
+          child: _PantallaAvisoAcma(
+            icono: Icons.settings_ethernet_rounded,
+            titulo: 'Configura la dirección de ACMA',
+            descripcion: 'Publica ACMA con HTTPS y configura ACMA_BASE_URL al compilar la aplicación.',
+            detalle: '--dart-define=ACMA_BASE_URL=https://tu-acma.com',
+          ),
         ))),
       );
     }
@@ -196,22 +212,28 @@ class _VistaAcmaState extends State<VistaAcma> {
             WebViewWidget(controller: _controlador!),
             if (_progreso < 100 && !_fallo)
               Positioned(top: 0, left: 0, right: 0,
-                child: LinearProgressIndicator(value: _progreso / 100)),
+                child: LinearProgressIndicator(
+                  value: _progreso / 100,
+                  minHeight: 3,
+                  color: const Color(0xFF1C3D8F),
+                  backgroundColor: const Color(0xFFE0E9F8),
+                )),
             if (_fallo)
               Positioned.fill(child: ColoredBox(
-                color: const Color(0xFFF5F7FB),
-                child: Center(child: Padding(padding: const EdgeInsets.all(30),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.wifi_off, size: 64, color: Color(0xFF1C3D8F)),
-                    const SizedBox(height: 16),
-                    Text('ACMA no está disponible',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 10),
-                    Text(_detalle, textAlign: TextAlign.center),
-                    const SizedBox(height: 24),
-                    FilledButton.icon(onPressed: _recargar,
-                        icon: const Icon(Icons.refresh), label: const Text('Reintentar')),
-                  ]),
+                color: const Color(0xFFF3F6FB),
+                child: Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: _PantallaAvisoAcma(
+                    icono: Icons.wifi_off_rounded,
+                    titulo: 'ACMA no está disponible',
+                    descripcion: 'Revisa tu conexión e intenta nuevamente.',
+                    detalle: _detalle,
+                    accion: FilledButton.icon(
+                      onPressed: _recargar,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Reintentar'),
+                    ),
+                  ),
                 )),
               )),
           ]),
@@ -219,4 +241,67 @@ class _VistaAcmaState extends State<VistaAcma> {
       ),
     );
   }
+}
+
+/** Estados nativos consistentes con el nuevo diseño web; sin emojis. */
+class _PantallaAvisoAcma extends StatelessWidget {
+  const _PantallaAvisoAcma({
+    required this.icono,
+    required this.titulo,
+    required this.descripcion,
+    required this.detalle,
+    this.accion,
+  });
+
+  final IconData icono;
+  final String titulo;
+  final String descripcion;
+  final String detalle;
+  final Widget? accion;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFFE1EAF6)),
+            borderRadius: BorderRadius.circular(26),
+            boxShadow: const [BoxShadow(
+              blurRadius: 36, offset: Offset(0, 12),
+              color: Color(0x14213B64),
+            )],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 24),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 60, height: 60,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF1FD),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(icono, size: 29, color: const Color(0xFF1C3D8F)),
+              ),
+              const SizedBox(height: 16),
+              const Text('ACMA', style: TextStyle(
+                letterSpacing: 3, fontWeight: FontWeight.w900,
+                fontSize: 16, color: Color(0xFF1C3D8F),
+              )),
+              const SizedBox(height: 15),
+              Text(titulo, style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 10),
+              Text(descripcion, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              SelectableText(detalle, textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF62748E))),
+              if (accion != null) ...[
+                const SizedBox(height: 24),
+                accion!,
+              ],
+            ]),
+          ),
+        ),
+      );
 }
