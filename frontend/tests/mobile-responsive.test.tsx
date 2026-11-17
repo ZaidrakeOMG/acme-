@@ -84,6 +84,28 @@ describe('ACMA en pantallas pequeñas', () => {
     expect(screen.getByRole('link', { name: 'Usuarios' })).toBeInTheDocument()
   })
 
+  it('separa los módulos desplazables del bloque Mi cuenta sin empalmarlo', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>Inicio ACMA</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const lateral = screen.getByRole('complementary', { name: 'Navegación principal' })
+    const navegacion = screen.getByRole('navigation', { name: 'Módulos de ACMA' })
+    const cuenta = screen.getByText('Mi cuenta')
+    expect(lateral).toHaveClass('overflow-hidden')
+    expect(navegacion).toHaveClass('overflow-y-auto')
+    expect(navegacion).toHaveClass('min-h-0')
+    expect(cuenta.closest('.acma-sidebar-cuenta')).not.toBeNull()
+    expect(cuenta.closest('.acma-sidebar-cuenta')).toHaveClass('shrink-0')
+    expect(navegacion.contains(cuenta)).toBe(false)
+  })
+
   it('etiqueta todas las celdas para mostrarlas como fichas en móvil', () => {
     render(
       <Tabla
