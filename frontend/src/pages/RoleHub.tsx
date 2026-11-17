@@ -35,7 +35,7 @@ export function RoleHub() {
               Centro de operaciones
             </div>
             <h1 className="max-w-2xl break-words text-[clamp(1.65rem,4vw,2.7rem)] font-extrabold leading-tight tracking-tight">
-              Bienvenido, {primerNombre}
+              Hola, {primerNombre}
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-white/80 sm:text-base">
               Gestiona tus operaciones, consulta información y continúa tu trabajo desde un solo lugar.
