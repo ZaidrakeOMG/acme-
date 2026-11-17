@@ -53,6 +53,7 @@ jobs:
               frontend/src/components/Buscador.tsx|\
               frontend/src/index.css|\
               frontend/src/pages/RoleHub.tsx|\
+              frontend/src/pages/catalogos/Catalogos.tsx|\
               frontend/src/pages/folios/Folios.tsx|\
               frontend/src/pages/auth/Marco.tsx|\
               frontend/src/App.tsx)
