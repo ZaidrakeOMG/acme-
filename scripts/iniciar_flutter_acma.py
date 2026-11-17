@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MOBILE = ROOT / "mobile_flutter"
 SALUD = "http://127.0.0.1:8000/api/salud"
 BASE_ANDROID = "http://localhost:8000"
+RAILWAY_ANDROID = "https://acme-production-ee493e67.up.railway.app"
 # Flutter 3.50.0 solicita este NDK para compilar la app Android en Windows.
 NDK_VERSION = "28.2.13676358"
 # compileSdk del proyecto Android generado por Flutter/Android_file_picker.
@@ -241,9 +242,49 @@ def main() -> int:
     return resultado.returncode
 
 
+def iniciar_railway() -> int:
+    """Abre la app en el emulador ya encendido usando ACMA publicado en Railway.
+
+    No necesita backend local, Python virtualenv, Redis ni secretos .env.
+    No altera el funcionamiento del modo local usado para depuración.
+    """
+    print("\\n=====================================================")
+    print("   ACMA ANDROID - EMULADOR + RAILWAY (UN CLIC)")
+    print("=====================================================")
+    flutter = buscar_flutter()
+    if not flutter:
+        raise RuntimeError(
+            "No se encontro Flutter. Revisa Flutter SDK y flutter doctor en Android Studio."
+        )
+    adb = buscar_adb()
+    if not adb:
+        raise RuntimeError(
+            "No se encontro ADB. Instala Android SDK Platform-Tools desde Android Studio."
+        )
+    dispositivo = elegir_dispositivo(dispositivos_android(adb))
+    print(f"Abriendo ACMA desde {RAILWAY_ANDROID}")
+
+    if not (MOBILE / "android" / "app" / "src" / "main" / "AndroidManifest.xml").exists():
+        print("Generando proyecto Android que falta...")
+        ejecutar([flutter, "create", "--platforms=android",
+                 "--project-name", "acma_mobile", "."], cwd=MOBILE)
+
+    # Errores precisos antes de llamar a Flutter para instalar la app.
+    comprobar_ndk()
+    comprobar_plataforma_android()
+    ejecutar([flutter, "pub", "get"], cwd=MOBILE)
+    print("Ejecutando ACMA en el dispositivo. No necesitas PROBAR_ACMA_WEB.bat.")
+    resultado = subprocess.run(
+        [flutter, "run", "-d", dispositivo, "--debug",
+         f"--dart-define=ACMA_BASE_URL={RAILWAY_ANDROID}"],
+        cwd=MOBILE, check=False,
+    )
+    return resultado.returncode
+
+
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(iniciar_railway() if "--railway" in sys.argv[1:] else main())
     except (ValueError, RuntimeError, subprocess.SubprocessError, OSError) as exc:
         print("\n[ERROR ACMA FLUTTER] " + str(exc), file=sys.stderr)
         raise SystemExit(1) from None
