@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { modulosDe, NOMBRE_ROL, type GrupoModulo, type Modulo } from '../config/modulos'
 import { useAuth } from '../contexts/AuthContext'
@@ -8,7 +8,7 @@ import { IndicadorConectividad } from './IndicadorConectividad'
 const ORDEN_GRUPOS: GrupoModulo[] = ['Administración', 'Operación', 'Seguimiento', 'Finanzas y activos', 'Análisis']
 
 function Icono({ tipo }: { tipo: 'menu' | 'cerrar' | 'inicio' | 'modulos' | 'seguridad' | 'salir' }) {
-  const trazo: Record<typeof tipo, React.ReactNode> = {
+  const trazo: Record<typeof tipo, ReactNode> = {
     menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
     cerrar: <><path d="M6 6l12 12M18 6 6 18" /></>,
     inicio: <><path d="m3 10 9-7 9 7v10H3z" /><path d="M9 20v-7h6v7" /></>,
@@ -58,9 +58,10 @@ export function AppShell() {
   const [menuAbierto, setMenuAbierto] = useState(false)
   const ubicacion = useLocation()
   const [anchoMovil, setAnchoMovil] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches)
 
   useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
     const consulta = window.matchMedia('(max-width: 767px)')
     const alCambiar = (e: MediaQueryListEvent) => setAnchoMovil(e.matches)
     consulta.addEventListener('change', alCambiar)
@@ -99,6 +100,7 @@ export function AppShell() {
         id="acma-menu"
         aria-label="Navegación principal"
         aria-hidden={anchoMovil && !menuAbierto}
+        inert={anchoMovil && !menuAbierto}
         className={`fixed inset-y-0 left-0 z-50 w-[min(19.5rem,88vw)] overflow-y-auto overscroll-contain bg-primario px-3 pb-5 pt-4 shadow-xl transition-transform duration-200 ease-out md:sticky md:top-0 md:z-auto md:h-screen md:w-64 md:shrink-0 md:translate-x-0 md:shadow-none ${menuAbierto ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className="mb-5 flex items-center justify-between gap-2 px-3">
