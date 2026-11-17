@@ -121,14 +121,19 @@ export function AppShell() {
   const ubicacion = useLocation()
   const [anchoMovil, setAnchoMovil] = useState(() =>
     typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
-    window.matchMedia('(max-width: 767px)').matches)
+    window.matchMedia('(max-width: 1023px)').matches)
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
-    const consulta = window.matchMedia('(max-width: 767px)')
+    const consulta = window.matchMedia('(max-width: 1023px)')
     const alCambiar = (e: MediaQueryListEvent) => setAnchoMovil(e.matches)
-    consulta.addEventListener('change', alCambiar)
-    return () => consulta.removeEventListener('change', alCambiar)
+    // Safari antiguos usan addListener; sin esto la navegación puede romperse al montar.
+    if (typeof consulta.addEventListener === 'function') {
+      consulta.addEventListener('change', alCambiar)
+      return () => consulta.removeEventListener('change', alCambiar)
+    }
+    consulta.addListener(alCambiar)
+    return () => consulta.removeListener(alCambiar)
   }, [])
 
   useEffect(() => {
@@ -157,17 +162,17 @@ export function AppShell() {
   const volverAlInicio = () => setMenuAbierto(false)
 
   return (
-    <div className="acma-shell flex min-h-dvh min-w-0 bg-fondo md:flex">
+    <div className="acma-shell flex min-h-dvh min-w-0 bg-fondo lg:flex">
       {menuAbierto && anchoMovil && (
         <button type="button" aria-label="Cerrar navegación" onClick={() => setMenuAbierto(false)}
-          className="fixed inset-0 z-40 bg-[#08162b]/70 backdrop-blur-[3px] md:hidden" />
+          className="fixed inset-0 z-40 bg-[#08162b]/70 backdrop-blur-[3px] lg:hidden" />
       )}
       <aside
         id="acma-menu"
         aria-label="Navegación principal"
         aria-hidden={anchoMovil && !menuAbierto}
         inert={anchoMovil && !menuAbierto}
-        className={`acma-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(19rem,88vw)] flex-col overflow-y-auto overscroll-contain px-3 pb-4 pt-5 shadow-2xl transition-transform duration-300 ease-out md:sticky md:top-0 md:z-auto md:h-screen md:w-[17.5rem] md:shrink-0 md:translate-x-0 md:shadow-none ${menuAbierto ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`acma-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(19rem,88vw)] flex-col overflow-y-auto overscroll-contain px-3 pb-4 pt-5 shadow-2xl transition-transform duration-300 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[17.5rem] lg:shrink-0 lg:translate-x-0 lg:shadow-none ${menuAbierto ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className="mb-7 flex items-center justify-between gap-2 px-2">
           <NavLink to="/" className="flex min-w-0 items-center gap-3" onClick={volverAlInicio}>
@@ -180,7 +185,7 @@ export function AppShell() {
             </div>
           </NavLink>
           <button type="button" onClick={() => setMenuAbierto(false)}
-            aria-label="Cerrar menú" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-white hover:bg-white/10 md:hidden">
+            aria-label="Cerrar menú" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-white hover:bg-white/10 lg:hidden">
             <IconoAcma nombre="cerrar" />
           </button>
         </div>
@@ -212,10 +217,10 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="acma-header sticky top-0 z-30 flex min-h-[4.75rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-9">
+        <header className="acma-header sticky top-0 z-30 flex min-h-[4.5rem] items-center justify-between gap-2 px-3 sm:px-5 lg:px-7 xl:px-9">
           <div className="flex min-w-0 items-center gap-3">
             <button type="button" aria-label="Abrir menú" aria-controls="acma-menu" aria-expanded={menuAbierto}
-              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-primario shadow-sm hover:bg-slate-50 md:hidden"
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-primario shadow-sm hover:bg-slate-50 lg:hidden"
               onClick={() => setMenuAbierto(true)}>
               <IconoAcma nombre="menu" />
             </button>
@@ -226,14 +231,14 @@ export function AppShell() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <div className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 sm:flex"><IndicadorConectividad /></div>
+            <div className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 xl:flex"><IndicadorConectividad /></div>
             <CampanaNotificaciones />
             <div className="relative">
               <button type="button" aria-label="Opciones de usuario" aria-expanded={perfilAbierto}
                 onClick={() => setPerfilAbierto(v => !v)}
                 className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
                 <span className="acma-avatar bg-[#f8e7eb] text-[#92203b]">{iniciales || 'AC'}</span>
-                <span className="hidden max-w-40 min-w-0 text-left md:block">
+                <span className="hidden max-w-40 min-w-0 text-left xl:block">
                   <span className="block truncate text-xs font-bold text-slate-800">{usuario.nombre}</span>
                   <span className="block truncate text-[11px] text-slate-500">{NOMBRE_ROL[usuario.rol]}</span>
                 </span>
@@ -257,12 +262,12 @@ export function AppShell() {
             </div>
           </div>
         </header>
-        <main id="contenido-acma" className="acma-contenido mx-auto w-full min-w-0 max-w-[1480px] flex-1 px-4 pb-24 pt-6 sm:px-6 sm:pt-8 lg:px-9 lg:pb-10">
+        <main id="contenido-acma" className="acma-contenido mx-auto w-full min-w-0 max-w-[1480px] flex-1 px-3 pb-24 pt-5 sm:px-5 sm:pt-7 lg:px-7 xl:px-9 lg:pb-10">
           <Outlet />
         </main>
       </div>
 
-      <nav aria-label="Accesos rápidos" className="acma-barra-movil fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 md:hidden">
+      <nav aria-label="Accesos rápidos" className="acma-barra-movil fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 lg:hidden">
         <NavLink to="/" end className={({ isActive }) => `acma-acceso-rapido ${isActive ? 'acma-acceso-activo' : ''}`}>
           <IconoAcma nombre="inicio" /><span>Inicio</span>
         </NavLink>
