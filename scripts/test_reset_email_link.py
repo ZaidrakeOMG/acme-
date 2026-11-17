@@ -25,19 +25,21 @@ class _Enlaces(HTMLParser):
 class RecuperacionEnlaceTests(unittest.TestCase):
     def test_correo_incluye_boton_y_url_para_copiar(self):
         plantilla = (ROOT / "backend/plantillas/correo/restablecer.html").read_text(encoding="utf-8")
-        url = "https://acme.example.com/restablecer?token=prueba.ABC_123-xyz&referencia=uno"
+        url_web = "https://acme.example.com/restablecer?token=prueba.ABC_123-xyz&referencia=uno"
+        url = url_web.replace("/restablecer?", "/restablecer/seguro?", 1)
         contenido = plantilla.format_map({
             "cuerpo": html.escape("Si no fuiste tú, ignora el correo."),
             "url": html.escape(url, quote=True),
+            "url_spa": html.escape(url_web, quote=True),
             "color_primario": "#1C3D8F",
         })
         self.assertIn("Cambiar contraseña", contenido)
-        self.assertIn("copia y pega", contenido)
+        self.assertIn("copia la dirección", contenido)
         self.assertIn(html.escape(url, quote=True), contenido)
         parser = _Enlaces()
         parser.feed(contenido)
-        self.assertEqual(parser.enlaces, [url, url])
-        self.assertIn(">https://acme.example.com/restablecer?token=", contenido)
+        self.assertEqual(parser.enlaces, [url, url, url_web])
+        self.assertIn(">https://acme.example.com/restablecer/seguro?token=", contenido)
 
     def test_recuperacion_solo_utiliza_plantilla_nueva_para_este_evento(self):
         fuente = (ROOT / "backend/services/notificaciones_service.py").read_text(encoding="utf-8")
@@ -46,7 +48,8 @@ class RecuperacionEnlaceTests(unittest.TestCase):
         bloque = fuente[desde:hasta]
         self.assertIn('n.evento == "auth.restablecer_contrasena"', bloque)
         self.assertIn('correo.plantilla("restablecer"', bloque)
-        self.assertIn('url=url', bloque)
+        self.assertIn('url=url_ligera', bloque)
+        self.assertIn('url_spa=url', bloque)
         self.assertIn('correo.plantilla("generico"', bloque)
         self.assertLess(bloque.index('correo.plantilla("restablecer"'), bloque.index('correo.plantilla("generico"'))
 
