@@ -22,7 +22,7 @@ vi.mock('../src/components/IndicadorConectividad', () => ({
 }))
 
 const matchMediaMovil = vi.fn().mockImplementation((query: string) => ({
-  matches: query.includes('767px'),
+  matches: query.includes('1023px') || query.includes('767px'),
   media: query,
   onchange: null,
   addListener: vi.fn(),
@@ -91,7 +91,7 @@ describe('ACMA en pantallas pequeñas', () => {
         filas={[{ id: '1', numero: 'ACMA-010', estado: 'Abierto' }]}
       />,
     )
-    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByRole('table')).toHaveClass('acma-tabla')
     expect(screen.getByText('ACMA-010')).toHaveAttribute('data-label', 'Folio')
     expect(screen.getByText('Abierto')).toHaveAttribute('data-label', 'Estado')
   })
