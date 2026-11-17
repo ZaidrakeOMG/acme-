@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { AppShell } from './components/AppShell'
+import { useAppAndroid } from './services/clienteAndroid'
+import { UbicacionMovil } from './pages/ubicacion/UbicacionMovil'
 import { MODULOS } from './config/modulos'
 import { useAuth } from './contexts/AuthContext'
 import { Alertas } from './pages/admin/Alertas'
@@ -110,6 +112,7 @@ function SinPermiso() {
 export function App() {
   const { usuario, cargando } = useAuth()
   const { pathname } = useLocation()
+  const android = useAppAndroid()
   // Un enlace de recuperacion debe abrirse incluso si existe una sesion activa
   // (p. ej. al abrir el correo desde una computadora donde ya se inicio sesion).
   if (pathname === '/restablecer') return <Restablecer />
@@ -141,6 +144,7 @@ export function App() {
       <Route element={<AppShell />}>
         <Route index element={<RoleHub />} />
         <Route path="seguridad" element={<Seguridad />} />
+        <Route path="ubicacion-movil" element={android ? <UbicacionMovil /> : <SinPermiso />} />
         <Route path="l/:codigo" element={<EnlaceCorto />} />
         <Route path="formularios/plantillas" element={['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Plantillas /> : <SinPermiso />} />
         <Route path="formularios/constructor/:formularioId?" element={['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Constructor /> : <SinPermiso />} />
