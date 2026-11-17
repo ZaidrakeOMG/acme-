@@ -2,7 +2,7 @@
 
 **Estado del repositorio:** preparados `Dockerfile`, `deploy/ionos/compose.yml`,
 `deploy/ionos/Caddyfile`, `deploy/ionos/desplegar.sh`,
-`deploy/ionos/preparar-vps-ubuntu.sh`, `deploy/ionos/variables.template` . Para construir Android contra un dominio IONOS se usa Flutter con `--dart-define=ACMA_BASE_URL=https://acma.tu-dominio.com`. La imagen React + FastAPI y el archivo Compose
+`deploy/ionos/preparar-vps-ubuntu.sh` y `deploy/ionos/variables.template`. Para construir Android contra un dominio IONOS se usa Flutter con `--dart-define=ACMA_BASE_URL=https://acma.tu-dominio.com`. La imagen React + FastAPI y el archivo Compose
 se validan en GitHub Actions.
 
 **Estado del hosting:** todavía NO se ha desplegado: desconocemos si el cliente
