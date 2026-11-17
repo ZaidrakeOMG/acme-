@@ -1,64 +1,127 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { modulosDe, NOMBRE_ROL, type GrupoModulo, type Modulo } from '../config/modulos'
 import { useAuth } from '../contexts/AuthContext'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { IndicadorConectividad } from './IndicadorConectividad'
+import { IconoAcma } from './IconosAcma'
 
-const ORDEN_GRUPOS: GrupoModulo[] = ['Administración', 'Operación', 'Seguimiento', 'Finanzas y activos', 'Análisis']
+const GRUPOS: GrupoModulo[] = ['Operación', 'Seguimiento', 'Administración', 'Finanzas y activos', 'Análisis']
 
-function Icono({ tipo }: { tipo: 'menu' | 'cerrar' | 'inicio' | 'modulos' | 'seguridad' | 'salir' }) {
-  const trazo: Record<typeof tipo, ReactNode> = {
-    menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
-    cerrar: <><path d="M6 6l12 12M18 6 6 18" /></>,
-    inicio: <><path d="m3 10 9-7 9 7v10H3z" /><path d="M9 20v-7h6v7" /></>,
-    modulos: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
-    seguridad: <><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z" /><path d="m9 12 2 2 4-4" /></>,
-    salir: <><path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5" /><path d="M14 8l4 4-4 4M18 12H8" /></>,
-  }
-  return (
-    <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"
-      strokeWidth="1.8" viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
-      {trazo[tipo]}
-    </svg>
-  )
+function nombreActual(modulos: Modulo[], pathname: string): string {
+  if (pathname === '/') return 'Centro de operaciones'
+  if (pathname === '/seguridad') return 'Seguridad de la cuenta'
+  const encontrados = modulos.filter(m => {
+    const ruta = m.ruta.split('?')[0]
+    return pathname === ruta || pathname.startsWith(ruta + '/')
+  }).sort((a, b) => b.ruta.length - a.ruta.length)
+  return encontrados[0]?.nombre ?? 'Espacio de trabajo'
 }
 
-function Navegacion({ modulos, alNavegar }: { modulos: Modulo[]; alNavegar: () => void }) {
-  const enlace = ({ isActive }: { isActive: boolean }) =>
-    `block rounded-lg px-3 py-2.5 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${isActive ? 'bg-white/15 font-semibold text-white' : 'text-white/85 hover:bg-white/10 hover:text-white'}`
+function Navegacion({ modulos, alNavegar, rutaActual }: {
+  modulos: Modulo[]
+  alNavegar: () => void
+  rutaActual: string
+}) {
+  const [busqueda, setBusqueda] = useState('')
+  const [gruposAbiertos, setGruposAbiertos] = useState<GrupoModulo[]>(['Operación'])
+  const texto = busqueda.trim().toLocaleLowerCase('es-MX')
+
+  useEffect(() => {
+    const grupo = modulos.find(m => {
+      const ruta = m.ruta.split('?')[0]
+      return ruta === rutaActual || rutaActual.startsWith(ruta + '/')
+    })?.grupo
+    if (grupo) setGruposAbiertos(prev => prev.includes(grupo) ? prev : [...prev, grupo])
+  }, [rutaActual, modulos])
+
+  const alternarGrupo = (grupo: GrupoModulo) =>
+    setGruposAbiertos(prev => prev.includes(grupo) ? prev.filter(g => g !== grupo) : [...prev, grupo])
+
+  const filtrados = texto
+    ? modulos.filter(m => `${m.nombre} ${m.descripcion} ${m.grupo}`.toLocaleLowerCase('es-MX').includes(texto))
+    : modulos
+
+  const estiloEnlace = ({ isActive }: { isActive: boolean }) =>
+    `acma-nav-enlace ${isActive ? 'acma-nav-enlace-activo' : ''}`
+
   return (
-    <nav aria-label="Módulos de ACMA" className="space-y-1 pb-6">
-      <NavLink to="/" end className={enlace} onClick={alNavegar}>Inicio</NavLink>
-      {ORDEN_GRUPOS.map((grupo) => {
-        const delGrupo = modulos.filter((m) => m.grupo === grupo)
-        if (!delGrupo.length) return null
-        return (
-          <div key={grupo} className="pt-4">
-            <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wider text-white/60">{grupo}</p>
-            {delGrupo.map((m) => (
-              <NavLink key={m.id} to={m.ruta!} className={enlace} onClick={alNavegar}>
-                {m.nombre}
-              </NavLink>
-            ))}
-          </div>
-        )
-      })}
-      <div className="pt-4">
-        <NavLink to="/seguridad" className={enlace} onClick={alNavegar}>Mi seguridad</NavLink>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-5 px-2">
+        <label htmlFor="acma-buscar-modulo" className="sr-only">Buscar módulo</label>
+        <div className="acma-nav-buscador">
+          <IconoAcma nombre="buscar" className="h-[18px] w-[18px]" />
+          <input
+            id="acma-buscar-modulo"
+            type="search"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar módulo"
+            className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/50 outline-none"
+          />
+        </div>
       </div>
-    </nav>
+      <nav aria-label="Módulos de ACMA" className="space-y-1 pb-5">
+        <NavLink to="/" end className={estiloEnlace} onClick={alNavegar}>
+          <span className="acma-nav-icono"><IconoAcma nombre="inicio" /></span>
+          <span className="min-w-0 flex-1 truncate">Inicio</span>
+        </NavLink>
+        {GRUPOS.map(grupo => {
+          const delGrupo = filtrados.filter(m => m.grupo === grupo)
+          if (!delGrupo.length) return null
+          const abierto = Boolean(texto) || gruposAbiertos.includes(grupo)
+          const id = `acma-seccion-${GRUPOS.indexOf(grupo)}`
+          return (
+            <div key={grupo} className="pt-3">
+              <button
+                type="button"
+                onClick={() => alternarGrupo(grupo)}
+                aria-expanded={abierto}
+                aria-controls={id}
+                className="acma-nav-grupo"
+              >
+                <span className="min-w-0 flex-1 truncate">{grupo}</span>
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] tabular-nums text-white/60">{delGrupo.length}</span>
+                <IconoAcma nombre="chevron" className={`h-4 w-4 transition-transform duration-200 ${abierto ? 'rotate-180' : ''}`} />
+              </button>
+              {abierto && (
+                <div id={id} className="acma-nav-opciones">
+                  {delGrupo.map(m => (
+                    <NavLink key={m.id} to={m.ruta} className={estiloEnlace} onClick={alNavegar}>
+                      <span className="acma-nav-icono"><IconoAcma nombre={m.id} /></span>
+                      <span className="min-w-0 flex-1 truncate">{m.nombre}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {filtrados.length === 0 && (
+          <p role="status" className="px-3 py-5 text-center text-sm text-white/65">
+            No encontramos módulos con ese nombre.
+          </p>
+        )}
+        <div className="mt-4 border-t border-white/10 pt-4">
+          <NavLink to="/seguridad" className={estiloEnlace} onClick={alNavegar}>
+            <span className="acma-nav-icono"><IconoAcma nombre="seguridad" /></span>
+            <span className="min-w-0 flex-1 truncate">Mi seguridad</span>
+          </NavLink>
+        </div>
+      </nav>
+    </div>
   )
 }
 
-/** Navegación móvil tipo aplicación: menú lateral con fondo y barra inferior.
- *  En escritorio permanece el menú tradicional, sin alterar las rutas o permisos. */
+/** Shell compartido por React Web y la WebView Android. Mantiene rutas, permisos y estados existentes. */
 export function AppShell() {
   const { usuario, cerrarSesion } = useAuth()
   const [menuAbierto, setMenuAbierto] = useState(false)
+  const [perfilAbierto, setPerfilAbierto] = useState(false)
   const ubicacion = useLocation()
   const [anchoMovil, setAnchoMovil] = useState(() =>
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches)
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
+    window.matchMedia('(max-width: 767px)').matches)
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
@@ -70,6 +133,7 @@ export function AppShell() {
 
   useEffect(() => {
     setMenuAbierto(false)
+    setPerfilAbierto(false)
   }, [ubicacion.pathname, ubicacion.search])
 
   useEffect(() => {
@@ -86,81 +150,131 @@ export function AppShell() {
     }
   }, [menuAbierto, anchoMovil])
 
+  const modulos = useMemo(() => usuario ? modulosDe(usuario.rol).filter(m => m.ruta) : [], [usuario?.rol])
   if (!usuario) return null
-  const modulos = modulosDe(usuario.rol).filter((m) => m.ruta)
+  const titulo = nombreActual(modulos, ubicacion.pathname)
+  const iniciales = usuario.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase()).join('')
+  const volverAlInicio = () => setMenuAbierto(false)
 
   return (
-    <div className="min-h-dvh min-w-0 bg-fondo md:flex">
-      {/* Fondo tocable para cerrar el menú móvil, sin desplazar el contenido. */}
+    <div className="acma-shell flex min-h-dvh min-w-0 bg-fondo md:flex">
       {menuAbierto && anchoMovil && (
         <button type="button" aria-label="Cerrar navegación" onClick={() => setMenuAbierto(false)}
-          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-[2px] md:hidden" />
+          className="fixed inset-0 z-40 bg-[#08162b]/70 backdrop-blur-[3px] md:hidden" />
       )}
       <aside
         id="acma-menu"
         aria-label="Navegación principal"
         aria-hidden={anchoMovil && !menuAbierto}
         inert={anchoMovil && !menuAbierto}
-        className={`fixed inset-y-0 left-0 z-50 w-[min(19.5rem,88vw)] overflow-y-auto overscroll-contain bg-primario px-3 pb-5 pt-4 shadow-xl transition-transform duration-200 ease-out md:sticky md:top-0 md:z-auto md:h-screen md:w-64 md:shrink-0 md:translate-x-0 md:shadow-none ${menuAbierto ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`acma-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(19rem,88vw)] flex-col overflow-y-auto overscroll-contain px-3 pb-4 pt-5 shadow-2xl transition-transform duration-300 ease-out md:sticky md:top-0 md:z-auto md:h-screen md:w-[17.5rem] md:shrink-0 md:translate-x-0 md:shadow-none ${menuAbierto ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className="mb-5 flex items-center justify-between gap-2 px-3">
-          <div className="flex items-center gap-2">
-            <img src="/icono.svg" alt="" className="h-9 w-9" />
-            <span className="text-lg font-semibold tracking-wide text-white">ACMA</span>
-          </div>
+        <div className="mb-7 flex items-center justify-between gap-2 px-2">
+          <NavLink to="/" className="flex min-w-0 items-center gap-3" onClick={volverAlInicio}>
+            <div className="acma-logo-caja">
+              <img src="/icono.svg" alt="Identidad ACMA" className="h-10 w-10 object-contain" />
+            </div>
+            <div className="min-w-0">
+              <strong className="block text-xl font-extrabold tracking-[.13em] text-white">ACMA</strong>
+              <span className="block text-[10px] font-medium tracking-wide text-blue-100/55">PLATAFORMA EMPRESARIAL</span>
+            </div>
+          </NavLink>
           <button type="button" onClick={() => setMenuAbierto(false)}
-            aria-label="Cerrar menú" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white hover:bg-white/10 md:hidden">
-            <Icono tipo="cerrar" />
+            aria-label="Cerrar menú" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-white hover:bg-white/10 md:hidden">
+            <IconoAcma nombre="cerrar" />
           </button>
         </div>
-        {(!anchoMovil || menuAbierto) && <Navegacion modulos={modulos} alNavegar={() => setMenuAbierto(false)} />}
-      </aside>
 
-      <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-30 flex min-h-14 items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur sm:px-4 md:px-8">
-          <button type="button" aria-label="Abrir menú" aria-controls="acma-menu" aria-expanded={menuAbierto}
-            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-primario hover:bg-slate-100 md:hidden"
-            onClick={() => setMenuAbierto(true)}>
-            <Icono tipo="menu" />
-          </button>
-          <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-1 sm:flex-row sm:items-center sm:gap-3">
-            <span className="max-w-full truncate text-xs font-medium text-slate-600 sm:text-sm">{usuario.tema.prestador ?? 'Plataforma ACMA'}</span>
-            <IndicadorConectividad />
-          </div>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <CampanaNotificaciones />
-            <div className="hidden max-w-36 text-right leading-tight sm:block">
-              <p className="truncate text-sm font-medium text-slate-900">{usuario.nombre}</p>
-              <p className="truncate text-xs text-slate-500">{NOMBRE_ROL[usuario.rol]}</p>
+        <div className="acma-sidebar-etiqueta mb-5 flex items-center gap-3 rounded-xl px-3 py-3">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white"><IconoAcma nombre="cuadrícula" className="h-4 w-4" /></span>
+          <span className="min-w-0">
+            <span className="block text-[10px] uppercase tracking-[.14em] text-blue-100/55">Espacio de trabajo</span>
+            <span className="block truncate text-sm font-semibold text-white">{usuario.tema?.prestador ?? 'ACMA'}</span>
+          </span>
+        </div>
+
+        {(!anchoMovil || menuAbierto) && (
+          <Navegacion modulos={modulos} rutaActual={ubicacion.pathname} alNavegar={volverAlInicio} />
+        )}
+        <div className="mt-auto border-t border-white/10 pt-4">
+          <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+            <span className="acma-avatar bg-white/15 text-white">{iniciales || 'AC'}</span>
+            <div className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-white">{usuario.nombre}</span>
+              <span className="block truncate text-xs text-blue-100/60">{NOMBRE_ROL[usuario.rol]}</span>
             </div>
-            <button type="button" className="hidden min-h-11 items-center gap-1 rounded-lg px-3 text-sm text-slate-600 hover:bg-slate-100 md:inline-flex"
-              onClick={() => void cerrarSesion()}>
-              <Icono tipo="salir" /> Salir
+            <button type="button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={() => void cerrarSesion()}
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-white/65 hover:bg-white/10 hover:text-white">
+              <IconoAcma nombre="salir" className="h-[18px] w-[18px]" />
             </button>
           </div>
-        </header>
+        </div>
+      </aside>
 
-        <main id="contenido-acma" className="acma-contenido mx-auto w-full min-w-0 max-w-6xl px-3 pb-24 pt-4 sm:px-4 sm:pt-6 md:px-8 md:pb-10 md:pt-8">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="acma-header sticky top-0 z-30 flex min-h-[4.75rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-9">
+          <div className="flex min-w-0 items-center gap-3">
+            <button type="button" aria-label="Abrir menú" aria-controls="acma-menu" aria-expanded={menuAbierto}
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-primario shadow-sm hover:bg-slate-50 md:hidden"
+              onClick={() => setMenuAbierto(true)}>
+              <IconoAcma nombre="menu" />
+            </button>
+            <div className="min-w-0">
+              <p className="hidden text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400 sm:block">Plataforma de mantenimiento</p>
+              <p className="truncate text-[15px] font-bold text-[#152842] sm:text-lg">{titulo}</p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <div className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 sm:flex"><IndicadorConectividad /></div>
+            <CampanaNotificaciones />
+            <div className="relative">
+              <button type="button" aria-label="Opciones de usuario" aria-expanded={perfilAbierto}
+                onClick={() => setPerfilAbierto(v => !v)}
+                className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+                <span className="acma-avatar bg-[#e9eefb] text-[#1c3d8f]">{iniciales || 'AC'}</span>
+                <span className="hidden max-w-40 min-w-0 text-left md:block">
+                  <span className="block truncate text-xs font-bold text-slate-800">{usuario.nombre}</span>
+                  <span className="block truncate text-[11px] text-slate-500">{NOMBRE_ROL[usuario.rol]}</span>
+                </span>
+                <IconoAcma nombre="chevron" className="hidden h-4 w-4 text-slate-400 sm:block" />
+              </button>
+              {perfilAbierto && (
+                <div className="absolute right-0 top-[calc(100%+10px)] z-40 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_22px_50px_rgba(15,23,42,.16)]">
+                  <div className="border-b border-slate-100 px-3 py-2">
+                    <p className="truncate text-sm font-semibold text-slate-900">{usuario.nombre}</p>
+                    <p className="truncate text-xs text-slate-500">{NOMBRE_ROL[usuario.rol]}</p>
+                  </div>
+                  <NavLink to="/seguridad" className="acma-perfil-opcion" onClick={() => setPerfilAbierto(false)}>
+                    <IconoAcma nombre="seguridad" className="h-[18px] w-[18px]" /> Mi seguridad
+                  </NavLink>
+                  <button type="button" onClick={() => { setPerfilAbierto(false); void cerrarSesion() }}
+                    className="acma-perfil-opcion w-full text-left text-red-700">
+                    <IconoAcma nombre="salir" className="h-[18px] w-[18px]" /> Cerrar sesión
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+        <main id="contenido-acma" className="acma-contenido mx-auto w-full min-w-0 max-w-[1480px] flex-1 px-4 pb-24 pt-6 sm:px-6 sm:pt-8 lg:px-9 lg:pb-10">
           <Outlet />
         </main>
       </div>
 
-      {/* Accesos rápidos permanentes para teléfonos, sin duplicar las pantallas. */}
-      <nav aria-label="Accesos rápidos" className="acma-barra-movil fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-slate-200 bg-white/95 shadow-[0_-4px_20px_rgba(15,23,42,.06)] backdrop-blur md:hidden">
-        <NavLink to="/" end className={({ isActive }) => `acma-acceso-rapido ${isActive ? 'text-primario' : 'text-slate-500'}`}>
-          <Icono tipo="inicio" /><span>Inicio</span>
+      <nav aria-label="Accesos rápidos" className="acma-barra-movil fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 md:hidden">
+        <NavLink to="/" end className={({ isActive }) => `acma-acceso-rapido ${isActive ? 'acma-acceso-activo' : ''}`}>
+          <IconoAcma nombre="inicio" /><span>Inicio</span>
         </NavLink>
         <button type="button" onClick={() => setMenuAbierto(true)}
-          aria-label="Mostrar módulos" className="acma-acceso-rapido text-slate-500">
-          <Icono tipo="modulos" /><span>Módulos</span>
+          aria-label="Mostrar módulos" className={`acma-acceso-rapido ${menuAbierto ? 'acma-acceso-activo' : ''}`}>
+          <IconoAcma nombre="cuadrícula" /><span>Módulos</span>
         </button>
-        <NavLink to="/notificaciones" className={({ isActive }) => `acma-acceso-rapido ${isActive ? 'text-primario' : 'text-slate-500'}`}>
-          <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24" className="h-5 w-5">
-            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" />
-          </svg><span>Avisos</span>
+        <NavLink to="/notificaciones" className={({ isActive }) => `acma-acceso-rapido ${isActive ? 'acma-acceso-activo' : ''}`}>
+          <IconoAcma nombre="campana" /><span>Avisos</span>
         </NavLink>
-        <NavLink to="/seguridad" className={({ isActive }) => `acma-acceso-rapido ${isActive ? 'text-primario' : 'text-slate-500'}`}>
-          <Icono tipo="seguridad" /><span>Seguridad</span>
+        <NavLink to="/seguridad" className={({ isActive }) => `acma-acceso-rapido ${isActive ? 'acma-acceso-activo' : ''}`}>
+          <IconoAcma nombre="seguridad" /><span>Seguridad</span>
         </NavLink>
       </nav>
     </div>
