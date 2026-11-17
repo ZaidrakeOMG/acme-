@@ -112,6 +112,34 @@ class LanzadorFlutter(unittest.TestCase):
             with patch.object(m, "ruta_sdk_android", return_value=sdk):
                 m.comprobar_plataforma_android()
 
+    def test_railway_abre_android_sin_servidor_local(self):
+        with tempfile.TemporaryDirectory() as temporal:
+            movil = Path(temporal)
+            manifest = movil / "android/app/src/main/AndroidManifest.xml"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text("<manifest/>", encoding="utf-8")
+            with (patch.object(m, "MOBILE", movil),
+                  patch.object(m, "buscar_flutter", return_value="flutter"),
+                  patch.object(m, "buscar_adb", return_value="adb"),
+                  patch.object(m, "dispositivos_android", return_value=["emulator-5554"]),
+                  patch.object(m, "validar_backend") as backend,
+                  patch.object(m, "comprobar_ndk"),
+                  patch.object(m, "comprobar_plataforma_android"),
+                  patch.object(m, "ejecutar") as ejecutar,
+                  patch.object(m.subprocess, "run",
+                               return_value=CompletedProcess([], 0)) as ejecutar_flutter):
+                self.assertEqual(m.iniciar_railway(), 0)
+                backend.assert_not_called()
+                ejecutar.assert_called_once_with(["flutter", "pub", "get"], cwd=movil)
+                comando = ejecutar_flutter.call_args.args[0]
+                self.assertEqual(comando[:4], ["flutter", "run", "-d", "emulator-5554"])
+                self.assertIn(
+                    "--dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app",
+                    comando,
+                )
+                self.assertNotIn("--dart-define=ACMA_ALLOW_HTTP=true", comando)
+                self.assertNotIn("reverse", comando)
+
     def test_web_bat_no_exige_py_con_venv_existente(self):
         lanzador = (ROOT / "PROBAR_ACMA_WEB.bat").read_text(encoding="utf-8")
         self.assertIn(
@@ -126,9 +154,11 @@ class LanzadorFlutter(unittest.TestCase):
     def test_bat_usa_python_existente_y_no_exige_launcher_py(self):
         lanzador = (ROOT / "PROBAR_ACMA_FLUTTER_ANDROID.bat").read_text(encoding="utf-8")
         self.assertIn('if exist "backend\\.venv\\Scripts\\python.exe" goto :python_venv', lanzador)
-        self.assertIn('"backend\\.venv\\Scripts\\python.exe" scripts\\iniciar_flutter_acma.py', lanzador)
+        self.assertIn('"backend\\.venv\\Scripts\\python.exe" scripts\\iniciar_flutter_acma.py %ACMA_MODO%', lanzador)
         self.assertIn("if not errorlevel 1 goto :python_path", lanzador)
         self.assertNotIn("No se encontro el lanzador py de Python 3.12", lanzador)
+        self.assertIn('set "ACMA_MODO=--railway"', lanzador)
+        self.assertIn('if /I "%~1"=="--local" set "ACMA_MODO="', lanzador)
 
     def test_manifest_android_solo_debug_permite_http(self):
         ruta = ROOT / "mobile_flutter/android/app/src/debug/AndroidManifest.xml"
