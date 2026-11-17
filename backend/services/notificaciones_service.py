@@ -236,7 +236,12 @@ async def _enviar_email(db: AsyncSession, n: Notificacion, u: Usuario) -> tuple[
     cuerpo = n.cuerpo_json
     base_url = config.app_url_publica.rstrip("/")
     url = f"{base_url}{n.url}" if n.url and n.url.startswith("/") else (n.url or base_url)
-    if cuerpo.get("plantilla") and cuerpo.get("datos", {}).get("html_valores"):
+    if n.evento == "auth.restablecer_contrasena":
+        # Correo transaccional: enlace completo visible para copiar si un lector
+        # de Gmail/Outlook bloquea el botón. Nunca registrar el token en logs.
+        html = correo.plantilla("restablecer", titulo=n.asunto, cuerpo=cuerpo.get("cuerpo", ""),
+                                url=url, **marca)
+    elif cuerpo.get("plantilla") and cuerpo.get("datos", {}).get("html_valores"):
         html = correo.plantilla(cuerpo["plantilla"], **{"titulo": n.asunto, "url": url, **marca, **cuerpo["datos"]["html_valores"]})
     else:
         detalle = cuerpo.get("datos", {}).get("detalle_html", "")

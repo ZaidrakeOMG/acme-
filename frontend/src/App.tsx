@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Navigate, Route, Routes } from 'react-router'
+import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { AppShell } from './components/AppShell'
 import { MODULOS } from './config/modulos'
 import { useAuth } from './contexts/AuthContext'
@@ -109,6 +109,10 @@ function SinPermiso() {
 
 export function App() {
   const { usuario, cargando } = useAuth()
+  const { pathname } = useLocation()
+  // Un enlace de recuperacion debe abrirse incluso si existe una sesion activa
+  // (p. ej. al abrir el correo desde una computadora donde ya se inicio sesion).
+  if (pathname === '/restablecer') return <Restablecer />
   if (cargando) {
     return <div className="flex min-h-screen items-center justify-center text-slate-500">Cargando…</div>
   }
