@@ -90,7 +90,7 @@ class ResetConfigTests(unittest.TestCase):
         desde = s.index("async def solicitar_restablecimiento(")
         hasta = s.index("async def confirmar_restablecimiento(", desde)
         reset = s[desde:hasta]
-        self.assertIn('correo.modo() == "stub"', reset)
+        self.assertIn('not correo.recuperacion_configurada()', reset)
         self.assertIn('enviar_ahora=True', reset)
         self.assertIn('CORREO_NO_CONFIGURADO', reset)
 

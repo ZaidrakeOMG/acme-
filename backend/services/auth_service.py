@@ -465,7 +465,7 @@ async def solicitar_restablecimiento(db: AsyncSession, request: Request, email: 
     # En producción un stub no envía nada: fallar por igual para todas las
     # direcciones evita prometer un correo que ACMA jamás entregó.
     # Comprobarlo ANTES de buscar el usuario evita revelar si existe.
-    if config.es_produccion and correo.modo() == "stub":
+    if config.es_produccion and not correo.recuperacion_configurada():
         raise ErrorAPI(503, "CORREO_NO_CONFIGURADO",
                        "El correo de recuperación todavía no está disponible; contacta al administrador")
 
