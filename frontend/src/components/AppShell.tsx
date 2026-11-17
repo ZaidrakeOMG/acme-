@@ -200,7 +200,7 @@ export function AppShell() {
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
             <span className="acma-avatar bg-white/15 text-white">{iniciales || 'AC'}</span>
             <div className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-white">{usuario.nombre}</span>
+              <span className="block truncate text-sm font-semibold text-white">Mi cuenta</span>
               <span className="block truncate text-xs text-white/60">{NOMBRE_ROL[usuario.rol]}</span>
             </div>
             <button type="button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={() => void cerrarSesion()}
