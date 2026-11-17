@@ -460,7 +460,14 @@ RESET_MINUTOS = 30
 
 async def solicitar_restablecimiento(db: AsyncSession, request: Request, email: str) -> None:
     """Emite un token de un solo uso y lo manda por correo. No revela si el correo existe (§6.9.5)."""
-    from services import notificaciones_service
+    from services import correo, notificaciones_service
+
+    # En producción un stub no envía nada: fallar por igual para todas las
+    # direcciones evita prometer un correo que ACMA jamás entregó.
+    # Comprobarlo ANTES de buscar el usuario evita revelar si existe.
+    if config.es_produccion and correo.modo() == "stub":
+        raise ErrorAPI(503, "CORREO_NO_CONFIGURADO",
+                       "El correo de recuperación todavía no está disponible; contacta al administrador")
 
     fila = await _identidad(db, email=email)
     if fila is None:
@@ -480,7 +487,8 @@ async def solicitar_restablecimiento(db: AsyncSession, request: Request, email: 
         asunto="Restablece tu contraseña de ACMA",
         cuerpo=(f"Pediste restablecer tu contraseña. El enlace sirve una sola vez y vence en {RESET_MINUTOS} minutos. "
                 "Si no fuiste tú, ignora este correo y tu contraseña seguirá igual."),
-        url=enlace, tenant_id=usuario.tenant_id, prestador_id=usuario.prestador_id, canales=["email"])
+        url=enlace, tenant_id=usuario.tenant_id, prestador_id=usuario.prestador_id,
+        canales=["email"], enviar_ahora=True)  # reset no depende de Celery / Redis
     await _auditar(db, "auth.reset_solicitado", request, usuario)
     await db.commit()
 
