@@ -87,8 +87,8 @@ class MailjetAPITests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, json={
                 "Messages": [{"Status": "success"}, {"Status": "success"}],
             })
-        # No se permiten pasar destinatarios duplicados al helper _simular.
-        with patch.object(modulo.httpx, "AsyncClient", side_effect=lambda *a, **k: httpx.AsyncClient(
+        real = httpx.AsyncClient
+        with patch.object(modulo.httpx, "AsyncClient", side_effect=lambda *a, **k: real(
             *a, transport=httpx.MockTransport(responder), **k)):
             resultado = await modulo.enviar_mailjet(
                 api_key="publica", secret_key="privada", remitente="ACMA <zaid@ejemplo.com>",
