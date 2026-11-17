@@ -12,29 +12,25 @@ git switch main
 git pull --ff-only origin main
 ```
 
-## 2. Abrir en Android Studio
+## 2. Abrir ACMA en el emulador con un doble clic
 
-- Instala el SDK de Flutter y los plugins Flutter/Dart en Android Studio.
-- Abre **File → Open** y selecciona `mobile_flutter`, no la carpeta `frontend`.
-- Inicia un emulador desde **Tools → Device Manager** o conecta un celular Android con **Depuración USB**.
-- Abre la terminal integrada y verifica que estés en `mobile_flutter`.
+1. En **Android Studio → Tools → Device Manager**, inicia tu emulador Android.
+2. Desde el Explorador de Windows, entra a la carpeta **raiz del repositorio ACMA**.
+3. Haz doble clic en **PROBAR_ACMA_FLUTTER_ANDROID.bat**.
 
-```powershell
-flutter doctor
-flutter create --platforms=android --project-name acma_mobile .
-flutter pub get
-dart run flutter_launcher_icons
-flutter devices
-flutter run --dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app
+El lanzador utiliza el emulador encendido, prepara Flutter y abre la WebView conectada a **Railway**. No hace falta abrir PROBAR_ACMA_WEB.bat.
+
+Para desarrollo con servidor **local**, abre PROBAR_ACMA_WEB.bat y ejecuta:
+
+```bat
+PROBAR_ACMA_FLUTTER_ANDROID.bat --local
 ```
 
-Si deseas utilizar el botón **Run** del IDE, elige el dispositivo en la barra superior y crea una configuración Flutter con **Additional run args**:
+Si deseas usar el boton **Run** de Android Studio, abre la carpeta `mobile_flutter`, elige el emulador y configura los argumentos de Flutter:
 
 ```text
 --dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app
 ```
-
-El punto de entrada es `lib/main.dart`. La app requiere conectividad a Railway para cargar la web; por eso debes comprobar antes `/api/salud` en el mismo dominio.
 
 ## 3. Probar con el servidor local (opcional)
 

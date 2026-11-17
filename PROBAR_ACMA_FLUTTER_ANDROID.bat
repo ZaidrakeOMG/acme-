@@ -4,15 +4,17 @@ cd /d "%~dp0"
 title ACMA - PROBAR FLUTTER ANDROID (SIN DOCKER)
 echo.
 echo =========================================================
-echo  ACMA - FLUTTER ANDROID CON SUPABASE
+echo  ACMA - ABRIR ANDROID EN EMULADOR CON UN DOBLE CLIC
 echo =========================================================
-echo  1. Mantener PROBAR_ACMA_WEB.bat abierto en otra ventana.
-echo  2. Tener Android Studio con un emulador Android ENCENDIDO,
-echo     o un celular Android conectado por USB y autorizado.
-echo  3. El asistente detectara el equipo y ejecutara Flutter.
-echo  No borra la base, no crea usuarios, no pide tu API key.
+echo  1. En Android Studio abre un emulador desde Device Manager.
+echo  2. Ejecuta este .bat: se abrira ACMA en el emulador.
+echo  3. Usa la web publicada en Railway sin iniciar servidor local.
 echo.
-
+echo  Si prefieres probar backend local, ejecuta:
+echo  PROBAR_ACMA_FLUTTER_ANDROID.bat --local
+echo.
+set "ACMA_MODO=--railway"
+if /I "%~1"=="--local" set "ACMA_MODO="
 rem Usar primero el Python que YA instalamos para ACMA Web.
 rem El launcher "py" no es requisito de Flutter ni de Android Studio.
 if exist "backend\.venv\Scripts\python.exe" goto :python_venv
@@ -21,23 +23,23 @@ if not errorlevel 1 goto :python_path
 where py >nul 2>nul
 if not errorlevel 1 goto :python_launcher
 echo [ERROR] No se encontro Python en el equipo.
-echo Ejecuta PROBAR_ACMA_WEB.bat para instalar el entorno,
+echo Instala Python 3.12 o configura Python en PATH,
 echo o comprueba desde CMD: python --version
 goto :final
 
 :python_venv
 echo [OK] Usando Python del entorno de ACMA Web.
-"backend\.venv\Scripts\python.exe" scripts\iniciar_flutter_acma.py
+"backend\.venv\Scripts\python.exe" scripts\iniciar_flutter_acma.py %ACMA_MODO%
 goto :resultado
 
 :python_path
 echo [OK] Usando Python disponible en PATH.
-python scripts\iniciar_flutter_acma.py
+python scripts\iniciar_flutter_acma.py %ACMA_MODO%
 goto :resultado
 
 :python_launcher
 echo [OK] Usando lanzador alternativo py -3.12.
-py -3.12 scripts\iniciar_flutter_acma.py
+py -3.12 scripts\iniciar_flutter_acma.py %ACMA_MODO%
 goto :resultado
 
 :resultado
