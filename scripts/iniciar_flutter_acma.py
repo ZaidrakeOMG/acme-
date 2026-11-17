@@ -248,7 +248,7 @@ def iniciar_railway() -> int:
     No necesita backend local, Python virtualenv, Redis ni secretos .env.
     No altera el funcionamiento del modo local usado para depuración.
     """
-    print("\\n=====================================================")
+    print("\n=====================================================")
     print("   ACMA ANDROID - EMULADOR + RAILWAY (UN CLIC)")
     print("=====================================================")
     flutter = buscar_flutter()
