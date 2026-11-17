@@ -57,6 +57,8 @@ class MailjetAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["Messages"][0]["From"],
                          {"Email": "zaid@ejemplo.com", "Name": "ACMA"})
         self.assertEqual(payload["Messages"][0]["To"], [{"Email": "usuario@ejemplo.com"}])
+        self.assertEqual(payload["Messages"][0]["TrackClicks"], "disabled")
+        self.assertEqual(payload["Messages"][0]["TrackOpens"], "disabled")
         self.assertNotIn("secreto_privado_prueba", req.content.decode())
         self.assertNotIn("MUY_SECRETO", resultado[1])
 
