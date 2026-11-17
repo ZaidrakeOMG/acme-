@@ -34,6 +34,10 @@ jobs:
             [ -z "$archivo" ] && continue
             case "$archivo" in
               frontend/src/components/AppShell.tsx|\
+              frontend/src/components/IconosAcma.tsx|\
+              frontend/public/icono.svg|\
+              frontend/public/icono-192.png|\
+              frontend/public/icono-512.png|\
               frontend/src/components/CampanaNotificaciones.tsx|\
               frontend/src/components/ui.tsx|\
               frontend/src/components/Buscador.tsx|\
@@ -45,7 +49,7 @@ jobs:
                 # App.tsx solo se modifica para permitir la ruta pública de
                 # recuperación con sesión activa; está cubierto por
                 # scripts/test_reset_email_link.py.
-                echo "Cambio responsive permitido: $archivo"
+                echo "Cambio visual y responsivo permitido: $archivo"
                 ;;
               *)
                 echo "ERROR: módulo o migración fuera del alcance móvil: $archivo"
@@ -90,6 +94,8 @@ jobs:
         run: |
           python -m compileall -q backend/services/notificaciones_service.py scripts/test_reset_email_link.py
           python scripts/test_reset_email_link.py
+      - name: Validar iconos de ACMA para PWA y Android
+        run: python scripts/test_marca_acma.py
 
   frontend:
     runs-on: ubuntu-latest
