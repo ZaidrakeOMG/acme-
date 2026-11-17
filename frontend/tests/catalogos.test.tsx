@@ -54,6 +54,23 @@ describe('Catálogos', () => {
     expect(pestanasDe(rol).map((p) => p.nombre)).toEqual(esperadas)
   })
 
+  it('superadmin elige un prestador antes de administrar técnicos', async () => {
+    const llamadas = await entrar('superadmin', {}, {
+      'GET /api/prestadores': () => ({ json: [{
+        id: P, razon_social: 'Prestador de ejemplo', rfc: 'AAA010101AAA',
+        estado: 'activo', created_at: '', updated_at: '', version_hash: null,
+      }] }),
+    })
+    expect(await screen.findByText('Selecciona un prestador')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Nuevo técnico' })).not.toBeInTheDocument()
+    expect(llamadas.some(l => l.clave === 'GET /api/catalogos/tecnicos')).toBe(false)
+    await userEvent.selectOptions(screen.getByLabelText('Prestador'), P)
+    expect(await screen.findByRole('button', { name: 'Nuevo técnico' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(llamadas.some(l => l.clave === 'GET /api/catalogos/tecnicos')).toBe(true)
+    })
+  })
+
   it('un rol sin el módulo no entra a /catalogos', async () => {
     localStorage.setItem('acma.sesion', '1')  // P11a: solo la marca; el refresh va en cookie httpOnly
     simularApi({ 'POST /api/auth/refresh': () => ({ json: TOKENS }), 'GET /api/auth/yo': () => ({ json: perfil('operador') }) })
