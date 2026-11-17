@@ -15,9 +15,9 @@ import 'configuracion_acma.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Color(0xFF112846),
+    statusBarColor: Color(0xFF24242C),
     statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Color(0xFFF3F6FB),
+    systemNavigationBarColor: Color(0xFFF9F7FA),
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
   runApp(const AplicacionAcma());
@@ -32,19 +32,19 @@ class AplicacionAcma extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF1C3D8F),
-            surface: const Color(0xFFF3F6FB),
+            seedColor: const Color(0xFF9F2444),
+            surface: const Color(0xFFF9F7FA),
           ),
           useMaterial3: true,
-          scaffoldBackgroundColor: const Color(0xFFF3F6FB),
+          scaffoldBackgroundColor: const Color(0xFFF9F7FA),
           textTheme: const TextTheme(
-            headlineSmall: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF172D47)),
-            titleLarge: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF172D47)),
+            headlineSmall: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF28262D)),
+            titleLarge: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF28262D)),
             bodyMedium: TextStyle(color: Color(0xFF4E6179), height: 1.45),
           ),
           filledButtonTheme: FilledButtonThemeData(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF1C3D8F),
+              backgroundColor: const Color(0xFF9F2444),
               foregroundColor: Colors.white,
               minimumSize: const Size(160, 48),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -79,7 +79,7 @@ class _VistaAcmaState extends State<VistaAcma> {
 
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFFF3F6FB))
+      ..setBackgroundColor(const Color(0xFFF9F7FA))
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (valor) {
@@ -215,12 +215,12 @@ class _VistaAcmaState extends State<VistaAcma> {
                 child: LinearProgressIndicator(
                   value: _progreso / 100,
                   minHeight: 3,
-                  color: const Color(0xFF1C3D8F),
-                  backgroundColor: const Color(0xFFE0E9F8),
+                  color: const Color(0xFF9F2444),
+                  backgroundColor: const Color(0xFFF3DEE5),
                 )),
             if (_fallo)
               Positioned.fill(child: ColoredBox(
-                color: const Color(0xFFF3F6FB),
+                color: const Color(0xFFF9F7FA),
                 child: Center(child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: _PantallaAvisoAcma(
@@ -265,7 +265,7 @@ class _PantallaAvisoAcma extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.white,
-            border: Border.all(color: const Color(0xFFE1EAF6)),
+            border: Border.all(color: const Color(0xFFF0DEE4)),
             borderRadius: BorderRadius.circular(26),
             boxShadow: const [BoxShadow(
               blurRadius: 36, offset: Offset(0, 12),
@@ -278,15 +278,15 @@ class _PantallaAvisoAcma extends StatelessWidget {
               Container(
                 width: 60, height: 60,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEAF1FD),
+                  color: const Color(0xFFFBE9EE),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Icon(icono, size: 29, color: const Color(0xFF1C3D8F)),
+                child: Icon(icono, size: 29, color: const Color(0xFF9F2444)),
               ),
               const SizedBox(height: 16),
               const Text('ACMA', style: TextStyle(
                 letterSpacing: 3, fontWeight: FontWeight.w900,
-                fontSize: 16, color: Color(0xFF1C3D8F),
+                fontSize: 16, color: Color(0xFF9F2444),
               )),
               const SizedBox(height: 15),
               Text(titulo, style: Theme.of(context).textTheme.titleLarge,
