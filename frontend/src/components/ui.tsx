@@ -104,8 +104,8 @@ export interface Columna<T> {
 
 export function Tabla<T extends { id: string }>({ columnas, filas, vacio = 'Sin registros' }: { columnas: Columna<T>[]; filas: T[]; vacio?: string }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
+    <div className="min-w-0 max-w-full overflow-x-auto">
+      <table className="acma-tabla w-full text-left text-sm">
         <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
           <tr>
             {columnas.map((c) => (
@@ -117,7 +117,7 @@ export function Tabla<T extends { id: string }>({ columnas, filas, vacio = 'Sin 
         </thead>
         <tbody className="divide-y divide-slate-100">
           {filas.length === 0 ? (
-            <tr>
+            <tr className="acma-tabla-vacia">
               <td colSpan={columnas.length} className="px-3 py-6 text-center text-slate-500">
                 {vacio}
               </td>
@@ -158,7 +158,7 @@ export function Modal({ titulo, abierto, alCerrar, children }: { titulo: string;
 
 export function Encabezado({ titulo, descripcion, acciones }: { titulo: string; descripcion?: string; acciones?: ReactNode }) {
   return (
-    <div className="mb-5 flex min-w-0 flex-wrap items-start justify-between gap-3 sm:mb-6 sm:items-end">
+    <div className="mb-5 flex w-full min-w-0 flex-wrap items-start justify-between gap-3 sm:mb-6 sm:items-end">
       <div>
         <h1 className="max-w-full break-words text-xl font-extrabold tracking-tight text-[#172d47] sm:text-2xl">{titulo}</h1>
         {descripcion && <p className="mt-1 max-w-full break-words text-sm text-slate-600">{descripcion}</p>}
