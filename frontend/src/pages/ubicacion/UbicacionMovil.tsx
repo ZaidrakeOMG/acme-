@@ -41,7 +41,7 @@ function ubicacionActual(): Promise<GeolocationPosition> {
 }
 
 function explicacionError(e: unknown): string {
-  if (e instanceof GeolocationPositionError || (e != null && typeof e === 'object' && 'code' in e)) {
+  if (e != null && typeof e === 'object' && 'code' in e) {
     const error = e as GeolocationPositionError
     if (error.code === 1) return 'No se autorizó la ubicación. Habilítala para ACMA desde los permisos de Android.'
     if (error.code === 2) return 'El GPS no encontró tu posición. Activa la ubicación del teléfono.'
