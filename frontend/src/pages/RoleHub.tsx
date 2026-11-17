@@ -31,18 +31,18 @@ export function RoleHub() {
         <div className="relative z-10 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
           <div className="min-w-0">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[.15em] text-white/90">
-              <IconoAcma nombre="actividad" className="h-4 w-4 text-[#badc65]" />
+              <IconoAcma nombre="actividad" className="h-4 w-4 text-[#ffc2d0]" />
               Centro de operaciones
             </div>
             <h1 className="max-w-2xl break-words text-[clamp(1.65rem,4vw,2.7rem)] font-extrabold leading-tight tracking-tight">
               Bienvenido, {primerNombre}
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-blue-100/85 sm:text-base">
+            <p className="mt-3 max-w-xl text-sm leading-6 text-white/80 sm:text-base">
               Gestiona tus operaciones, consulta información y continúa tu trabajo desde un solo lugar.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-2.5">
               {recomendado && (
-                <Link to={recomendado.ruta} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#b5d968] px-4 py-2.5 text-sm font-extrabold text-[#122940] shadow-[0_8px_22px_rgba(0,0,0,.12)] transition hover:bg-[#cae48a]">
+                <Link to={recomendado.ruta} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-extrabold text-[#87263d] shadow-[0_8px_22px_rgba(0,0,0,.12)] transition hover:bg-[#fff0f4]">
                   <IconoAcma nombre={recomendado.id} className="h-[18px] w-[18px]" />
                   Ir a {recomendado.nombre}
                   <IconoAcma nombre="flecha" className="h-4 w-4" />
@@ -57,11 +57,11 @@ export function RoleHub() {
           <div className="flex gap-3 lg:flex-col">
             <div className="min-w-28 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
               <span className="block text-2xl font-extrabold tabular-nums">{modulos.length}</span>
-              <span className="block text-xs text-blue-100/80">Módulos disponibles</span>
+              <span className="block text-xs text-white/80">Módulos disponibles</span>
             </div>
             <div className="min-w-28 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
               <span className="block text-2xl font-extrabold tabular-nums">{disponibles}</span>
-              <span className="block text-xs text-blue-100/80">Áreas de trabajo</span>
+              <span className="block text-xs text-white/80">Áreas de trabajo</span>
             </div>
           </div>
         </div>
@@ -78,7 +78,7 @@ export function RoleHub() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="mb-1 text-[11px] font-bold uppercase tracking-[.16em] text-primario">Tu espacio de trabajo</p>
-            <h2 id="modulos" className="text-2xl font-extrabold tracking-tight text-[#132740] sm:text-[1.8rem]">Explora tus módulos</h2>
+            <h2 id="modulos" className="text-2xl font-extrabold tracking-tight text-[#25272e] sm:text-[1.8rem]">Explora tus módulos</h2>
             <p className="mt-1 text-sm text-slate-500">Herramientas disponibles según tus permisos de acceso.</p>
           </div>
           <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
@@ -132,7 +132,7 @@ function TarjetaModulo({ modulo }: { modulo: Modulo }) {
         <IconoAcma nombre="flecha" className="h-5 w-5 text-slate-300 transition duration-200 group-hover:translate-x-1 group-hover:text-primario" />
       </div>
       <p className="mb-2 text-[10px] font-bold uppercase tracking-[.14em] text-primario/80">{modulo.grupo}</p>
-      <h3 className="mb-2 text-[16px] font-bold text-[#182d47]">{modulo.nombre}</h3>
+      <h3 className="mb-2 text-[16px] font-bold text-[#28272c]">{modulo.nombre}</h3>
       <p className="line-clamp-3 flex-1 text-sm leading-6 text-slate-500">{modulo.descripcion}</p>
       <div className="mt-5 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs font-bold text-primario">
         Abrir módulo <IconoAcma nombre="flecha" className="h-4 w-4" />
