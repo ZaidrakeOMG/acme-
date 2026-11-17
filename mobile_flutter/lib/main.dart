@@ -97,10 +97,12 @@ class _VistaAcmaState extends State<VistaAcma> {
             if (_origen != null && destino != null &&
                 ConfiguracionAcma.mismoOrigen(_origen, destino)) {
               final activo = _controlador;
-              if (activo != null) unawaited(activo.runJavaScript(
-                "window.__ACMA_ANDROID__=true;"
-                "window.dispatchEvent(new Event('acma-android-ready'));",
-              ));
+              if (activo != null) {
+                unawaited(activo.runJavaScript(
+                  "window.__ACMA_ANDROID__=true;"
+                  "window.dispatchEvent(new Event('acma-android-ready'));",
+                ));
+              }
             }
           },
           onWebResourceError: (error) {
