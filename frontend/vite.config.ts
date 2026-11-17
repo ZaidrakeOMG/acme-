@@ -16,8 +16,8 @@ export default defineConfig({
         short_name: 'ACMA',
         description: 'Plataforma de gestión de mantenimiento para empresas y prestadores de servicio',
         lang: 'es-MX',
-        theme_color: '#1C3D8F',
-        background_color: '#F5F7FB',
+        theme_color: '#24242C',
+        background_color: '#F9F7FA',
         display: 'standalone',
         start_url: '/',
         icons: [
