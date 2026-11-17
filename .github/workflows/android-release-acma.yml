@@ -1,0 +1,72 @@
+name: ACMA Android - compilar APK release de prueba
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mobile_flutter/**'
+      - 'GENERAR_APK_ACMA_RAILWAY.bat'
+      - 'GENERAR_AAB_ACMA_PLAYSTORE.bat'
+      - 'scripts/preparar_flutter_release_acma.py'
+      - 'scripts/preparar_android_play.py'
+      - 'scripts/test_preparar_android_play.py'
+      - '.github/workflows/android-release-acma.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'mobile_flutter/**'
+      - 'GENERAR_APK_ACMA_RAILWAY.bat'
+      - 'GENERAR_AAB_ACMA_PLAYSTORE.bat'
+      - 'scripts/preparar_flutter_release_acma.py'
+      - 'scripts/preparar_android_play.py'
+      - 'scripts/test_preparar_android_play.py'
+      - '.github/workflows/android-release-acma.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-apk-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Clonar proyecto sin secretos
+        uses: actions/checkout@v4
+      - name: Java para Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Validar scripts Android y Play
+        run: |
+          python scripts/test_preparar_flutter_release_acma.py
+          python scripts/test_preparar_android_play.py
+      - name: Generar plataforma Android
+        working-directory: mobile_flutter
+        run: flutter create --platforms=android --project-name acma_mobile .
+      - name: Configurar Android y URL HTTPS
+        run: python scripts/preparar_flutter_release_acma.py https://acme-production-ee493e67.up.railway.app
+      - name: Instalar dependencias Flutter
+        working-directory: mobile_flutter
+        run: flutter pub get
+      - name: Crear icono SOLO Android sin iOS
+        working-directory: mobile_flutter
+        run: dart run flutter_launcher_icons
+      - name: Compilar APK release para prueba en dispositivos
+        working-directory: mobile_flutter
+        run: flutter build apk --release --dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app
+      - name: Comprobar salida APK
+        run: test -s mobile_flutter/build/app/outputs/flutter-apk/app-release.apk
+      - name: Descargar APK generado (PRUEBAS, no listo para Play)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ACMA-Android-APK-pruebas
+          path: mobile_flutter/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
