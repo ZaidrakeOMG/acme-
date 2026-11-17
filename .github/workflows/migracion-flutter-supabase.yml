@@ -78,6 +78,10 @@ jobs:
         run: python scripts/test_railway_start.py
       - name: Validar Resend HTTPS y restablecimiento sin Redis
         run: python scripts/test_resend_api.py
+      - name: Validar Mailjet HTTPS sin enviar correos reales
+        run: |
+          python -m compileall -q backend/services/mailjet_api.py backend/services/correo.py backend/core/config.py backend/services/auth_service.py scripts/test_mailjet_api.py
+          python scripts/test_mailjet_api.py
 
   frontend:
     runs-on: ubuntu-latest
