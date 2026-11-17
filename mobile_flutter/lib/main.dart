@@ -96,7 +96,8 @@ class _VistaAcmaState extends State<VistaAcma> {
             final destino = Uri.tryParse(url);
             if (_origen != null && destino != null &&
                 ConfiguracionAcma.mismoOrigen(_origen, destino)) {
-              unawaited(controller.runJavaScript(
+              final activo = _controlador;
+              if (activo != null) unawaited(activo.runJavaScript(
                 "window.__ACMA_ANDROID__=true;"
                 "window.dispatchEvent(new Event('acma-android-ready'));",
               ));
