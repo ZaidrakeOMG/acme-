@@ -12,7 +12,7 @@ const ESTILOS: Record<Variante, string> = {
 export function Boton({ variante = 'primario', className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variante?: Variante }) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${ESTILOS[variante]} ${className}`}
+      className={`inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${ESTILOS[variante]} ${className}`}
       {...props}
     />
   )
@@ -32,7 +32,7 @@ export const Campo = forwardRef<HTMLInputElement, PropsCampo>(function Campo({ e
         ref={ref}
         id={idCampo}
         aria-invalid={error ? true : undefined}
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-primario focus:ring-2 focus:ring-primario/20"
+        className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 sm:text-sm outline-none focus:border-primario focus:ring-2 focus:ring-primario/20"
         {...props}
       />
       {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
@@ -79,7 +79,7 @@ export function Aviso({ tipo = 'error', children }: { tipo?: 'error' | 'exito' |
 
 export function Tarjeta({ titulo, acciones, children }: { titulo?: string; acciones?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
       {(titulo || acciones) && (
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
           {titulo && <h2 className="text-base font-semibold text-slate-900">{titulo}</h2>}
@@ -125,7 +125,7 @@ export function Tabla<T extends { id: string }>({ columnas, filas, vacio = 'Sin 
             filas.map((f) => (
               <tr key={f.id} className="hover:bg-slate-50">
                 {columnas.map((c) => (
-                  <td key={c.titulo} className="px-3 py-2 align-top text-slate-800">
+                  <td key={c.titulo} data-label={c.titulo} className="px-3 py-2 align-top text-slate-800">
                     {c.celda(f)}
                   </td>
                 ))}
@@ -141,8 +141,8 @@ export function Tabla<T extends { id: string }>({ columnas, filas, vacio = 'Sin 
 export function Modal({ titulo, abierto, alCerrar, children }: { titulo: string; abierto: boolean; alCerrar: () => void; children: ReactNode }) {
   if (!abierto) return null
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 pt-16" onClick={alCerrar}>
-      <div role="dialog" aria-modal="true" aria-label={titulo} className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/50 px-2 py-4 sm:px-4" onClick={alCerrar}>
+      <div role="dialog" aria-modal="true" aria-label={titulo} className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-xl bg-white p-4 shadow-xl sm:p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{titulo}</h2>
           <button aria-label="Cerrar" className="rounded p-1 text-slate-500 hover:bg-slate-100" onClick={alCerrar}>
@@ -157,10 +157,10 @@ export function Modal({ titulo, abierto, alCerrar, children }: { titulo: string;
 
 export function Encabezado({ titulo, descripcion, acciones }: { titulo: string; descripcion?: string; acciones?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-5 flex min-w-0 flex-wrap items-start justify-between gap-3 sm:mb-6 sm:items-end">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">{titulo}</h1>
-        {descripcion && <p className="mt-1 text-sm text-slate-600">{descripcion}</p>}
+        <h1 className="max-w-full break-words text-xl font-semibold text-slate-900 sm:text-2xl">{titulo}</h1>
+        {descripcion && <p className="mt-1 max-w-full break-words text-sm text-slate-600">{descripcion}</p>}
       </div>
       {acciones}
     </div>
