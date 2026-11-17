@@ -243,7 +243,7 @@ class _VistaAcmaState extends State<VistaAcma> {
   }
 }
 
-/** Estados nativos consistentes con el nuevo diseño web; sin emojis. */
+/// Estados nativos consistentes con el nuevo diseño web; sin emojis.
 class _PantallaAvisoAcma extends StatelessWidget {
   const _PantallaAvisoAcma({
     required this.icono,
