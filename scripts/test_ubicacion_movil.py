@@ -39,7 +39,7 @@ class UbicacionPrivadaTests(unittest.TestCase):
         self.assertIn("if not await _puede_ver(db, actor)", ROUTER)
         self.assertIn("p.tenant_id = :org", ROUTER)
         self.assertIn("p.prestador_id = :org", ROUTER)
-        self.assertIn('"habilitado": !usuario.habilitado', UI)
+        self.assertIn('habilitado: !usuario.habilitado', UI)
         self.assertIn("permiso", UI.lower())
 
     def test_android_sin_rastreo_automatico_ni_segundo_plano(self):
