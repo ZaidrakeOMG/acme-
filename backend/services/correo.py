@@ -36,9 +36,25 @@ class Correo:
 
 
 def modo() -> str:
+    """Proveedor activo. El modo auto conserva la prioridad histórica."""
+    seleccionado = config.correo_proveedor
+    if seleccionado != "auto":
+        return seleccionado
     if config.resend_api_key:
         return "resend"
     return "smtp" if config.smtp_host else "stub"
+
+
+def recuperacion_configurada() -> bool:
+    """Guardia para todos los usuarios ANTES de consultar si existe su correo."""
+    proveedor = modo()
+    if proveedor == "mailjet":
+        return bool(config.mailjet_api_key and config.mailjet_secret_key and config.mailjet_from)
+    if proveedor == "resend":
+        return bool(config.resend_api_key and config.resend_from)
+    if proveedor == "smtp":
+        return bool(config.smtp_host)
+    return False
 
 
 def plantilla(nombre: str, **valores: Any) -> str:
@@ -100,6 +116,25 @@ async def enviar(c: Correo) -> tuple[str, str]:
         del ENVIADOS[:-200]
         log.info("Correo (stub) «%s» a %s%s", c.asunto, ", ".join(c.destinatarios), f" guardado en {clave}" if clave else "")
         return "enviada", f"stub:{clave}"
+    if modo() == "mailjet":
+        from services.mailjet_api import enviar_mailjet
+
+        estado, detalle = await enviar_mailjet(
+            api_key=config.mailjet_api_key,
+            secret_key=config.mailjet_secret_key,
+            remitente=c.remitente or config.mailjet_from,
+            destinatarios=list(c.destinatarios),
+            asunto=c.asunto,
+            html=c.html,
+            texto=c.texto or _texto_plano(c.html),
+            adjuntos=[(adj.nombre, adj.contenido) for adj in c.adjuntos],
+        )
+        # No registrar cuerpos HTML, enlaces/token ni claves de la API en logs.
+        ENVIADOS.append({**registro, "modo": "mailjet", "estado": estado, "detalle": detalle})
+        del ENVIADOS[:-200]
+        if estado != "enviada":
+            log.warning("Envío Mailjet no aceptado: %s", detalle)
+        return estado, detalle
     if modo() == "resend":
         from services.resend_api import enviar_resend
 
