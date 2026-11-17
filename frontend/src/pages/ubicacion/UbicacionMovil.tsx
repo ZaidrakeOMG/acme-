@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { IconoAcma } from '../../components/IconosAcma'
 import { Aviso, Boton, Encabezado } from '../../components/ui'
-import { api, mensajeDeError } from '../../services/api'
+import { api, mensajeDeError, tokenActual } from '../../services/api'
 import { useAppAndroid } from '../../services/clienteAndroid'
 import type { PersonaGPS } from './MapaPersonal'
 
@@ -80,14 +80,31 @@ export function UbicacionMovil() {
 
   useEffect(() => {
     montado.current = true
+    const cerrarComparticion = () => {
+      const estabaCompartiendo = emitiendo.current
+      pararGPSLocal()
+      if (estabaCompartiendo) {
+        // Best effort incluso cuando Android suspende la WebView. Si el
+        // sistema cierra el proceso abruptamente, el mapa expira en 5 min.
+        const token = tokenActual()
+        if (token) {
+          void fetch('/api/ubicacion-movil/detener', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: 'same-origin',
+            keepalive: true,
+          }).catch(() => undefined)
+        }
+      }
+    }
     const ocultar = () => {
-      if (document.visibilityState === 'hidden') pararGPSLocal()
+      if (document.visibilityState === 'hidden') cerrarComparticion()
     }
     document.addEventListener('visibilitychange', ocultar)
     return () => {
       document.removeEventListener('visibilitychange', ocultar)
       montado.current = false
-      pararGPSLocal()
+      cerrarComparticion()
     }
   }, [pararGPSLocal])
 
@@ -169,7 +186,7 @@ export function UbicacionMovil() {
       if (!emitiendo.current) return
       observador.current = navigator.geolocation.watchPosition(
         (punto) => { void enviarPosicion(punto) },
-        (e) => setError(explicacionError(e)),
+        (e) => { pararGPSLocal(); setError(explicacionError(e)) },
         { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 },
       )
       setEmitir(true)
