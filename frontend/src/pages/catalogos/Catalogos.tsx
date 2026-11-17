@@ -101,7 +101,14 @@ export function Catalogos() {
         ))}
       </div>
       <div role="tabpanel">
-        <Activa />
+        {esSuper && activa === 'tecnicos' && !prestadorId ? (
+          <div role="status" className="rounded-2xl border border-[#e9d5dc] bg-white px-5 py-6 text-sm text-slate-700">
+            <p className="font-bold text-slate-900">Selecciona un prestador</p>
+            <p className="mt-2 leading-6">Antes de consultar, crear técnicos o agregar habilidades, selecciona un prestador en el filtro superior. Así ACMA asignará los datos a la empresa correcta.</p>
+          </div>
+        ) : (
+          <Activa />
+        )}
       </div>
     </AmbitoContext.Provider>
   )
