@@ -18,14 +18,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: No eliminar archivos del ACMA original
+      - name: No eliminar funcionalidades (solo notas y lanzadores redundantes)
         run: |
           borrados="$(git diff --name-only --diff-filter=D origin/main...HEAD)"
-          if [ -n "$borrados" ]; then
-            echo "ERROR: Hay archivos originales eliminados:"
-            echo "$borrados"
-            exit 1
-          fi
+          while IFS= read -r archivo; do
+            [ -z "$archivo" ] && continue
+            case "$archivo" in
+              BITACORA.md|CONTEXTO.md|docs/estado_bd_supabase_20261115.md|\
+              CREAR_SUPERADMIN_ZAID.bat|GENERAR_APK_ACMA_IONOS.bat|\
+              crear_app_android_acma.bat|iniciar_acma.bat|\
+              detener_acma.bat|iniciar_acma_sin_docker.bat)
+                echo "Limpieza de documento o lanzador redundante: $archivo"
+                ;;
+              *)
+                echo "ERROR: eliminación no autorizada: $archivo"
+                exit 1
+                ;;
+            esac
+          done <<< "$borrados"
       - name: Mantener pantallas, migraciones y módulos no relacionados intactos
         run: |
           cambios="$(git diff --name-only origin/main...HEAD -- frontend/src frontend/public backend/alembic/versions)"

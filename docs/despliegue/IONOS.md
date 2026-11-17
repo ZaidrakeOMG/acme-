@@ -2,8 +2,7 @@
 
 **Estado del repositorio:** preparados `Dockerfile`, `deploy/ionos/compose.yml`,
 `deploy/ionos/Caddyfile`, `deploy/ionos/desplegar.sh`,
-`deploy/ionos/preparar-vps-ubuntu.sh`, `deploy/ionos/variables.template` y
-`GENERAR_APK_ACMA_IONOS.bat`. La imagen React + FastAPI y el archivo Compose
+`deploy/ionos/preparar-vps-ubuntu.sh` y `deploy/ionos/variables.template`. Para construir Android contra un dominio IONOS se usa Flutter con `--dart-define=ACMA_BASE_URL=https://acma.tu-dominio.com`. La imagen React + FastAPI y el archivo Compose
 se validan en GitHub Actions.
 
 **Estado del hosting:** todavía NO se ha desplegado: desconocemos si el cliente
@@ -81,7 +80,7 @@ el Compose preparado debe integrarse al proxy que ya existe; no detener sitios.
 Con SSH y el repositorio disponible:
 
 ```bash
-git clone --branch migracion-supabase-segura-20261115 https://github.com/ZaidrakeOMG/acme-.git /opt/acma
+git clone --branch main https://github.com/ZaidrakeOMG/acme-.git /opt/acma
 cd /opt/acma
 ```
 

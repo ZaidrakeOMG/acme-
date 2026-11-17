@@ -1,146 +1,60 @@
-# ACMA móvil — Android / iPhone (Flutter)
+# ACMA en Android Studio
 
-## Android + Google Play (Railway)
+La app móvil es **Flutter + WebView**: abre el mismo frontend React y backend FastAPI de la plataforma web. Los cambios visuales publicados en Railway se reflejan dentro de la app sin copiar frontend ni configurar secretos en Android.
 
-El proyecto Android no necesita la carpeta iOS para generar sus íconos: 
-`flutter_launcher_icons.ios=false` evita el error `PathNotFoundException:
-ios/Runner/Assets.xcassets` en Windows.
+## 1. Actualizar el repositorio
 
-1. Actualiza `main` y genera el APK de prueba con
-   `GENERAR_APK_ACMA_RAILWAY.bat https://acme-production-ee493e67.up.railway.app`.
-2. Para Google Play se necesita el **AAB firmado con TU clave de subida**:
-   `GENERAR_AAB_ACMA_PLAYSTORE.bat`.
-3. **Lee antes de publicar:** `docs/despliegue/PLAYSTORE_ANDROID.md`.
-   Revisa el identificador único, Android API 36, Play Console, requisitos de
-   privacidad y las pruebas físicas; no hay garantía de funcionamiento al
-   100% sin probar cada módulo.
-
-La publicación de Android no requiere generar iOS. Para compilar una app iOS
-real se necesita un proyecto aparte en macOS/Xcode y volver a habilitar
-sus íconos específicamente.
-
-
-## Qué conserva exactamente
-
-Esta primera versión **no rehace las pantallas**: incrusta la interfaz React existente en una WebView de Flutter. Así se conservan por diseño los componentes, tipografías, colores, navegación y flujos actuales; no se introducen emojis ni menús sustitutos. Los estados de carga y conexión añadidos por Flutter usan Material Icons.
-
-Es un **cliente de transición** y NO equivale a una reimplementación nativa de las 80 pantallas. La equivalencia funcional total depende de que ACMA esté publicado con FastAPI, PostgreSQL, Storage y workers disponibles. GPS, cámara, firmas, descargas PDF, push, WebSockets y modo sin conexión requieren pruebas explícitas en Android y iPhone; no se consideran verificados por el mero hecho de mostrar la web.
-
-**Nunca conectar a Supabase directamente desde la WebView con una clave secreta.** La sesión y las reglas de negocio permanecen en FastAPI.
-
-## Ver ACMA Android en Windows con el backend Supabase ya funcionando
-
-La manera más sencilla es ejecutar el **PROBAR_ACMA_FLUTTER_ANDROID.bat** de la
-raíz del repositorio (NO es necesario publicar todavía ACMA en Internet):
-
-1. Tener Flutter SDK 3.38+ y Android Studio con Android SDK Platform-Tools.
-   Verificar desde CMD: `flutter doctor`, `flutter devices`.
-2. Abrir **PROBAR_ACMA_WEB.bat** en una ventana CMD y **dejarla abierta**:
-   debe responder `http://127.0.0.1:8000/api/salud` con `estado: ok`.
-3. En Android Studio → Device Manager, encender un emulador Android.
-   Alternativamente conectar un teléfono Android por USB con depuración autorizada.
-4. En otra ventana CMD, desde la raíz:
-   
-   ```bat
-   git pull --ff-only origin migracion-supabase-segura-20261115
-   PROBAR_ACMA_FLUTTER_ANDROID.bat
-   ```
-
-El lanzador detecta Android, genera su estructura si aún no existe, instala
-paquetes Flutter, configura automáticamente `adb reverse tcp:8000 tcp:8000`
-y ejecuta:
+Desde CMD en la carpeta raíz:
 
 ```bat
-flutter run -d ID_DEL_ANDROID --debug --dart-define=ACMA_BASE_URL=http://localhost:8000 --dart-define=ACMA_ALLOW_HTTP=true
+git status
+git switch main
+git pull --ff-only origin main
 ```
 
-**Por qué localhost y no 10.0.2.2**: el reenvío `adb reverse` permite que
-WebView trate `localhost` como un origen seguro, requisito para múltiples
-funciones web como Service Workers, geolocalización y cámara. El archivo
-`android/app/src/debug/AndroidManifest.xml` autoriza HTTP **solo en modo
-depuración**, no en release. No guardar secret keys ni passwords en Flutter.
-El API de FastAPI continúa conectado a Supabase a través de `.env` local.
+## 2. Abrir en Android Studio
 
-La primera versión es una **WebView**, no una reconstrucción Flutter nativa.
-Login y MFA deben probarse en un emulador o Android real. Las pruebas de
-geolocalización, notificaciones push y offline siguen pendientes en dispositivos.
-
-**Si no existe Flutter**: https://docs.flutter.dev/install y
-https://docs.flutter.dev/platform-integration/android/setup. Si no aparece
-Android en `flutter devices`, crea e inicia un emulador en Android Studio.
-`flutter run -d chrome` no es una vista equivalente: el proyecto móvil
-utiliza un WebView nativo diseñado para Android/iOS.
-
-## Preparar el proyecto (Flutter 3.38+ / Dart 3.10+)
-
-1. Instalar Flutter SDK, Android Studio y las herramientas de compilación. Para iOS, además, macOS + Xcode.
-2. Desde este directorio, ejecutar:
+- Instala el SDK de Flutter y los plugins Flutter/Dart en Android Studio.
+- Abre **File → Open** y selecciona `mobile_flutter`, no la carpeta `frontend`.
+- Inicia un emulador desde **Tools → Device Manager** o conecta un celular Android con **Depuración USB**.
+- Abre la terminal integrada y verifica que estés en `mobile_flutter`.
 
 ```powershell
-flutter create --platforms=android,ios --project-name acma_mobile .
+flutter doctor
+flutter create --platforms=android --project-name acma_mobile .
 flutter pub get
 dart run flutter_launcher_icons
-flutter test
-flutter analyze
+flutter devices
+flutter run --dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app
 ```
 
-El `flutter create` genera los directorios de plataforma faltantes. Revisar identificadores `applicationId` y `Bundle Identifier` antes de publicar; no usar los de demostración.
+Si deseas utilizar el botón **Run** del IDE, elige el dispositivo en la barra superior y crea una configuración Flutter con **Additional run args**:
 
-3. En `android/app/src/main/AndroidManifest.xml`, añadir (si no existe) **fuera de** `<application>`:
-
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.CAMERA" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+```text
+--dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app
 ```
 
-En iOS, configurar `ios/Runner/Info.plist` con `NSCameraUsageDescription` y `NSLocationWhenInUseUsageDescription` explicando los usos. Si se usa CocoaPods, revisar las macros de `permission_handler` (CAMERA y LOCATION_WHENINUSE). La app solicita permisos cuando el sitio ACMA pide cámara o GPS. Los permisos deben comprobarse en Android/iPhone reales.
+El punto de entrada es `lib/main.dart`. La app requiere conectividad a Railway para cargar la web; por eso debes comprobar antes `/api/salud` en el mismo dominio.
 
-No habilitar `usesCleartextTraffic` en producción. La URL de ACMA debe ser HTTPS. Para permisos de GPS/cámara, agregar permisos y solicitudes de consentimiento solo después de validar los flujos por plataforma.
+## 3. Probar con el servidor local (opcional)
 
-## Ejecutar en emulador o celular con backend publicado
+Primero inicia `PROBAR_ACMA_WEB.bat` desde la raíz y confirma `http://127.0.0.1:8000/api/salud`. Después usa `PROBAR_ACMA_FLUTTER_ANDROID.bat`; el lanzador hace `adb reverse` y usa `localhost` para la WebView. No habilites HTTP en una APK de producción.
 
-```powershell
-flutter run --dart-define=ACMA_BASE_URL=https://acma.tu-dominio.com
+## 4. Generar APK o App Bundle
+
+Desde la raíz en Windows:
+
+```bat
+GENERAR_APK_ACMA_RAILWAY.bat https://acme-production-ee493e67.up.railway.app
 ```
 
-La URL **debe** apuntar al servidor ACMA unificado, no a la URL de Supabase ni al puerto de Vite. La URL de Supabase, si existe, solo pertenece a las variables de backend.
+Resultado: `mobile_flutter/build/app/outputs/flutter-apk/app-release.apk`.
 
-## Probar HTTP local (solo depuración)
+Para Google Play, configura primero la llave privada de firma de tu cuenta. Después utiliza `GENERAR_AAB_ACMA_PLAYSTORE.bat`. El artefacto de CI es **solo de prueba**, no incluye la llave definitiva de la tienda.
 
-```powershell
-flutter run --dart-define=ACMA_BASE_URL=http://10.0.2.2:8000 --dart-define=ACMA_ALLOW_HTTP=true
-```
+## Consideraciones
 
-Este ejemplo apunta a localhost de la máquina anfitriona **desde el emulador Android**; la política de Android puede requerir configuración de tráfico claro SOLO para debug. En iOS simulador generalmente se usa `http://localhost:8000` con una excepción ATS SOLO para debug. Un teléfono real necesita una dirección accesible por Wi-Fi y permisos de red correspondientes. Las compilaciones `release` rechazan HTTP incluso con `ACMA_ALLOW_HTTP=true`.
-
-## Generar los instaladores
-
-```powershell
-flutter build appbundle --release --dart-define=ACMA_BASE_URL=https://acma.tu-dominio.com
-flutter build apk --release --dart-define=ACMA_BASE_URL=https://acma.tu-dominio.com
-```
-
-Para iPhone, desde macOS con Xcode y firma configurada:
-
-```bash
-flutter build ipa --release --dart-define=ACMA_BASE_URL=https://acma.tu-dominio.com
-```
-
-App Store / Google Play pueden requerir medidas adicionales y una revisión específica sobre el uso de WebView. No asegurar aprobación por el simple hecho de generar un instalador.
-
-## Lista obligatoria antes de publicar
-
-- Comparar en equipo real todas las pantallas con el sitio React original, en retrato y paisaje.
-- Validar login, MFA, expiración/renovación, cookies HttpOnly y cambios de rol.
-- Confirmar que distintos tenants jamás pueden acceder a datos de otro tenant.
-- Probar adjuntos desde cámara, galería y archivos en ambos sistemas; el selector Android se integra mediante `file_picker` y debe validarse con PDFs, imágenes grandes y múltiples documentos.
-- Confirmar descargas PDF/Excel, compartir archivos, mapas, links externos y notificaciones.
-- Probar reconexión, offline, sincronización y conflictos de datos.
-- Confirmar WebSockets, notificaciones y tareas programadas contra backend público.
-- Enviar builds a Android e iOS y verificar pruebas manuales antes de distribuir.
-
-## Evolución a Flutter nativo
-
-No borrar `frontend/`. Implementar módulos nativos uno por uno con paridad automatizada, empezando por login, tableros, folios y campo, manteniendo el resto en la WebView. Cada módulo se reemplaza solamente después de aprobar un inventario de UI, funciones y casos de prueba.
+- No guardar `SUPABASE_SECRET_KEY`, JWT ni `DATABASE_URL` dentro de la aplicación.
+- La identidad Android se genera desde `frontend/public/icono-512.png` mediante `dart run flutter_launcher_icons`.
+- El módulo voluntario de ubicación de personal todavía no forma parte de `main`: necesita migración SQL, permisos de backend y nueva APK antes de usarlo.
+- Probar acceso, MFA, formularios, navegación, PDFs y permisos físicos en un Android real antes de publicar.

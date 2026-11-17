@@ -16,15 +16,15 @@ Desde CMD/PowerShell en la carpeta del repositorio ACMA:
 
     git status
     git fetch origin
-    git switch --track origin/migracion-supabase-segura-20261115
+    git switch main
     git pull --ff-only
 
 Si la rama local ya existe:
 
-    git switch migracion-supabase-segura-20261115
-    git pull --ff-only origin migracion-supabase-segura-20261115
+    git switch main
+    git pull --ff-only origin main
 
-Si hay cambios locales sin guardar, no descartarlos. GitHub main permanece intacta.
+Si hay cambios locales sin guardar, revisarlos antes de actualizar, sin descartarlos.
 
 ## 3. Doble clic en PROBAR_ACMA_WEB.bat
 
@@ -52,7 +52,7 @@ AVISO: /api/salud/detalle puede devolver degradado porque este modo NO inicia Re
 
 ## 5. Después: todos los procesos
 
-Configurar Redis externo con TLS y arrancar **iniciar_acma_sin_docker.bat** (FastAPI, React, Celery Worker, Beat), configurar HTTPS, notificaciones, copias de seguridad y pruebas de roles RLS entre tenants. Flutter debe probarse en dispositivos y usar la URL HTTPS del backend ACMA, no la URL pública de la base.
+Configurar Redis externo con TLS y arrancar FastAPI y Celery Worker/Beat siguiendo **docs/operacion/despliegue.md**, configurar HTTPS, notificaciones, copias de seguridad y pruebas de roles RLS entre tenants. Flutter debe probarse en dispositivos y usar la URL HTTPS del backend ACMA, no la URL pública de la base.
 
 ## Seguridad
 
