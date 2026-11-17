@@ -152,9 +152,12 @@ export function UbicacionMovil() {
       // El permiso se solicita como consecuencia directa de pulsar el botón;
       // nunca al iniciar sesión ni automáticamente al abrir ACMA.
       const p = await ubicacionActual()
-      if (!montado.current || document.visibilityState === 'hidden') return
+      // Función local evita que TypeScript suponga que la visibilidad no
+      // puede cambiar entre dos operaciones asíncronas.
+      const visible = () => document.visibilityState === 'visible'
+      if (!montado.current || !visible()) return
       await api('/ubicacion-movil/activar', { metodo: 'POST', cuerpo: { acepto: true } })
-      if (!montado.current || document.visibilityState === 'hidden') {
+      if (!montado.current || !visible()) {
         // Si el usuario salió mientras la API activaba el consentimiento,
         // no conservamos una ubicación activa accidentalmente.
         await api('/ubicacion-movil/detener', { metodo: 'POST' })
