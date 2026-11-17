@@ -239,8 +239,12 @@ async def _enviar_email(db: AsyncSession, n: Notificacion, u: Usuario) -> tuple[
     if n.evento == "auth.restablecer_contrasena":
         # Correo transaccional: enlace completo visible para copiar si un lector
         # de Gmail/Outlook bloquea el botón. Nunca registrar el token en logs.
+        # Formulario HTML ligero, sin JS ni service worker: compatible con Safari
+        # aunque falle la navegación SPA de un navegador embebido.
+        # Mantener el enlace SPA como alternativa y nunca registrar el token.
+        url_ligera = url.replace("/restablecer?token=", "/restablecer/seguro?token=", 1)
         html = correo.plantilla("restablecer", titulo=n.asunto, cuerpo=cuerpo.get("cuerpo", ""),
-                                url=url, **marca)
+                                url=url_ligera, url_spa=url, **marca)
     elif cuerpo.get("plantilla") and cuerpo.get("datos", {}).get("html_valores"):
         html = correo.plantilla(cuerpo["plantilla"], **{"titulo": n.asunto, "url": url, **marca, **cuerpo["datos"]["html_valores"]})
     else:

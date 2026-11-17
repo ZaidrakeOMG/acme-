@@ -12,7 +12,7 @@ from routers import (
     alertas, auditoria, auth, biblioteca, capacitacion, catalogos_equipos, catalogos_importar,
     catalogos_tecnicos, chat, configuracion, contratos, criticidad, medidores, mensajeria, operacion, rutas,
     activos, caja_chica, clasificacion, erp, folios, formularios, grupos_un, inventario, minutas, notificaciones, oc_activos, prestadores, presupuestos,
-    preventivos, push, reasignaciones, seguimiento, sla, bi, sync, tenants, trabajos_especiales, unidades_negocio, usuarios,
+    preventivos, push, reasignaciones, seguimiento, sla, bi, sync, tenants, trabajos_especiales, unidades_negocio, usuarios, recuperacion_web,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -58,6 +58,9 @@ app.include_router(criticidad.router_reportes)
 # F2-06: las rutas y la ETA viven en /api/rutas, y la ETA y las incidencias amplían /api/operacion (§6.8.2, §6.8.4).
 app.include_router(rutas.router)
 app.include_router(rutas.router_operacion)
+
+# Formulario HTML independiente de React para Safari/iOS: debe registrarse antes de montar la SPA.
+app.include_router(recuperacion_web.router)
 
 
 @app.get("/api/salud", tags=["Sistema"], summary="Estado del servicio",

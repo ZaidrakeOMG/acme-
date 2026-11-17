@@ -94,6 +94,10 @@ jobs:
         run: |
           python -m compileall -q backend/services/notificaciones_service.py scripts/test_reset_email_link.py
           python scripts/test_reset_email_link.py
+      - name: Validar restablecimiento Safari sin JS y ajustes responsivos
+        run: |
+          python -m compileall -q backend/routers/recuperacion_web.py scripts/test_recuperacion_ios_layout.py
+          python scripts/test_recuperacion_ios_layout.py
       - name: Validar iconos de ACMA para PWA y Android
         run: python scripts/test_marca_acma.py
 

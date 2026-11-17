@@ -23,7 +23,8 @@ body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
-html, body, #root { min-width: 0; min-height: 100%; }
+html, body, #root { min-width: 0; min-height: 100%; width: 100%; }
+*, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; overscroll-behavior-x: none; }
 #root { min-height: 100dvh; }
 .acma-contenido, .acma-contenido > * { min-width: 0; }
@@ -33,6 +34,9 @@ body { margin: 0; overscroll-behavior-x: none; }
 .acma-contenido :where(.overflow-x-auto) { -webkit-overflow-scrolling: touch; }
 
 .acma-acceso-rapido {
+  padding: .55rem .15rem;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
   display: flex;
   min-width: 0;
   min-height: 3.5rem;
@@ -47,11 +51,11 @@ body { margin: 0; overscroll-behavior-x: none; }
 .acma-acceso-rapido:focus-visible { outline: 2px solid #1c3d8f; outline-offset: -4px; }
 .acma-barra-movil { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .acma-contenido { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .acma-contenido { padding-bottom: 2.5rem; }
 }
 /* Evitar que Safari amplíe automáticamente la pantalla al enfocar formularios. */
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   input:not([type="checkbox"]):not([type="radio"]), select, textarea {
     font-size: max(16px, 1rem);
   }
@@ -258,8 +262,41 @@ body { background: #f7f7fa; color: var(--acma-ink); }
 .acma-acceso-activo, .acma-acceso-activo:hover { color: #92203b; }
 .acma-acceso-activo:before { content: ''; position: absolute; top: 0; left: 27%; right: 27%; height: 3px; border-radius: 0 0 5px 5px; background: #cb3c5d; }
 .acma-contenido { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom,0px)); }
-@media (min-width:768px) { .acma-contenido { padding-bottom: 2.5rem; } }
+@media (min-width:1024px) { .acma-contenido { padding-bottom: 2.5rem; } }
 @media (prefers-reduced-motion:reduce) {
   html { scroll-behavior: auto; }
   .acma-nav-enlace, .acma-modulo-tarjeta, .acma-modulo-icono { transition: none !important; transform: none !important; }
+}
+
+/* Correcciones de distribución tablet, WebView Android y Safari.
+   La cuadrícula ya no fuerza anchos mínimos ocultos que rompen el viewport. */
+.acma-shell { width: 100%; max-width: 100%; }
+.acma-contenido { width: 100%; }
+.acma-contenido :where(.grid) > * { min-width: 0; }
+.acma-contenido :where(section, article, form, input, textarea, select) { max-width: 100%; }
+.acma-contenido :where(.flex) > :where(p, span, h1, h2, h3, div) { min-width: 0; }
+.acma-contenido :where(table):not(.acma-tabla) { max-width: 100%; }
+.acma-sidebar { overscroll-behavior-y: contain; }
+.acma-header > * { min-width: 0; }
+.acma-acceso-rapido > svg { width: 1.35rem; height: 1.35rem; }
+.acma-barra-movil { z-index: 30; }
+@media (max-width: 639px) {
+  .acma-contenido :where(button, a) { overflow-wrap: anywhere; }
+  .acma-tabla tbody tr:not(.acma-tabla-vacia) td::before { flex-basis: 100%; }
+  .acma-tabla tbody tr:not(.acma-tabla-vacia) td > * { flex: 1 1 auto; }
+  .acma-modulo-tarjeta { min-height: unset; }
+  .acma-filtro-pill { min-height: 2.65rem; }
+  .acma-hero { border-radius: 1.25rem; }
+}
+/* iPhone en horizontal y WebViews pueden ampliar formularios cuando el input usa 14px. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    font-size: 16px !important;
+  }
+  .acma-nav-enlace { min-height: 2.85rem; }
+}
+@media (max-width: 359px) {
+  .acma-acceso-rapido { font-size: .62rem; }
+  .acma-header { gap: .3rem; }
+  .acma-contenido { padding-left: .7rem; padding-right: .7rem; }
 }
