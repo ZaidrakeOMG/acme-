@@ -41,25 +41,25 @@ export function Folios() {
         }
       />
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <select aria-label="Estado" value={estado} onChange={(e) => setEstado(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+        <select aria-label="Estado" value={estado} onChange={(e) => setEstado(e.target.value)} className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base sm:w-auto sm:text-sm">
           <option value="">Todos los estados</option>
           {ESTADOS_FOLIO.map((e) => <option key={e} value={e}>{NOMBRE_ESTADO[e]}</option>)}
         </select>
-        <select aria-label="Unidad de negocio" value={unId} onChange={(e) => setUnId(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+        <select aria-label="Unidad de negocio" value={unId} onChange={(e) => setUnId(e.target.value)} className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base sm:w-auto sm:text-sm">
           <option value="">Todas las UNs</option>
           {(unidades.datos ?? []).map((u) => <option key={u.id} value={u.id}>{u.codigo} · {u.nombre}</option>)}
         </select>
-        <select aria-label="Severidad" value={severidadId} onChange={(e) => setSeveridadId(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+        <select aria-label="Severidad" value={severidadId} onChange={(e) => setSeveridadId(e.target.value)} className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base sm:w-auto sm:text-sm">
           <option value="">Toda severidad</option>
           {(severidades.datos ?? []).map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
-        <select aria-label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+        <select aria-label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value)} className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base sm:w-auto sm:text-sm">
           <option value="">Todo tipo</option>
           <option value="correctivo">Correctivo</option><option value="preventivo">Preventivo</option><option value="especial">Especial</option>
         </select>
         <Buscador etiqueta="Buscar folio" placeholder="Número o descripción" alBuscar={setQ} />
-        <div className="ml-auto flex gap-1 text-sm">
-          <button className={`rounded-lg px-3 py-1.5 ${vista === 'tabla' ? 'bg-primario text-white' : 'border border-slate-300'}`} onClick={() => setVista('tabla')}>Tabla</button>
+        <div className="ml-auto flex w-full gap-1 text-sm sm:w-auto">
+          <button className={`min-h-11 flex-1 rounded-lg px-3 py-2 sm:flex-none ${vista === 'tabla' ? 'bg-primario text-white' : 'border border-slate-300'}`} onClick={() => setVista('tabla')}>Tabla</button>
           <button className={`rounded-lg px-3 py-1.5 ${vista === 'kanban' ? 'bg-primario text-white' : 'border border-slate-300'}`} onClick={() => setVista('kanban')}>Kanban</button>
         </div>
       </div>
@@ -82,9 +82,9 @@ export function Folios() {
           />
         </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-2" data-testid="kanban">
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2" data-testid="kanban">
           {ESTADOS_FOLIO.map((e) => (
-            <section key={e} aria-label={NOMBRE_ESTADO[e]} className="w-64 shrink-0 rounded-xl bg-slate-100 p-2">
+            <section key={e} aria-label={NOMBRE_ESTADO[e]} className="w-[min(80vw,18rem)] shrink-0 snap-start rounded-xl bg-slate-100 p-2 sm:w-64">
               <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-slate-600">{NOMBRE_ESTADO[e]} <span className="text-slate-400">{porEstado[e].length}</span></h2>
               <div className="space-y-2">
                 {porEstado[e].map((f) => (
