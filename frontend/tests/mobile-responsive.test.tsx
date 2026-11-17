@@ -60,6 +60,30 @@ describe('ACMA en pantallas pequeñas', () => {
     expect(abrir).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('permite buscar módulos y abrir o cerrar secciones desde el menú móvil', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>Inicio ACMA</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const buscador = screen.getByPlaceholderText('Buscar módulo')
+    expect(screen.getByRole('link', { name: 'Folios' })).toBeInTheDocument()
+    fireEvent.change(buscador, { target: { value: 'inventario' } })
+    expect(screen.getByRole('link', { name: 'Inventario' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Folios' })).not.toBeInTheDocument()
+    fireEvent.change(buscador, { target: { value: '' } })
+    const administracion = screen.getByRole('button', { name: /Administración/ })
+    expect(administracion).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(administracion)
+    expect(administracion).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Usuarios' })).toBeInTheDocument()
+  })
+
   it('etiqueta todas las celdas para mostrarlas como fichas en móvil', () => {
     render(
       <Tabla
