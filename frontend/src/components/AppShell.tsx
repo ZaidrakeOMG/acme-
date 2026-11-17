@@ -176,7 +176,7 @@ export function AppShell() {
             </div>
             <div className="min-w-0">
               <strong className="block text-xl font-extrabold tracking-[.13em] text-white">ACMA</strong>
-              <span className="block text-[10px] font-medium tracking-wide text-blue-100/55">PLATAFORMA EMPRESARIAL</span>
+              <span className="block text-[10px] font-medium tracking-wide text-white/55">PLATAFORMA EMPRESARIAL</span>
             </div>
           </NavLink>
           <button type="button" onClick={() => setMenuAbierto(false)}
@@ -188,7 +188,7 @@ export function AppShell() {
         <div className="acma-sidebar-etiqueta mb-5 flex items-center gap-3 rounded-xl px-3 py-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white"><IconoAcma nombre="cuadrícula" className="h-4 w-4" /></span>
           <span className="min-w-0">
-            <span className="block text-[10px] uppercase tracking-[.14em] text-blue-100/55">Espacio de trabajo</span>
+            <span className="block text-[10px] uppercase tracking-[.14em] text-white/55">Espacio de trabajo</span>
             <span className="block truncate text-sm font-semibold text-white">{usuario.tema?.prestador ?? 'ACMA'}</span>
           </span>
         </div>
@@ -201,7 +201,7 @@ export function AppShell() {
             <span className="acma-avatar bg-white/15 text-white">{iniciales || 'AC'}</span>
             <div className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-white">{usuario.nombre}</span>
-              <span className="block truncate text-xs text-blue-100/60">{NOMBRE_ROL[usuario.rol]}</span>
+              <span className="block truncate text-xs text-white/60">{NOMBRE_ROL[usuario.rol]}</span>
             </div>
             <button type="button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={() => void cerrarSesion()}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-white/65 hover:bg-white/10 hover:text-white">
@@ -221,7 +221,7 @@ export function AppShell() {
             </button>
             <div className="min-w-0">
               <p className="hidden text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400 sm:block">Plataforma de mantenimiento</p>
-              <p className="truncate text-[15px] font-bold text-[#152842] sm:text-lg">{titulo}</p>
+              <p className="truncate text-[15px] font-bold text-[#28262b] sm:text-lg">{titulo}</p>
             </div>
           </div>
 
@@ -232,7 +232,7 @@ export function AppShell() {
               <button type="button" aria-label="Opciones de usuario" aria-expanded={perfilAbierto}
                 onClick={() => setPerfilAbierto(v => !v)}
                 className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-                <span className="acma-avatar bg-[#e9eefb] text-[#1c3d8f]">{iniciales || 'AC'}</span>
+                <span className="acma-avatar bg-[#f8e7eb] text-[#92203b]">{iniciales || 'AC'}</span>
                 <span className="hidden max-w-40 min-w-0 text-left md:block">
                   <span className="block truncate text-xs font-bold text-slate-800">{usuario.nombre}</span>
                   <span className="block truncate text-[11px] text-slate-500">{NOMBRE_ROL[usuario.rol]}</span>
