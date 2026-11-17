@@ -24,31 +24,36 @@ Si Git detecta cambios locales, revísalos antes de actualizar: no los descartes
 
 Railway compila automáticamente los cambios de la rama `main` cuando está habilitado el despliegue desde GitHub. Las credenciales pertenecen a las variables privadas de Railway. Nunca subas `.env`, passwords, tokens JWT ni claves de Supabase a GitHub.
 
-## Android Studio (emulador o celular)
+## Android Studio (abre ACMA con doble clic)
 
-1. Instala Android Studio, Android SDK y el SDK de Flutter con sus plugins **Flutter** y **Dart**.
-2. Abre Android Studio → **Open** → selecciona la carpeta `mobile_flutter`.
-3. Desde **Device Manager**, inicia un emulador o conecta un teléfono Android con depuración USB.
-4. En la terminal de Android Studio, dentro de `mobile_flutter`, ejecuta:
+1. En **Android Studio → Device Manager** inicia un emulador Android.
+2. En el Explorador de archivos de Windows, abre la carpeta raiz de ACMA.
+3. Haz doble clic en **PROBAR_ACMA_FLUTTER_ANDROID.bat**.
+
+El lanzador detecta el emulador, instala la app de prueba y la abre con el ACMA publicado en Railway. **No hace falta iniciar el backend local ni copiar claves de Supabase.**
+
+Para probar con **FastAPI local** en lugar de Railway, primero inicia **PROBAR_ACMA_WEB.bat** y despues ejecuta desde CMD:
+
+```bat
+PROBAR_ACMA_FLUTTER_ANDROID.bat --local
+```
+
+Tambien puedes abrir `mobile_flutter` en Android Studio y ejecutar:
 
 ```powershell
-flutter doctor
-flutter create --platforms=android --project-name acma_mobile .
-flutter pub get
-dart run flutter_launcher_icons
 flutter run --dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app
 ```
 
-La WebView carga el sitio publicado en Railway. Los cambios visuales del frontend React aparecen al desplegar la web; para cambiar el **icono del launcher** o el código Flutter nativo hay que reconstruir/reinstalar la app.
+La WebView carga las pantallas de React publicadas en Railway. Para cambiar el icono del launcher o codigo Flutter nativo hay que recompilar e instalar la aplicacion.
 
-Para crear el APK de pruebas desde Windows se conserva `GENERAR_APK_ACMA_RAILWAY.bat`; para generar el AAB firmado de Google Play se conserva `GENERAR_AAB_ACMA_PLAYSTORE.bat`. Ver [instrucciones de Android](mobile_flutter/README.md) y [despliegue de Android](docs/despliegue/RAILWAY_ANDROID.md).
+Se conserva `GENERAR_APK_ACMA_RAILWAY.bat` para APK y `GENERAR_AAB_ACMA_PLAYSTORE.bat` para Google Play. Ver [instrucciones de Android](mobile_flutter/README.md) y [despliegue de Android](docs/despliegue/RAILWAY_ANDROID.md).
 
 ## Scripts de Windows conservados
 
 | Archivo | Uso |
 |---|---|
 | `PROBAR_ACMA_WEB.bat` | Iniciar y probar web + API local contra la configuración privada existente. |
-| `PROBAR_ACMA_FLUTTER_ANDROID.bat` | Probar Android local con `adb reverse` y backend local. |
+| `PROBAR_ACMA_FLUTTER_ANDROID.bat` | Emulador conectado a Railway con doble clic; con `--local` usa backend local. |
 | `GENERAR_APK_ACMA_RAILWAY.bat` | Crear APK de prueba para Railway. |
 | `GENERAR_AAB_ACMA_PLAYSTORE.bat` | Compilar AAB con firma de publicación configurada. |
 | `CREAR_ADMIN_ACMA.bat` | Configuración inicial de administrador, solo si hace falta. |
