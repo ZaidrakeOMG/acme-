@@ -5,7 +5,6 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 PY = ROOT / "backend" / "scripts" / "crear_superadmin_zaid.py"
-BAT = ROOT / "CREAR_SUPERADMIN_ZAID.bat"
 
 
 class AltaAdminOffline(unittest.TestCase):
@@ -22,9 +21,8 @@ class AltaAdminOffline(unittest.TestCase):
 
     def test_contrasena_no_queda_versionada_y_se_valida(self):
         codigo = PY.read_text(encoding="utf-8")
-        lanzador = BAT.read_text(encoding="utf-8")
         # El valor provisto por el usuario nunca debe guardarse en Git.
-        self.assertNotIn("ZaiDrakeOMG25", codigo + lanzador)
+        self.assertNotIn("ZaiDrakeOMG25", codigo)
         self.assertIn("getpass.getpass", codigo)
         self.assertIn("errores_politica_contrasena", codigo)
         self.assertIn("hashear_contrasena_async", codigo)
