@@ -271,7 +271,7 @@ body { background: #f7f7fa; color: var(--acma-ink); }
 /* Correcciones de distribución tablet, WebView Android y Safari.
    La cuadrícula ya no fuerza anchos mínimos ocultos que rompen el viewport. */
 .acma-shell { width: 100%; max-width: 100%; }
-.acma-contenido { width: 100%; max-width: 100%; }
+.acma-contenido { width: 100%; }
 .acma-contenido :where(.grid) > * { min-width: 0; }
 .acma-contenido :where(section, article, form, input, textarea, select) { max-width: 100%; }
 .acma-contenido :where(.flex) > :where(p, span, h1, h2, h3, div) { min-width: 0; }
