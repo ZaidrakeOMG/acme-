@@ -127,6 +127,13 @@ Verificar con usuarios de prueba autorizados:
 - formularios, notificaciones, trabajos programados y modo sin conexión;
 - accesibilidad, estados de carga/errores y aplicación en segundo plano.
 
+En Google Play Console revisa también que el App Bundle soporte
+**ARM64 (64 bits) y páginas de memoria de 16 KB**; las bibliotecas nativas
+de Flutter/plugins tienen que cumplir. No se certifica ese soporte solo
+por compilar el APK: verifica el informe de compatibilidad del AAB y,
+si es posible, ejecuta en un emulador Android configurado para páginas
+de 16 KB.
+
 **Ojo:** nuestra primera configuración Railway activa FastAPI + React con
 `TIEMPO_REAL_MODO=local` y **no** inicia Redis ni Celery Worker/Beat. Las
 funciones programadas y notificaciones no están completas solo por generar
