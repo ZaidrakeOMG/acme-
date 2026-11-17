@@ -28,6 +28,6 @@ flutter:
 # Usar el icono ORIGINAL de React: ningún emoji ni icono inventado.
 flutter_launcher_icons:
   android: true
-  ios: true
+  ios: false
   image_path: ../frontend/public/icono-512.png
-  remove_alpha_ios: true
+  # iOS se configura por separado en Mac/Xcode; Windows solo genera Android.
