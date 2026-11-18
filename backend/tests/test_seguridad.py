@@ -61,20 +61,20 @@ async def _sql_dueno(consulta: str, **params):
 # --------------------------------------------------------------- sesiones
 
 async def test_vida_de_la_sesion_por_rol(cliente_factory, auth, datos):
-    """§6.9.5: 8 h de sesión y 2 h para los roles administrativos. P11a (cierra la decisión pendiente n.º 1)."""
+    """Sesión persistente: 30 días general y 7 días en roles administrativos."""
     async with cliente_factory() as c:
         tecnico = await iniciar_sesion(c, TEC, datos["contrasena"])
-        assert 7.5 * 3600 < tecnico["sesion_expira_en"] <= 8 * 3600
+        assert 29 * 86400 < tecnico["sesion_expira_en"] <= 30 * 86400
     async with cliente_factory() as c:
         admin = await iniciar_sesion(c, AP, datos["contrasena"])
-        assert 1.5 * 3600 < admin["sesion_expira_en"] <= 2 * 3600
+        assert 6 * 86400 < admin["sesion_expira_en"] <= 7 * 86400
 
 
 async def test_la_rotacion_no_alarga_la_sesion(cliente_factory, datos):
     async with cliente_factory() as c:
         primero = await iniciar_sesion(c, TEC, datos["contrasena"])
         segundo = (await refrescar(c)).json()
-        # El tope absoluto se hereda: renovar el token de acceso no regala otras 8 h.
+        # El tope absoluto se hereda: renovar el token de acceso no regala otros 30 días.
         assert segundo["sesion_expira_en"] <= primero["sesion_expira_en"]
 
 
@@ -94,7 +94,7 @@ async def test_sesion_expirada_y_cierre_por_inactividad(cliente, cliente_factory
     async with cliente_factory() as c:
         await iniciar_sesion(c, email, "Prueba#Segura2026")
         # Inactividad: la sesión sigue viva pero sin uso por más de lo configurado.
-        await _sql(f"UPDATE sesiones SET ultimo_acceso_at = now() - interval '10 hours' {SOLO_DE_ESTE}", e=email)
+        await _sql(f"UPDATE sesiones SET ultimo_acceso_at = now() - interval '31 days' {SOLO_DE_ESTE}", e=email)
         inactiva = await refrescar(c)
         assert inactiva.status_code == 401
         motivos = await _sql("SELECT DISTINCT motivo_revocacion FROM sesiones"
