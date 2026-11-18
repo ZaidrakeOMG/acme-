@@ -5,6 +5,7 @@ import { Aviso, Boton, Campo as CampoUI, Encabezado, Insignia, Modal, Selector, 
 import { useAuth } from '../../contexts/AuthContext'
 import { useRecurso } from '../../hooks/useRecurso'
 import { api, mensajeDeError } from '../../services/api'
+import { EVENTO_ACCION_TESTBOT, notificarTestBot, type AccionTestBot } from '../../services/testbotAcma'
 import type { Rol, Tenant } from '../../types/api'
 import {
   CATALOGOS_SISTEMA, CONFIG_DEFECTO, NOMBRE_TIPO, TIPOS_CALCULADOS, TIPOS_CAMPO, TIPOS_CON_DEFECTO, TIPOS_CON_OPCIONES, camposDe,
@@ -139,8 +140,10 @@ export function Constructor() {
       setF(p)
       setPublicar(false)
       setAviso(`Publicada la versión ${p.numero_version_publicada}`)
+      if (esSuper) notificarTestBot({ accion: 'publicar', exito: true, mensaje: 'Publicada la versión ' + p.numero_version_publicada, formularioId: p.id })
     } catch (e) {
       setError(mensajeDeError(e))
+      if (esSuper) notificarTestBot({ accion: 'publicar', exito: false, mensaje: mensajeDeError(e) })
     }
   }
 
@@ -160,6 +163,90 @@ export function Constructor() {
     else if (campo) moverCampo(campo, seccionClave, antesDe)
     else if (catalogo && antesDe) enlazarCatalogo(antesDe, catalogo, e.dataTransfer.getData('personalizado') || undefined)
   }
+
+  // TestBot: automatiza únicamente el formulario ya abierto, sin agregar ni duplicar campos.
+  // La operación del constructor requiere rol superadmin; ninguna acción salta el backend ni sus permisos.
+  useEffect(() => {
+    if (!esSuper) return
+    const escucharTestBot = (evento: Event) => {
+      const accion = (evento as CustomEvent<{ accion: AccionTestBot }>).detail?.accion
+      if (!accion) return
+      const responderError = (error: unknown) =>
+        notificarTestBot({ accion, exito: false, mensaje: mensajeDeError(error) })
+      if (accion === 'preparar') {
+        try {
+          if (!puedeEditar || (f && f.estado === 'archivado')) throw new Error('Este formulario es de solo lectura.')
+          if (esquema.secciones.length !== 1) throw new Error('Se esperaba la sección original, sin crear secciones nuevas.')
+          const actuales = camposDe(esquema)
+          if (actuales.length !== 4 || actuales.map((campo) => campo.tipo).join(',') !== 'si_no,texto_amplio,texto_amplio,texto') {
+            throw new Error('No coinciden los cuatro campos de la prueba. No se modificó el formulario.')
+          }
+          if (f && !f.nombre.toUpperCase().includes('DEMO')) {
+            throw new Error('Seguridad: no se modificarán formularios existentes que no sean DEMO.')
+          }
+          const tenantDemo = (tenants.datos ?? []).find((t) =>
+            t.razon_social.toUpperCase().includes('EMPRESA DEMO ACMA'))
+          if (!tenantDemo) throw new Error('No se encontró el cliente EMPRESA DEMO ACMA. No se aplicaron cambios.')
+          const etiquetas = [
+            '¿El equipo funciona correctamente?',
+            'Descripción de la falla',
+            'Observaciones del mantenimiento',
+            'Nombre del equipo',
+          ]
+          setEsquema((actual) => ({
+            ...actual,
+            secciones: actual.secciones.map((s) => ({
+              ...s,
+              campos: s.campos.map((campo, i) => ({
+                ...campo, etiqueta: etiquetas[i] ?? campo.etiqueta, obligatorio: i === 0 || i === 3,
+              })),
+            })),
+          }))
+          setMeta((actual) => ({
+            ...actual,
+            nombre: f ? actual.nombre : actual.nombre.toUpperCase().includes('DEMO') ? actual.nombre : 'Inspección de mantenimiento DEMO',
+            descripcion: actual.descripcion.trim() || 'Formulario de prueba para inspección de equipos DEMO',
+            tenant_id: tenantDemo.id,
+            rol_destino: Array.from(new Set([...actual.rol_destino, 'superadmin', 'tecnico'])) as Rol[],
+            es_plantilla_base: false,
+          }))
+          setSeleccion(actuales[0]!.clave)
+          setAviso('TestBot configuró los cuatro campos existentes. No agregó campos ni guardó registros aún.')
+          notificarTestBot({ accion, exito: true, mensaje: 'Campos configurados para cliente DEMO.', formularioId: f?.id })
+        } catch (e) { responderError(e) }
+      } else if (accion === 'guardar') {
+        const actuales = camposDe(esquema)
+        const esDemo = (tenants.datos ?? []).some((t) => t.id === meta.tenant_id && t.razon_social.toUpperCase().includes('DEMO'))
+        if (!puedeEditar || !esDemo || !meta.nombre.toUpperCase().includes('DEMO') ||
+          actuales.length !== 4 ||
+          actuales.map((campo) => campo.tipo).join(',') !== 'si_no,texto_amplio,texto_amplio,texto' ||
+          !actuales[0]?.obligatorio || !actuales[3]?.obligatorio ||
+          !meta.rol_destino.includes('superadmin')) {
+          responderError(new Error('Seguridad: falta configurar los cuatro campos y el cliente DEMO antes de guardar.'))
+          return
+        }
+        void guardar().then((guardado) => {
+          if (guardado) notificarTestBot({ accion, exito: true, mensaje: 'Formulario DEMO guardado; ID reutilizable: ' + guardado.id, formularioId: guardado.id })
+          else responderError(new Error('No se pudo guardar el formulario. Revisa el mensaje del constructor.'))
+        }).catch(responderError)
+      } else if (accion === 'vista_previa') {
+        if (!f) { responderError(new Error('Primero debe guardarse el formulario.')); return }
+        setPrevia(true)
+        notificarTestBot({ accion, exito: true, mensaje: 'Vista previa abierta. Revisa los cuatro campos y cierra la ventana para continuar.', formularioId: f.id })
+      } else if (accion === 'publicar') {
+        if (!f || !f.nombre.toUpperCase().includes('DEMO') || !f.tenant_id) {
+          responderError(new Error('Solo se publicarán formularios DEMO guardados y con cliente asignado.'))
+          return
+        }
+        setPublicar(true)
+        // Se espera la confirmación nativa de ACMA; publicarAhora notificará el resultado real del servidor.
+      }
+    }
+    window.addEventListener(EVENTO_ACCION_TESTBOT, escucharTestBot)
+    return () => window.removeEventListener(EVENTO_ACCION_TESTBOT, escucharTestBot)
+    // Las funciones de guardado dependen del estado actual; renovar el listener evita capturar datos obsoletos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esSuper, puedeEditar, f, esquema, meta, tenants.datos])
 
   return (
     <div className="space-y-4">
