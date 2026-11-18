@@ -177,7 +177,7 @@ export function Constructor() {
         })
       })().catch((e: unknown) => {
         const error = e instanceof Error ? e : new Error(String(e))
-        setError(mensajeDeError(error))
+        setError(error.message)
         solicitud.detail.rechazar(error)
       })
     }
