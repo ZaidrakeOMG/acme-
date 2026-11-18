@@ -9,7 +9,7 @@ import {
   archivoPenalizaciones, calcularIguala, calcularPenalizaciones, cambiarEstadoPenalizacion, cumplimientoContrato,
   decidirExclusion, listarExclusiones, listarIguala, listarPenalizaciones,
 } from '../../services/sla'
-import type { Contrato, NivelSeveridad, SLA, Tenant } from '../../types/api'
+import type { Contrato, NivelSeveridad, Prestador, SLA, Tenant } from '../../types/api'
 import type { CumplimientoContrato, Exclusion, Iguala, Penalizacion } from '../../types/sla'
 import {
   NOMBRE_CAUSA, NOMBRE_ESTADO_PENALIZACION, ROLES_APRUEBAN_EXCLUSION, ROLES_REVISAN_PENALIZACION,
@@ -46,6 +46,7 @@ export function Contratos() {
   const vista = (params.get('vista') as Vista) || 'contratos'
   const { datos, error, recargar } = useRecurso<Contrato[]>('/contratos')
   const tenants = useRecurso<Tenant[]>('/tenants')
+  const prestadores = useRecurso<Prestador[]>(usuario?.rol === 'superadmin' ? '/prestadores' : null)
   const [editar, setEditar] = useState<Contrato | 'nuevo' | null>(null)
   const puedeEditar = usuario?.rol === 'admin_prestador' || usuario?.rol === 'superadmin'
   const nombreTenant = (id: string) => tenants.datos?.find((t) => t.id === id)?.razon_social ?? id.slice(0, 8)
@@ -102,6 +103,8 @@ export function Contratos() {
           <FormularioContrato
             contrato={editar === 'nuevo' ? null : editar}
             tenants={tenants.datos ?? []}
+            prestadores={prestadores.datos ?? []}
+            esSuper={usuario.rol === 'superadmin'}
             soloLectura={!puedeEditar}
             alGuardar={async () => {
               setEditar(null)
@@ -114,9 +117,10 @@ export function Contratos() {
   )
 }
 
-function FormularioContrato({ contrato, tenants, soloLectura, alGuardar }: { contrato: Contrato | null; tenants: Tenant[]; soloLectura: boolean; alGuardar: () => Promise<void> }) {
+function FormularioContrato({ contrato, tenants, prestadores, esSuper, soloLectura, alGuardar }: { contrato: Contrato | null; tenants: Tenant[]; prestadores: Prestador[]; esSuper: boolean; soloLectura: boolean; alGuardar: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null)
   const [tenantId, setTenantId] = useState(contrato?.tenant_id ?? tenants[0]?.id ?? '')
+  const [prestadorId, setPrestadorId] = useState(contrato?.prestador_id ?? '')
   const [nombre, setNombre] = useState(contrato?.nombre ?? '')
   const [modalidad, setModalidad] = useState<'evento' | 'iguala'>(contrato?.modalidad ?? 'evento')
   const [folios, setFolios] = useState(String(contrato?.folios_correctivos_iguala ?? ''))
@@ -145,6 +149,8 @@ function FormularioContrato({ contrato, tenants, soloLectura, alGuardar }: { con
 
   async function guardar() {
     setError(null)
+    if (!contrato && !tenantId) return setError('Selecciona un cliente para el contrato')
+    if (!contrato && esSuper && !prestadorId) return setError('Selecciona el prestador que atenderá el contrato')
     const cuerpoSlas = NIVELES.map(({ nivel }) => ({
       nivel_severidad: nivel,
       tiempo_respuesta: Number(slas[nivel].resp),
@@ -173,7 +179,7 @@ function FormularioContrato({ contrato, tenants, soloLectura, alGuardar }: { con
     }
     try {
       if (contrato) await api(`/contratos/${contrato.id}`, { metodo: 'PATCH', cuerpo })
-      else await api('/contratos', { metodo: 'POST', cuerpo: { ...cuerpo, tenant_id: tenantId } })
+      else await api('/contratos', { metodo: 'POST', cuerpo: { ...cuerpo, tenant_id: tenantId, ...(esSuper ? { prestador_id: prestadorId } : {}) } })
       await alGuardar()
     } catch (e) {
       setError(mensajeDeError(e))
@@ -183,7 +189,8 @@ function FormularioContrato({ contrato, tenants, soloLectura, alGuardar }: { con
   return (
     <fieldset disabled={soloLectura} className="space-y-3" data-testid="form-contrato">
       {error && <Aviso>{error}</Aviso>}
-      {!contrato && <Selector etiqueta="Cliente" value={tenantId} onChange={(e) => setTenantId(e.target.value)} opciones={tenants.map((t) => ({ valor: t.id, texto: t.razon_social }))} />}
+      {!contrato && <Selector etiqueta="Cliente" value={tenantId} onChange={(e) => setTenantId(e.target.value)} opciones={[{ valor: '', texto: 'Selecciona cliente…' }, ...tenants.map((t) => ({ valor: t.id, texto: t.razon_social }))]} />}
+      {!contrato && esSuper && <Selector etiqueta="Prestador" value={prestadorId} onChange={(e) => setPrestadorId(e.target.value)} opciones={[{ valor: '', texto: 'Selecciona prestador…' }, ...prestadores.map((p) => ({ valor: p.id, texto: p.razon_social }))]} />}
       <Campo etiqueta="Nombre del contrato" value={nombre} onChange={(e) => setNombre(e.target.value)} />
       <div className="grid grid-cols-2 gap-3">
         <Campo etiqueta="Inicio" type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
