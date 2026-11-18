@@ -96,6 +96,63 @@ describe('Login', () => {
     expect(localStorage.getItem('acma.sesion')).toBe('1')
   })
 
+
+  it('no vuelve a entrar después de cerrar sesión sin red aunque siga la cookie segura', async () => {
+    const { sesion } = await import('../src/services/api')
+    sesion.guardar(TOKENS)
+    document.cookie = 'acma_csrf=csrf-de-prueba; path=/'
+    // El servidor no pudo borrar el refresh httpOnly porque se perdió Internet.
+    sesion.limpiar()
+    const llamadas = simularApi({
+      'POST /api/auth/refresh': () => ({ json: TOKENS }),
+    })
+    renderApp()
+
+    expect(await screen.findByRole('button', { name: 'Entrar' })).toBeInTheDocument()
+    expect(sesion.tieneRefresh()).toBe(false)
+    expect(localStorage.getItem('acma.sesion')).toBe('0')
+    expect(llamadas.filter((l) => l.clave === 'POST /api/auth/refresh')).toHaveLength(0)
+  })
+
+  it('renueva sin recargar formularios cuando iPhone o Android regresa a primer plano', async () => {
+    const { sesion } = await import('../src/services/api')
+    sesion.guardar(TOKENS)
+    let renovaciones = 0
+    const llamadas = simularApi({
+      'POST /api/auth/refresh': () => {
+        renovaciones += 1
+        return { json: { ...TOKENS, access_token: `renovado-${renovaciones}` } }
+      },
+      'GET /api/auth/yo': () => ({ json: perfil('operador', { nombre: 'Olga Operadora' }) }),
+    })
+    renderApp()
+    expect(await screen.findByRole('heading', { name: 'Hola, Olga' })).toBeInTheDocument()
+    expect(renovaciones).toBe(1)
+
+    // Simula 15 minutos transcurridos con la WebView suspendida.
+    sesion.guardar({ ...TOKENS, access_token: 'caducado', expira_en: 1 })
+    window.dispatchEvent(new Event('acma:resume'))
+
+    await vi.waitFor(() => expect(renovaciones).toBe(2))
+    expect(screen.getByRole('heading', { name: 'Hola, Olga' })).toBeInTheDocument()
+    expect(llamadas.filter((l) => l.clave === 'GET /api/auth/yo')).toHaveLength(1)
+  })
+
+  it('cierra la sesión visible cuando otra pestaña cierra el acceso', async () => {
+    const { sesion } = await import('../src/services/api')
+    sesion.guardar(TOKENS)
+    simularApi({
+      'POST /api/auth/refresh': () => ({ json: TOKENS }),
+      'GET /api/auth/yo': () => ({ json: perfil('operador', { nombre: 'Olga Operadora' }) }),
+    })
+    renderApp()
+    expect(await screen.findByRole('heading', { name: 'Hola, Olga' })).toBeInTheDocument()
+    localStorage.setItem('acma.sesion', '0')
+    window.dispatchEvent(new StorageEvent('storage', { key: 'acma.sesion', newValue: '0' }))
+    expect(await screen.findByRole('button', { name: 'Entrar' })).toBeInTheDocument()
+    expect(sesion.tieneRefresh()).toBe(false)
+  })
+
   it('renueva el token una sola vez aunque varias peticiones reciban 401', async () => {
     const { api, sesion } = await import('../src/services/api')
     let refrescos = 0
