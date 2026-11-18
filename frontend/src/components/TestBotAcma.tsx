@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../contexts/AuthContext'
 import { ErrorAPI, mensajeDeError } from '../services/api'
+import { crearYSeguirFolioDemo, consultarSeguimientoFolioDemo, type SeguimientoFolioDemo } from '../services/testbotEscriturasDemo'
+import { reporteTestBotTXT } from '../services/testbotReporte'
 import { ejecutarPasoDemo, INICIAL_DEMO, PASOS_DEMO, type ProgresoDemo } from '../services/testbotFlujoDemo'
 import { INICIAL_RECORRIDO, SECUENCIA_ACMA, guardarResultado, probarModuloDemo, type EstadoRecorrido } from '../services/testbotSecuencia'
 
@@ -76,6 +78,9 @@ export function TestBotAcma() {
   const [permitirEscrituras, setPermitirEscrituras] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [historial, setHistorial] = useState<string[]>([])
+  const [folioRastreado, setFolioRastreado] = useState<SeguimientoFolioDemo | null>(null)
+  const [rastreoActivo, setRastreoActivo] = useState(false)
+  const [errorRastreo, setErrorRastreo] = useState<string | null>(null)
   const [mascotaFallida, setMascotaFallida] = useState(false)
   const progresoRef = useRef<ProgresoDemo>(progreso)
   const bloqueado = useRef(false)
@@ -88,6 +93,9 @@ export function TestBotAcma() {
     setReintentados([])
     setMensaje('')
     setHistorial([])
+    setFolioRastreado(null)
+    setRastreoActivo(false)
+    setErrorRastreo(null)
     setOcupado(false)
     bloqueado.current = false
   }, [usuarioId])
@@ -99,7 +107,7 @@ export function TestBotAcma() {
   }
   function registrar(texto: string) {
     setMensaje(texto)
-    setHistorial((anterior) => [...anterior, texto].slice(-10))
+    setHistorial((anterior) => [...anterior, texto].slice(-100))
   }
 
   async function ejecutar(todo: boolean) {
@@ -221,6 +229,59 @@ export function TestBotAcma() {
     }
   }
 
+
+  // El estado del folio se refresca sin inventar posiciones ni simular cuentas Técnico.
+  useEffect(() => {
+    if (!rastreoActivo || !abierto || modo !== 'pruebas' || !esSuperadmin) return
+    let vigente = true
+    const consultar = async () => {
+      try {
+        const f = await consultarSeguimientoFolioDemo()
+        if (!vigente) return
+        if (f) { setFolioRastreado(f); setErrorRastreo(null) }
+        else setErrorRastreo('El folio TESTBOT DEMO no aparece en la consulta del servidor.')
+      } catch (e) {
+        if (vigente) setErrorRastreo(errorLegible(e))
+      }
+    }
+    void consultar()
+    const intervalo = setInterval(() => void consultar(), 12000)
+    return () => { vigente = false; clearInterval(intervalo) }
+  }, [rastreoActivo, abierto, modo, esSuperadmin])
+
+  async function empezarRastreo() {
+    if (!esSuperadmin || !permitirEscrituras || bloqueado.current) return
+    bloqueado.current = true
+    setOcupado(true)
+    setErrorRastreo(null)
+    try {
+      const f = await crearYSeguirFolioDemo()
+      setFolioRastreado(f)
+      setRastreoActivo(true)
+      registrar('Folio ficticio rastreable: ' + f.numero + ' · ' + f.id + ' · estado ' + f.estado)
+    } catch (e) {
+      const error = errorLegible(e)
+      setErrorRastreo(error)
+      registrar('ERROR seguimiento de folio DEMO: ' + error)
+    } finally {
+      setOcupado(false)
+      bloqueado.current = false
+    }
+  }
+
+  function descargarDiagnostico() {
+    const informe = reporteTestBotTXT(recorrido, progreso.paso, historial, folioRastreado)
+    const archivo = new Blob(['\uFEFF' + informe], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(archivo)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.download = 'ACMA_TESTBOT_LOG_' + new Date().toISOString().replace(/[:.]/g, '-') + '.txt'
+    document.body.appendChild(enlace)
+    enlace.click()
+    enlace.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 2000)
+  }
+
   if (!usuario) return null
   return (
     <div data-testid="acma-testbot" className="fixed bottom-[calc(5.8rem+env(safe-area-inset-bottom))] right-3 z-40 lg:bottom-6 lg:right-6">
@@ -280,9 +341,9 @@ export function TestBotAcma() {
                       <input type="checkbox" checked={permitirEscrituras}
                         onChange={(e) => setPermitirEscrituras(e.target.checked)}
                         disabled={ocupado} className="mt-0.5" />
-                      <span><strong>Autorizar altas y cambios de prueba.</strong> Solo registros con marca
-                        TESTBOT DEMO en el cliente y prestador DEMO. No envía mensajes externos,
-                        no utiliza cuentas de otros roles y no modifica clientes reales.</span>
+                      <span><strong>Autorizar altas y cambios de prueba.</strong> Solo registros TESTBOT DEMO
+                        del cliente/prestador DEMO. Puede crear una familia y un tipo globales claramente
+                        marcados TESTBOT DEMO; no modifica equipos reales ni envía mensajes externos.</span>
                     </label>
                     {recorrido.indice < SECUENCIA_ACMA.length ? (
                       <>
@@ -335,6 +396,39 @@ export function TestBotAcma() {
                         )}
                       </div>
                     )}
+
+                    <section aria-label="Rastrear folio DEMO" className="space-y-2 rounded-xl border border-slate-200 p-3 text-xs">
+                      <p className="font-bold text-slate-900">Seguimiento de un folio DEMO</p>
+                      <p>Se crea o reutiliza con tu sesión actual ({usuario.rol}).
+                        El estado sí se consulta automáticamente cada 12 segundos. El GPS solo existe
+                        cuando un Técnico asignado inicia su jornada y concede ubicación.</p>
+                      <button type="button" disabled={ocupado || !permitirEscrituras}
+                        onClick={() => void empezarRastreo()}
+                        className={boton + ' w-full bg-[#a70d2d] text-white'}>
+                        {ocupado ? 'Preparando folio…' : 'Crear / recuperar folio DEMO y rastrearlo'}
+                      </button>
+                      {errorRastreo && <p role="alert" className="rounded bg-red-50 p-2 text-red-700">
+                        Error de rastreo: {errorRastreo}
+                      </p>}
+                      {folioRastreado && (
+                        <div className="space-y-1 rounded-lg bg-slate-50 p-2" data-testid="testbot-folio-rastreo">
+                          <p><strong>Folio:</strong> {folioRastreado.numero}</p>
+                          <p><strong>Estado:</strong> {folioRastreado.estado}</p>
+                          <p><strong>Técnico:</strong> {folioRastreado.tecnicoNombre ??
+                            (folioRastreado.tecnicoId ? folioRastreado.tecnicoId : 'sin asignar')}</p>
+                          <p><strong>Jornada:</strong> {folioRastreado.enJornada ? 'abierta' : 'no iniciada'}</p>
+                          <p><strong>GPS:</strong> {folioRastreado.diagnosticoGPS}</p>
+                          {folioRastreado.ultimaPosicion && <p>Última posición: {folioRastreado.ultimaPosicion}</p>}
+                          <p>Última consulta: {folioRastreado.comprobadoEn}</p>
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" className="font-semibold text-[#a70d2d] underline"
+                              onClick={() => navegar('/folios/' + folioRastreado.id)}>Ver folio</button>
+                            <button type="button" className="font-semibold text-[#a70d2d] underline"
+                              onClick={() => navegar('/operaciones')}>Ver tablero en tiempo real</button>
+                          </div>
+                        </div>
+                      )}
+                    </section>
                     {recorrido.resultados.length > 0 && (
                       <details className="text-xs text-slate-700" data-testid="testbot-resultados">
                         <summary className="cursor-pointer font-semibold">Resultados del recorrido ({recorrido.resultados.length})</summary>
@@ -354,11 +448,17 @@ export function TestBotAcma() {
                     )}
                   </div>
                 )}
+                <button type="button" className={botonSecundario + ' w-full border-[#a70d2d] text-[#a70d2d]'}
+                  onClick={descargarDiagnostico} data-testid="testbot-descargar-log">
+                  Descargar diagnóstico de pruebas (.txt)
+                </button>
+                <p className="text-xs text-slate-500">El TXT incluye módulo, ruta y error HTTP cuando esté disponible,
+                  IDs de prueba y pendientes; nunca exporta contraseñas ni tokens.</p>
                 {mensaje && <p role="status" aria-live="polite" className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{mensaje}</p>}
                 {historial.length > 1 && (
                   <details className="text-xs text-slate-600">
                     <summary className="cursor-pointer font-semibold">Ver bitácora de pruebas ({historial.length})</summary>
-                    <ol className="mt-2 space-y-1">{historial.map((linea, i) => <li key={i}>{linea}</li>)}</ol>
+                    <ol className="mt-2 space-y-1">{historial.slice(-10).map((linea, i) => <li key={i}>{linea}</li>)}</ol>
                   </details>
                 )}
                 {progreso.formularioId && (
