@@ -450,7 +450,7 @@ export async function consultarSeguimientoFolioDemo(): Promise<SeguimientoFolioD
     // El GPS proviene de la jornada real del Técnico y nunca de una ubicación inventada.
     try {
       const tablero = await api<{ tecnicos: Registro[] }>('/operacion/tablero')
-      const tecnico = tablero.tecnicos.find(t => t.tecnico_id === tecnicoId)
+      const tecnico = tablero.tecnicos.find(t => t.usuario_id === tecnicoId)
       if (tecnico) {
         tecnicoNombre = typeof tecnico.nombre === 'string' ? tecnico.nombre : null
         enJornada = tecnico.en_jornada === true
