@@ -145,8 +145,11 @@ function estructuraCorrecta(tipo: TipoRespuesta, datos: unknown): boolean {
   return datos !== undefined && datos !== null && typeof datos === 'object'
 }
 function detalleError(e: unknown): string {
-  if (e instanceof Error) return e.message
-  return String(e)
+  const d = e as { estado?: unknown; codigo?: unknown; mensaje?: unknown } | null
+  if (d && typeof d.estado === 'number') {
+    return 'HTTP ' + d.estado + ' · ' + String(d.codigo ?? 'SIN_CODIGO') + ' · ' + String(d.mensaje ?? '')
+  }
+  return e instanceof Error ? e.message : String(e)
 }
 
 /** No se hacen escrituras en esta fase; se evita alterar operaciones reales. */
@@ -181,7 +184,12 @@ export async function probarModuloLectura(id: string): Promise<ResultadoModulo> 
           params[key] = cacheAmbito[valor]!
         } else params[key] = valor
       }
-      const datos = await api<unknown>(check.ruta, { params })
+      let datos: unknown
+      try {
+        datos = await api<unknown>(check.ruta, { params })
+      } catch (e) {
+        throw new Error('GET /api' + check.ruta + ' · ' + check.titulo + ' → ' + detalleError(e))
+      }
       if (!estructuraCorrecta(check.tipo, datos)) {
         throw new Error('El servidor devolvió una estructura inesperada en ' + check.titulo)
       }
