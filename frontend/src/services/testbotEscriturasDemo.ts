@@ -87,9 +87,9 @@ async function grupo(ctx: Contexto, un: Registro): Promise<Registro> {
   idDe(leido, 'tenant_id', ctx.tenantId)
   exigir(leido.nombre === nombre && leido.descripcion === 'Validado por TESTBOT DEMO',
     'El cambio en grupo no persistió.')
-  // Solo cambia el grupo que el propio bot creó; nunca reemplaza miembros de un grupo real.
+  // Conserva los miembros previos si el grupo DEMO fue ampliado manualmente.
   if (!Array.isArray(leido.unidad_ids) || !leido.unidad_ids.includes(un.id)) {
-    await api('/grupos-un/' + g.id + '/unidades', { metodo: 'PUT', cuerpo: { unidad_ids: [un.id] } })
+    await api('/grupos-un/' + g.id + '/unidades', { metodo: 'PUT', cuerpo: { unidad_ids: Array.from(new Set([...(Array.isArray(leido.unidad_ids) ? leido.unidad_ids : []), un.id])) } })
     const vinculado = await api<Registro>('/grupos-un/' + g.id)
     exigir(Array.isArray(vinculado.unidad_ids) && vinculado.unidad_ids.includes(un.id),
       'No se guardó la pertenencia de la unidad DEMO al grupo.')
