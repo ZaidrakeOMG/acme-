@@ -6,7 +6,7 @@ import { Aviso, Boton, Campo, Encabezado, Insignia, Modal, Selector, Tabla, Tarj
 import { useAuth } from '../../contexts/AuthContext'
 import { useRecurso } from '../../hooks/useRecurso'
 import { api, mensajeDeError } from '../../services/api'
-import type { GrupoUN, UnidadNegocio } from '../../types/api'
+import type { GrupoUN, Tenant, UnidadNegocio } from '../../types/api'
 
 const coordenada = (min: number, max: number) =>
   z.union([z.literal(''), z.coerce.number().min(min, `Mínimo ${min}`).max(max, `Máximo ${max}`)]).optional()
@@ -18,6 +18,7 @@ const esquemaUnidad = z.object({
   lat: coordenada(-90, 90),
   lng: coordenada(-180, 180),
   grupo_id: z.string().optional(),
+  tenant_id: z.string().optional(),
 })
 type FormUnidad = z.input<typeof esquemaUnidad>
 
@@ -26,6 +27,7 @@ export function Unidades() {
   const puedeEditar = usuario?.rol === 'admin_empresa' || usuario?.rol === 'superadmin'
   const unidades = useRecurso<UnidadNegocio[]>('/unidades-negocio')
   const grupos = useRecurso<GrupoUN[]>(usuario && ['admin_un', 'operador', 'tecnico'].includes(usuario.rol) ? null : '/grupos-un')
+  const clientes = useRecurso<Tenant[]>(usuario?.rol === 'superadmin' ? '/tenants' : null)
   const [editar, setEditar] = useState<UnidadNegocio | 'nueva' | null>(null)
   const [nuevoGrupo, setNuevoGrupo] = useState(false)
   const nombreGrupo = (id: string | null) => grupos.datos?.find((g) => g.id === id)?.nombre ?? '—'
@@ -78,6 +80,8 @@ export function Unidades() {
           <FormularioUnidad
             unidad={editar === 'nueva' ? null : editar}
             grupos={grupos.datos ?? []}
+            clientes={clientes.datos ?? []}
+            esSuper={usuario?.rol === 'superadmin'}
             alGuardar={async () => {
               setEditar(null)
               await Promise.all([unidades.recargar(), grupos.recargar()])
@@ -86,15 +90,15 @@ export function Unidades() {
         )}
       </Modal>
       <Modal titulo="Nuevo grupo" abierto={nuevoGrupo} alCerrar={() => setNuevoGrupo(false)}>
-        <FormularioGrupo alGuardar={async () => { setNuevoGrupo(false); await grupos.recargar() }} />
+        <FormularioGrupo clientes={clientes.datos ?? []} esSuper={usuario?.rol === 'superadmin'} alGuardar={async () => { setNuevoGrupo(false); await grupos.recargar() }} />
       </Modal>
     </div>
   )
 }
 
-function FormularioUnidad({ unidad, grupos, alGuardar }: { unidad: UnidadNegocio | null; grupos: GrupoUN[]; alGuardar: () => Promise<void> }) {
+function FormularioUnidad({ unidad, grupos, clientes, esSuper, alGuardar }: { unidad: UnidadNegocio | null; grupos: GrupoUN[]; clientes: Tenant[]; esSuper: boolean; alGuardar: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null)
-  const { register, handleSubmit, formState } = useForm<FormUnidad>({
+  const { register, handleSubmit, watch, formState } = useForm<FormUnidad>({
     resolver: zodResolver(esquemaUnidad),
     defaultValues: {
       nombre: unidad?.nombre ?? '',
@@ -103,13 +107,25 @@ function FormularioUnidad({ unidad, grupos, alGuardar }: { unidad: UnidadNegocio
       lat: unidad?.ubicacion?.lat ?? '',
       lng: unidad?.ubicacion?.lng ?? '',
       grupo_id: unidad?.grupo_id ?? '',
+      tenant_id: unidad?.tenant_id ?? '',
     },
   })
+  const tenantElegido = watch('tenant_id')
+  const gruposDelCliente = esSuper ? grupos.filter((g) => g.tenant_id === (unidad?.tenant_id ?? tenantElegido)) : grupos
   const enviar = handleSubmit(async (valores) => {
     const d = esquemaUnidad.parse(valores)
     setError(null)
+    if (!unidad && esSuper && !d.tenant_id) {
+      setError('Selecciona el cliente al que pertenece la unidad')
+      return
+    }
+    if (d.grupo_id && !gruposDelCliente.some((g) => g.id === d.grupo_id)) {
+      setError('Selecciona un grupo del mismo cliente')
+      return
+    }
     const ubicacion = typeof d.lat === 'number' && typeof d.lng === 'number' ? { lat: d.lat, lng: d.lng } : null
-    const cuerpo = { nombre: d.nombre, codigo: d.codigo, direccion: d.direccion ?? '', ubicacion, grupo_id: d.grupo_id || null }
+    const cuerpo = { nombre: d.nombre, codigo: d.codigo, direccion: d.direccion ?? '', ubicacion, grupo_id: d.grupo_id || null,
+      ...(!unidad && esSuper ? { tenant_id: d.tenant_id } : {}) }
     try {
       if (unidad) await api(`/unidades-negocio/${unidad.id}`, { metodo: 'PATCH', cuerpo })
       else await api('/unidades-negocio', { metodo: 'POST', cuerpo })
@@ -121,6 +137,7 @@ function FormularioUnidad({ unidad, grupos, alGuardar }: { unidad: UnidadNegocio
   return (
     <form onSubmit={enviar} className="space-y-3" noValidate>
       {error && <Aviso>{error}</Aviso>}
+      {!unidad && esSuper && <Selector etiqueta="Cliente" opciones={[{ valor: '', texto: 'Selecciona cliente…' }, ...clientes.map((c) => ({ valor: c.id, texto: c.razon_social }))]} {...register('tenant_id')} />}
       <div className="grid grid-cols-3 gap-3">
         <Campo etiqueta="Código" error={formState.errors.codigo?.message} {...register('codigo')} />
         <div className="col-span-2">
@@ -132,21 +149,26 @@ function FormularioUnidad({ unidad, grupos, alGuardar }: { unidad: UnidadNegocio
         <Campo etiqueta="Latitud" inputMode="decimal" error={formState.errors.lat?.message} {...register('lat')} />
         <Campo etiqueta="Longitud" inputMode="decimal" error={formState.errors.lng?.message} {...register('lng')} />
       </div>
-      <Selector etiqueta="Grupo principal" opciones={[{ valor: '', texto: 'Sin grupo' }, ...grupos.map((g) => ({ valor: g.id, texto: g.nombre }))]} {...register('grupo_id')} />
+      <Selector etiqueta="Grupo principal" opciones={[{ valor: '', texto: 'Sin grupo' }, ...gruposDelCliente.map((g) => ({ valor: g.id, texto: g.nombre }))]} {...register('grupo_id')} />
       <Boton type="submit" className="w-full" disabled={formState.isSubmitting}>Guardar</Boton>
     </form>
   )
 }
 
-function FormularioGrupo({ alGuardar }: { alGuardar: () => Promise<void> }) {
+function FormularioGrupo({ clientes, esSuper, alGuardar }: { clientes: Tenant[]; esSuper: boolean; alGuardar: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null)
-  const { register, handleSubmit, formState } = useForm<{ nombre: string; descripcion: string }>({
-    resolver: zodResolver(z.object({ nombre: z.string().trim().min(2, 'Mínimo 2 caracteres'), descripcion: z.string().max(1000) })),
-    defaultValues: { nombre: '', descripcion: '' },
+  const { register, handleSubmit, formState } = useForm<{ nombre: string; descripcion: string; tenant_id: string }>({
+    resolver: zodResolver(z.object({ nombre: z.string().trim().min(2, 'Mínimo 2 caracteres'), descripcion: z.string().max(1000), tenant_id: z.string() })),
+    defaultValues: { nombre: '', descripcion: '', tenant_id: '' },
   })
   const enviar = handleSubmit(async (d) => {
+    setError(null)
+    if (esSuper && !d.tenant_id) {
+      setError('Selecciona el cliente del grupo')
+      return
+    }
     try {
-      await api('/grupos-un', { metodo: 'POST', cuerpo: d })
+      await api('/grupos-un', { metodo: 'POST', cuerpo: { nombre: d.nombre, descripcion: d.descripcion, ...(esSuper ? { tenant_id: d.tenant_id } : {}) } })
       await alGuardar()
     } catch (e) {
       setError(mensajeDeError(e))
@@ -155,6 +177,7 @@ function FormularioGrupo({ alGuardar }: { alGuardar: () => Promise<void> }) {
   return (
     <form onSubmit={enviar} className="space-y-3" noValidate>
       {error && <Aviso>{error}</Aviso>}
+      {esSuper && <Selector etiqueta="Cliente" opciones={[{ valor: '', texto: 'Selecciona cliente…' }, ...clientes.map((c) => ({ valor: c.id, texto: c.razon_social }))]} {...register('tenant_id')} />}
       <Campo etiqueta="Nombre" error={formState.errors.nombre?.message} {...register('nombre')} />
       <Campo etiqueta="Descripción" {...register('descripcion')} />
       <Boton type="submit" className="w-full" disabled={formState.isSubmitting}>Crear grupo</Boton>
