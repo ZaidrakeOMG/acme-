@@ -225,7 +225,15 @@ export function Constructor() {
           responderError(new Error('Seguridad: falta configurar los cuatro campos y el cliente DEMO antes de guardar.'))
           return
         }
-        void guardar().then((guardado) => {
+        void (async () => {
+          if (!f) {
+            const existentes = await api<Formulario[]>('/formularios', { params: { plantillas: 'false' } })
+            const duplicado = existentes.find((item) => item.estado !== 'archivado' && item.tenant_id === meta.tenant_id &&
+              item.nombre.trim().toLowerCase() === meta.nombre.trim().toLowerCase())
+            if (duplicado) throw new Error('Ya existe un formulario DEMO con ese nombre. Abre el registro existente antes de continuar; no se creó un duplicado.')
+          }
+          return guardar()
+        })().then((guardado) => {
           if (guardado) notificarTestBot({ accion, exito: true, mensaje: 'Formulario DEMO guardado; ID reutilizable: ' + guardado.id, formularioId: guardado.id })
           else responderError(new Error('No se pudo guardar el formulario. Revisa el mensaje del constructor.'))
         }).catch(responderError)
@@ -234,7 +242,8 @@ export function Constructor() {
         setPrevia(true)
         notificarTestBot({ accion, exito: true, mensaje: 'Vista previa abierta. Revisa los cuatro campos y cierra la ventana para continuar.', formularioId: f.id })
       } else if (accion === 'publicar') {
-        if (!f || !f.nombre.toUpperCase().includes('DEMO') || !f.tenant_id) {
+        const tenantDemo = (tenants.datos ?? []).some((t) => t.id === f?.tenant_id && t.razon_social.toUpperCase().includes('DEMO'))
+        if (!f || !f.nombre.toUpperCase().includes('DEMO') || !tenantDemo) {
           responderError(new Error('Solo se publicarán formularios DEMO guardados y con cliente asignado.'))
           return
         }
