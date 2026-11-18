@@ -1,5 +1,21 @@
 # ACMA TestBot — primera integración
 
+## Recorrido consecutivo después de Formularios (versión 3)
+
+Una vez que el antiguo TestBot indica **Formularios dinámicos: 7/7**, el modo **Probar sistema** ya no termina ni obliga a regresar a ChatGPT. Muestra el siguiente módulo y un botón **Siguiente · probar [módulo]**. La primera parada es **Biblioteca técnica**. Después siguen Operaciones en tiempo real, Folios, App de campo, Preventivos y los demás módulos de navegación. Se cubren los 31 módulos restantes en la cola; los tres anteriores (Catálogos, Formularios y Mis formularios) se respetan como avance previo.
+
+En cada pulsación el bot:
+- Invoca la API del módulo con solicitudes **GET** existentes. Verifica formato de respuesta y registra los resultados concretos.
+- Abre el módulo correspondiente en la navegación.
+- Guarda el índice y los resultados por usuario en el dispositivo; al reabrir no regresa a Formularios.
+- Registra errores reales sin detener el resto de la secuencia; al terminar se puede volver al primer error.
+- Para App de campo declara *requiere otro rol* porque el Superadmin no equivale a Técnico u Operador.
+
+**Límite fundamental:** estos nuevos pasos son comprobaciones de lectura/disponibilidad; **NO** se presentan como pruebas funcionales completas de creación, edición, cierre, firma, notificaciones externas o permisos. No se hacen escrituras en los otros módulos. Las siete pruebas funcionales completas siguen siendo exclusivamente las de Formularios. Esta distinción aparece en el panel para impedir que una consulta exitosa sea tratada como una certificación total.
+
+Los módulos restantes se incorporarán con flujos de prueba DEMO específicos (incluidas altas ficticias) cuando se puedan proteger y aislar correctamente.
+
+
 ## Actualización: modo autónomo DEMO
 
 El primer TestBot fallaba al pulsar Siguiente si se había recargado el constructor y faltaban los cuatro campos. Además el backend rechaza el formulario con cliente específico si el superadmin no indica prestador_id.

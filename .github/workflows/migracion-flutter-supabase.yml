@@ -65,6 +65,7 @@ jobs:
               frontend/src/pages/formularios/Constructor.tsx|\
               frontend/src/services/testbotAcma.ts|\
               frontend/src/services/testbotFlujoDemo.ts|\
+              frontend/src/services/testbotSecuencia.ts|\
               frontend/public/testbot-acma.webp)
                 # Se admiten cambios focalizados de sesión, UI y el nuevo asistente
                 # de pruebas DEMO. Los demás módulos permanecen protegidos.
