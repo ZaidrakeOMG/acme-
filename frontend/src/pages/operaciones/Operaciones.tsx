@@ -87,7 +87,7 @@ export function Operaciones() {
   useEffect(() => {
     vivo.current = true
     void cargar()
-    const refresco = setInterval(() => void cargar(), 60000)
+    const refresco = setInterval(() => void cargar(), 20000)
     return () => { vivo.current = false; clearInterval(refresco) }
   }, [cargar])
 
@@ -111,6 +111,45 @@ export function Operaciones() {
       const ultimo = r.puntos.at(-1)
       if (ultimo) setCentrarEn({ lat: ultimo.lat, lng: ultimo.lng, zoom: 15 })
     } catch (e) { setError(mensajeDeError(e)) }
+  }
+
+  // La ruta GPS se vuelve a pedir para el técnico seleccionado, no solo al hacer clic.
+  useEffect(() => {
+    if (!seleccionado) return
+    let activo = true
+    const refrescarRuta = async () => {
+      try {
+        const r = await recorridoDe(seleccionado, datos?.parametros.horas_recorrido ?? 2)
+        if (activo) setRecorrido(r.puntos)
+      } catch (e) {
+        if (activo) setError('No se pudo actualizar el GPS del técnico: ' + mensajeDeError(e))
+      }
+    }
+    const intervalo = setInterval(() => void refrescarRuta(), 12000)
+    return () => { activo = false; clearInterval(intervalo) }
+  }, [seleccionado, datos?.parametros.horas_recorrido])
+
+  function rastrearFolio(f: FolioEnTablero) {
+    setAviso(null)
+    if (!f.tecnico_id) {
+      setAviso('El folio ' + f.numero_folio +
+        ' todavía no tiene técnico asignado. Puedes seguir el estado, pero no hay GPS por rastrear.')
+      return
+    }
+    // Folio.tecnico_id es Usuario.id; el endpoint GPS espera Tecnico.id.
+    const tecnico = datos?.tecnicos.find(t => t.usuario_id === f.tecnico_id)
+    if (!tecnico) {
+      setAviso('El técnico asignado al folio ' + f.numero_folio + ' no aparece en el tablero.')
+      return
+    }
+    if (!tecnico.en_jornada || tecnico.lat == null || tecnico.lng == null) {
+      setAviso('Folio ' + f.numero_folio +
+        ': el técnico debe iniciar jornada y autorizar GPS para que aparezca una ruta real.')
+    } else {
+      setAviso('Rastreando al técnico asignado al folio ' + f.numero_folio +
+        '. Su recorrido se actualiza cada 12 segundos.')
+    }
+    void verRecorrido(tecnico.tecnico_id)
   }
 
   const tecnicos = useMemo(() => ordenarTecnicos(datos?.tecnicos ?? [], orden), [datos?.tecnicos, orden])
@@ -139,6 +178,13 @@ export function Operaciones() {
       )}
 
       <Indicadores datos={datos} enJornada={enJornada.length} ultimoEvento={ultimoEvento} />
+      {datos && enJornada.length === 0 && (
+        <p className="my-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          No hay técnicos con jornada abierta en el tablero. El GPS en tiempo real no aparecerá
+          hasta que un Técnico inicie su jornada y permita la ubicación desde su dispositivo.
+          Los folios y sus estados pueden consultarse independientemente.
+        </p>
+      )}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="space-y-4">
@@ -164,7 +210,7 @@ export function Operaciones() {
             <span className="text-slate-400">· Fila roja: alerta activa. Fila amarilla: desvío de ruta (§6.8.4).</span>
           </div>
 
-          <PanelFolios folios={datos?.folios ?? []} />
+          <PanelFolios folios={datos?.folios ?? []} alRastrear={rastrearFolio} />
         </div>
 
         <div className="space-y-4">
@@ -449,7 +495,10 @@ function DetalleTecnico({ tecnico, recorrido, folios, soloLectura, alCerrarJorna
   )
 }
 
-function PanelFolios({ folios }: { folios: FolioEnTablero[] }) {
+function PanelFolios({ folios, alRastrear }: {
+  folios: FolioEnTablero[]
+  alRastrear: (folio: FolioEnTablero) => void
+}) {
   const [orden, setOrden] = useState<'urgencia' | 'hora'>('urgencia')
   const lista = useMemo(() => {
     const copia = [...folios]
@@ -472,12 +521,12 @@ function PanelFolios({ folios }: { folios: FolioEnTablero[] }) {
           <thead className="text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="py-1">Folio</th><th className="py-1">Sucursal</th><th className="py-1">Técnico</th>
-              <th className="py-1">Estado</th><th className="py-1">SLA</th>
+              <th className="py-1">Estado</th><th className="py-1">SLA</th><th className="py-1">Rastreo</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {lista.length === 0 && (
-              <tr><td colSpan={5} className="py-4 text-center text-slate-400">Sin folios del día.</td></tr>
+              <tr><td colSpan={6} className="py-4 text-center text-slate-400">Sin folios del día.</td></tr>
             )}
             {lista.map((f) => (
               <tr key={f.folio_id} className={f.incumplido ? 'bg-red-50' : f.en_riesgo ? 'bg-amber-50' : ''}>
@@ -494,6 +543,12 @@ function PanelFolios({ folios }: { folios: FolioEnTablero[] }) {
                           {f.minutos_restantes != null ? `${f.minutos_restantes} min` : '—'}
                           {f.en_riesgo && ' · en riesgo'}
                         </span>}
+                </td>
+                <td className="py-1 text-xs">
+                  <button type="button" onClick={() => alRastrear(f)}
+                    className="rounded border border-slate-300 px-2 py-1 text-primario">
+                    Rastrear
+                  </button>
                 </td>
               </tr>
             ))}

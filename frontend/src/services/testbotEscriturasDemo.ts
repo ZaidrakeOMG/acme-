@@ -3,7 +3,21 @@
  * No usa usuarios ficticios, tokens ajenos, pagos, envíos o eliminaciones.
  * Reusa registros identificados por claves exactas para poder reanudar.
  */
-import { api } from './api'
+import { api as apiCliente } from './api'
+
+/** Incluye la ruta HTTP que falló; no registra tokens, contraseñas ni cuerpos de peticiones. */
+const api = async <T>(ruta: string, opciones: Parameters<typeof apiCliente>[1] = {}): Promise<T> => {
+  try {
+    return await apiCliente<T>(ruta, opciones)
+  } catch (e) {
+    const metodo = opciones.metodo ?? 'GET'
+    const err = e as { estado?: unknown; codigo?: unknown; mensaje?: unknown } | null
+    const detalle = err && typeof err.estado === 'number'
+      ? 'HTTP ' + err.estado + ' · ' + String(err.codigo ?? 'SIN_CODIGO') + ' · ' + String(err.mensaje ?? '')
+      : e instanceof Error ? e.message : String(e)
+    throw new Error(metodo + ' /api' + ruta + ' → ' + detalle)
+  }
+}
 
 export const ETIQUETA_TESTBOT = 'TESTBOT DEMO'
 const CLIENTE = 'EMPRESA DEMO ACMA SA DE CV'
@@ -97,15 +111,50 @@ async function grupo(ctx: Contexto, un: Registro): Promise<Registro> {
   return leido
 }
 
+/** Catálogo de pruebas dedicado: nunca usa ni cambia familias/tipos de clientes reales. */
+async function catalogoEquipoDemo(ctx: Contexto): Promise<{ tipo: Registro; falla: Registro }> {
+  const familiaNombre = 'TESTBOT DEMO - Familia de mantenimiento ficticio'
+  const tipoNombre = 'TESTBOT DEMO - Equipo de laboratorio ficticio'
+  const fallaNombre = 'TESTBOT DEMO - Falla de mantenimiento simulada'
+  const familias = await filas('/catalogos/familias-equipo', { tenant_id: ctx.tenantId })
+  let familia = unico(familias.filter(x => x.nombre === familiaNombre && x.tenant_id == null && x.es_global === true),
+    'familia global TESTBOT DEMO')
+  if (!familia) {
+    familia = await api<Registro>('/catalogos/familias-equipo', { metodo: 'POST', cuerpo: {
+      global: true, nombre: familiaNombre,
+      descripcion: 'Catálogo de prueba de ACMA TestBot. Sin activos físicos. Visible como DEMO.',
+    } })
+  }
+  exigir(familia.tenant_id == null && familia.es_global === true && familia.nombre === familiaNombre,
+    'La familia creada no quedó marcada como global TESTBOT DEMO.')
+  const tipos = await filas('/catalogos/tipos-equipo', { tenant_id: ctx.tenantId })
+  let tipo = unico(tipos.filter(x => x.nombre === tipoNombre && x.tenant_id == null &&
+    x.familia_id === familia.id && x.es_global === true), 'tipo global TESTBOT DEMO')
+  if (!tipo) {
+    tipo = await api<Registro>('/catalogos/tipos-equipo', { metodo: 'POST', cuerpo: {
+      global: true, familia_id: familia.id, nombre: tipoNombre,
+      descripcion: 'Equipo de laboratorio exclusivamente ficticio.',
+    } })
+  }
+  exigir(tipo.tenant_id == null && tipo.es_global === true && tipo.familia_id === familia.id &&
+    tipo.nombre === tipoNombre, 'El tipo de equipo TESTBOT DEMO no se guardó correctamente.')
+  const fallas = await filas('/catalogos/tipos-falla', { prestador_id: ctx.prestadorId })
+  let falla = unico(fallas.filter(x => x.descripcion === fallaNombre && x.prestador_id === ctx.prestadorId &&
+    x.familia_equipo_id === familia.id), 'tipo de falla TESTBOT DEMO')
+  if (!falla) {
+    falla = await api<Registro>('/catalogos/tipos-falla', { metodo: 'POST',
+      params: { prestador_id: ctx.prestadorId },
+      cuerpo: { familia_equipo_id: familia.id, descripcion: fallaNombre, requiere_revision_manual: true },
+    })
+  }
+  exigir(falla.prestador_id === ctx.prestadorId && falla.familia_equipo_id === familia.id &&
+    falla.descripcion === fallaNombre, 'La falla TESTBOT DEMO no quedó asociada al prestador DEMO.')
+  return { tipo, falla }
+}
+
 async function equipo(ctx: Contexto): Promise<{ equipo: Registro; tipo: Registro; unidad: Registro }> {
   const un = await unidad(ctx)
-  // Para no alterar catálogos reales, solo se usan tipos globales ya existentes.
-  const tipos = await filas('/catalogos/tipos-equipo')
-  const fallas = await filas('/catalogos/tipos-falla', { prestador_id: ctx.prestadorId })
-  const tipo = tipos.find(x => x.tenant_id == null && typeof x.familia_id === 'string' &&
-    fallas.some(f => f.prestador_id === ctx.prestadorId && f.familia_equipo_id === x.familia_id && f.activa !== false)) ??
-    tipos.find(x => x.tenant_id == null && typeof x.familia_id === 'string')
-  exigir(tipo, 'No hay tipos globales de equipo: no se fabricó un tipo ajeno al cliente DEMO.')
+  const { tipo } = await catalogoEquipoDemo(ctx)
   const disponibles = await filas('/catalogos/equipos', { tenant_id: ctx.tenantId })
   const codigo = 'TESTBOT-DEMO-EQ'
   let eq = unico(disponibles.filter(x => x.codigo === codigo && x.tenant_id === ctx.tenantId), 'equipo DEMO')
@@ -116,14 +165,15 @@ async function equipo(ctx: Contexto): Promise<{ equipo: Registro; tipo: Registro
   }
   idDe(eq, 'tenant_id', ctx.tenantId)
   exigir(eq.codigo === codigo && eq.un_id === un.id, 'El equipo de pruebas no pertenece a nuestra UN DEMO.')
+  if (eq.tipo_equipo_id !== tipo.id) {
+    eq = await api<Registro>('/catalogos/equipos/' + eq.id, { metodo: 'PATCH',
+      cuerpo: { tipo_equipo_id: tipo.id } })
+  }
   const leido = await api<Registro>('/catalogos/equipos/' + eq.id)
   idDe(leido, 'tenant_id', ctx.tenantId)
-  exigir(leido.codigo === codigo, 'El equipo DEMO no quedó guardado.')
-  const tipoDelEquipo = tipos.find(x => x.id === leido.tipo_equipo_id)
-  exigir(tipoDelEquipo, 'El tipo original del equipo DEMO no está disponible.')
-  return { equipo: leido, tipo: tipoDelEquipo, unidad: un }
+  exigir(leido.codigo === codigo && leido.tipo_equipo_id === tipo.id, 'El equipo DEMO no quedó guardado con su tipo.')
+  return { equipo: leido, tipo, unidad: un }
 }
-
 async function inventario(ctx: Contexto): Promise<VerificacionDemo> {
   const codigo = 'TESTBOT-DEMO-ART'
   const articulos = await filas('/inventario/articulos')
@@ -234,10 +284,9 @@ async function plan(ctx: Contexto): Promise<VerificacionDemo> {
 
 async function folio(ctx: Contexto): Promise<VerificacionDemo> {
   const { equipo: eq, tipo, unidad: un } = await equipo(ctx)
-  const fallas = await filas('/catalogos/tipos-falla', { prestador_id: ctx.prestadorId })
-  const falla = fallas.find(f => f.prestador_id === ctx.prestadorId &&
-    f.familia_equipo_id === tipo.familia_id && f.activa !== false)
-  exigir(falla, 'Falta tipo de falla de la familia del equipo DEMO en el prestador DEMO.')
+  const { falla } = await catalogoEquipoDemo(ctx)
+  exigir(falla.familia_equipo_id === tipo.familia_id,
+    'La falla ficticia no corresponde a la familia del equipo DEMO.')
   const descripcion = 'TESTBOT DEMO - Folio de avería ficticia, no realizar servicio'
   const anteriores = await filas('/folios', { tenant_id: ctx.tenantId })
   let f = unico(anteriores.filter(x => x.tenant_id === ctx.tenantId &&
@@ -360,6 +409,79 @@ async function contratoDemo(ctx: Contexto): Promise<VerificacionDemo> {
   return resultado('Contrato ficticio y sus cinco SLA guardados y verificados.', [
     'Contrato: ' + c.id, 'Cinco niveles SLA: crítica, alta, media, baja y muy baja.',
   ], true)
+}
+
+
+export interface SeguimientoFolioDemo {
+  id: string
+  numero: string
+  estado: string
+  tecnicoId: string | null
+  tecnicoNombre: string | null
+  enJornada: boolean
+  ultimaPosicion: string | null
+  lat: number | null
+  lng: number | null
+  diagnosticoGPS: string
+  comprobadoEn: string
+}
+
+/** Lectura con la sesión REAL del usuario actual: jamás suplanta un Técnico. */
+export async function consultarSeguimientoFolioDemo(): Promise<SeguimientoFolioDemo | null> {
+  const ctx = await contexto()
+  const anteriores = await filas('/folios', { tenant_id: ctx.tenantId })
+  const descripcion = 'TESTBOT DEMO - Folio de avería ficticia, no realizar servicio'
+  const posibles = anteriores.filter(x => x.tenant_id === ctx.tenantId && x.descripcion === descripcion)
+  const f = unico(posibles, 'folio ficticio rastreable TESTBOT DEMO')
+  if (!f) return null
+  const detalle = await api<{ folio: Registro }>('/folios/' + f.id)
+  exigir(detalle.folio, 'El detalle del folio ficticio no está disponible.')
+  const folio = detalle.folio
+  idDe(folio, 'tenant_id', ctx.tenantId)
+  exigir(folio.descripcion === descripcion && folio.id === f.id, 'No se rastrearán folios ajenos al TestBot.')
+  const tecnicoId = typeof folio.tecnico_id === 'string' ? folio.tecnico_id : null
+  let tecnicoNombre: string | null = null
+  let enJornada = false
+  let ultimaPosicion: string | null = null
+  let lat: number | null = null
+  let lng: number | null = null
+  let diagnosticoGPS = 'Sin técnico asignado. El folio puede consultarse, pero aún no existe una ubicación GPS asociada.'
+  if (tecnicoId) {
+    // El GPS proviene de la jornada real del Técnico y nunca de una ubicación inventada.
+    try {
+      const tablero = await api<{ tecnicos: Registro[] }>('/operacion/tablero')
+      const tecnico = tablero.tecnicos.find(t => t.usuario_id === tecnicoId)
+      if (tecnico) {
+        tecnicoNombre = typeof tecnico.nombre === 'string' ? tecnico.nombre : null
+        enJornada = tecnico.en_jornada === true
+        ultimaPosicion = typeof tecnico.ultima_posicion_at === 'string' ? tecnico.ultima_posicion_at : null
+        lat = typeof tecnico.lat === 'number' ? tecnico.lat : null
+        lng = typeof tecnico.lng === 'number' ? tecnico.lng : null
+        diagnosticoGPS = !enJornada ? 'El Técnico no tiene jornada abierta.'
+          : lat == null || lng == null ? 'Jornada abierta, pero el servidor no recibió coordenadas GPS.'
+          : 'Se recibió la última posición registrada; no confirma movimiento en este instante.'
+      } else {
+        diagnosticoGPS = 'El técnico asignado no aparece en el tablero de operaciones.'
+      }
+    } catch (error) {
+      diagnosticoGPS = 'No se pudo consultar GPS del técnico: ' +
+        (error instanceof Error ? error.message : String(error))
+    }
+  }
+  return {
+    id: f.id, numero: String(folio.numero_folio ?? f.id), estado: String(folio.estado ?? 'desconocido'),
+    tecnicoId, tecnicoNombre, enJornada, ultimaPosicion, lat, lng, diagnosticoGPS,
+    comprobadoEn: new Date().toISOString(),
+  }
+}
+
+/** Crear o reutilizar folio SOLO DEMO mediante el token de la sesión activa del Superadmin. */
+export async function crearYSeguirFolioDemo(): Promise<SeguimientoFolioDemo> {
+  const ctx = await contexto()
+  await folio(ctx)
+  const resultado = await consultarSeguimientoFolioDemo()
+  exigir(resultado, 'El folio fue enviado, pero no pudo localizarse en la consulta posterior.')
+  return resultado
 }
 
 export const MODULOS_CON_ALTAS_DEMO = [
