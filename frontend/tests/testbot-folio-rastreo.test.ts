@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { fakeApi } = vi.hoisted(() => ({ fakeApi: vi.fn() }))
 vi.mock('../src/services/api', () => ({ api: fakeApi }))
 
-import { consultarSeguimientoFolioDemo, crearYSeguirFolioDemo } from '../src/services/testbotEscriturasDemo'
+import { consultarSeguimientoFolioDemo, crearYSeguirFolioDemo, ejecutarEscrituraDemo } from '../src/services/testbotEscriturasDemo'
 import { reporteTestBotTXT } from '../src/services/testbotReporte'
 import { INICIAL_RECORRIDO } from '../src/services/testbotSecuencia'
 
@@ -20,6 +20,8 @@ describe('TestBot folio y rastreo: cliente DEMO aislado', () => {
   let fallas: Record<string, unknown>[]
   let equipos: Record<string, unknown>[]
   let folios: Record<string, unknown>[]
+  let tiposMedidor: Record<string, unknown>[]
+  let medidores: Record<string, unknown>[]
 
   beforeEach(() => {
     fakeApi.mockReset()
@@ -28,6 +30,8 @@ describe('TestBot folio y rastreo: cliente DEMO aislado', () => {
     fallas = []
     equipos = []
     folios = []
+    tiposMedidor = []
+    medidores = []
     fakeApi.mockImplementation((ruta: string, opciones?: { metodo?: string; cuerpo?: Record<string, unknown> }) => {
       const m = opciones?.metodo ?? 'GET'
       const b = opciones?.cuerpo ?? {}
@@ -75,6 +79,26 @@ describe('TestBot folio y rastreo: cliente DEMO aislado', () => {
         return Promise.resolve(equipos)
       }
       if (ruta === '/catalogos/equipos/eq-demo') return Promise.resolve(equipos[0])
+      if (ruta === '/medidores/tipos') {
+        if (m === 'POST') {
+          const tipo = { ...b, id: 'tipo-med-demo', tenant_id: null, prestador_id: null, activo: true }
+          tiposMedidor.push(tipo)
+          return Promise.resolve(tipo)
+        }
+        return Promise.resolve(tiposMedidor)
+      }
+      if (ruta === '/medidores/equipos/eq-demo') {
+        if (m === 'POST') {
+          const medidor = { ...b, id: 'med-demo', equipo_id: 'eq-demo', tenant_id: tenant, valor_maximo: null }
+          medidores.push(medidor)
+          return Promise.resolve(medidor)
+        }
+        return Promise.resolve(medidores)
+      }
+      if (ruta === '/medidores/med-demo' && m === 'PUT') {
+        Object.assign(medidores[0]!, b)
+        return Promise.resolve(medidores[0])
+      }
       if (ruta === '/folios') {
         if (m === 'POST') {
           const folio = { ...b, id: 'folio-demo', tenant_id: tenant, estado: 'capturado',
@@ -115,6 +139,34 @@ describe('TestBot folio y rastreo: cliente DEMO aislado', () => {
     expect(fallas).toHaveLength(1)
     expect(equipos).toHaveLength(1)
     expect(folios).toHaveLength(1)
+  })
+
+  it('crea un tipo de medidor TESTBOT global si catálogo está vacío, y reutiliza medidor sin duplicados', async () => {
+    const primero = await ejecutarEscrituraDemo('medidores')
+    expect(primero?.estado).toBe('alta_cambio_demo_verificados')
+    expect(tiposMedidor).toHaveLength(1)
+    expect(tiposMedidor[0]?.global).toBe(true)
+    expect(tiposMedidor[0]?.nombre).toMatch(/^TESTBOT DEMO/)
+    expect(medidores).toHaveLength(1)
+    expect(medidores[0]?.numero_serie_medidor).toBe('TESTBOT-DEMO-MED')
+    expect(medidores[0]?.valor_maximo).toBe(99999)
+    const segundo = await ejecutarEscrituraDemo('medidores')
+    expect(segundo?.estado).toBe('alta_cambio_demo_verificados')
+    expect(tiposMedidor).toHaveLength(1)
+    expect(medidores).toHaveLength(1)
+    expect(fakeApi.mock.calls.filter(([ruta, opciones]) => ruta === '/medidores/tipos' &&
+      opciones?.metodo === 'POST')).toHaveLength(1)
+    expect(fakeApi.mock.calls.filter(([ruta, opciones]) => ruta === '/medidores/equipos/eq-demo' &&
+      opciones?.metodo === 'POST')).toHaveLength(1)
+  })
+
+  it('bloquea tipos de medidor no DEMO aunque coincidan en nombre', async () => {
+    tiposMedidor.push({ id: 'no-demo', nombre: 'TESTBOT DEMO - Horómetro de laboratorio ficticio',
+      tenant_id: 'otra-empresa', prestador_id: null, activo: true })
+    await expect(ejecutarEscrituraDemo('medidores')).rejects.toThrow('Tipo de medidor no global')
+    expect(medidores).toHaveLength(0)
+    expect(fakeApi.mock.calls.filter(([, opciones]) => opciones?.metodo === 'POST' &&
+      opciones?.cuerpo?.tipo_medidor_id)).toHaveLength(0)
   })
 
   it('relaciona folio.usuario técnico con tablero.usuario_id y no con tablero.tecnico_id', async () => {
