@@ -60,9 +60,13 @@ jobs:
               frontend/src/pages/auth/Marco.tsx|\
               frontend/src/App.tsx|\
               frontend/src/contexts/AuthContext.tsx|\
-              frontend/src/services/api.ts)
-                # Se admiten cambios focalizados en el acceso y restauración de
-                # sesiones; los demás módulos de negocio permanecen intactos.
+              frontend/src/services/api.ts|\
+              frontend/src/components/TestBotAcma.tsx|\
+              frontend/src/pages/formularios/Constructor.tsx|\
+              frontend/src/services/testbotAcma.ts|\
+              frontend/public/testbot-acma.webp)
+                # Se admiten cambios focalizados de sesión, UI y el nuevo asistente
+                # de pruebas DEMO. Los demás módulos permanecen protegidos.
                 echo "Cambio visual y responsivo permitido: $archivo"
                 ;;
               *)
