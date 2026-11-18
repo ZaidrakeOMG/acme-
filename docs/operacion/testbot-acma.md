@@ -88,7 +88,7 @@ frontend/src/services/testbotSecuencia.ts.
   operativas, firmas y permisos de otro rol **no se dan por aprobados**.
 - **Seguimiento**: configura el período presupuestal mensual solo si falta en el cliente DEMO.
 - Los módulos restantes conservan la prueba GET original. No son declarados CRUD completos.
-- Los reportes distinguen CRUD DEMO OK, Alta DEMO OK, Consulta OK, Pendiente y Error.
+- Los reportes distinguen Alta y edición DEMO OK, Alta DEMO OK, Consulta OK, Pendiente y Error.
 
 Antes de escribir, el ejecutor exige coincidencia exacta y única de EMPRESA DEMO ACMA SA DE CV
 y MANTENIMIENTO DEMO ACMA SA DE CV activos, y que el cliente tenga **un solo prestador vinculado
