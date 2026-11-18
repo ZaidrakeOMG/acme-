@@ -83,8 +83,8 @@ Implementación: frontend/src/services/testbotEscriturasDemo.ts y
 frontend/src/services/testbotSecuencia.ts.
 
 - Pruebas reales de **alta, edición y relectura**: unidades de negocio y grupo, inventario con entrada,
-  presupuestos, planes preventivos y contratos con los cinco SLA. Se reutilizan registros identificados con claves exactas TESTBOT DEMO.
-- Pruebas reales de **alta y relectura**: folio correctivo, equipo/activo y trabajo especial. Las transiciones
+  presupuestos, planes preventivos, contratos con los cinco SLA, y criticidad ISO de un activo ficticio. Se reutilizan registros identificados con claves exactas TESTBOT DEMO.
+- Pruebas reales de **alta y relectura**: folio correctivo, medidor del equipo ficticio y trabajo especial. Las transiciones
   operativas, firmas y permisos de otro rol **no se dan por aprobados**.
 - **Seguimiento**: configura el período presupuestal mensual solo si falta en el cliente DEMO.
 - Los módulos restantes conservan la prueba GET original. No son declarados CRUD completos.
