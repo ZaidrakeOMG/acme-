@@ -161,12 +161,17 @@ export function TestBotAcma() {
     }
   }
 
-  async function ejecutarRecorridoCompleto() {
+  async function ejecutarRecorridoCompleto(reiniciar = false) {
     if (!esSuperadmin || !permitirEscrituras || bloqueado.current ||
         progresoRef.current.paso !== PASOS_DEMO.length) return
     bloqueado.current = true
     setOcupado(true)
-    let avance = recorrido
+    let avance: EstadoRecorrido = reiniciar ? { ...INICIAL_RECORRIDO, resultados: [] } : recorrido
+    if (reiniciar) {
+      setRecorrido(avance)
+      persistirRecorrido(usuarioId, avance)
+      setReintentados([])
+    }
     try {
       while (avance.indice < SECUENCIA_ACMA.length) {
         const actual = SECUENCIA_ACMA[avance.indice]!
@@ -309,13 +314,18 @@ export function TestBotAcma() {
                     ) : (
                       <div className="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
                         <strong className="block">Recorrido de consultas terminado</strong>
-                        <p>{recorrido.resultados.filter((r) => r.estado === 'crud_demo_verificado').length} CRUD DEMO verificados,
+                        <p>{recorrido.resultados.filter((r) => r.estado === 'alta_cambio_demo_verificados').length} altas y ediciones DEMO verificadas,
                           {' '}{recorrido.resultados.filter((r) => r.estado === 'alta_demo_verificada').length} altas DEMO verificadas,
                           {' '}{recorrido.resultados.filter((r) => r.estado === 'consulta_verificada').length} solo lectura,
                           {' '}{recorrido.resultados.filter((r) => r.estado === 'error').length} con error,
                           {' '}{recorrido.resultados.filter((r) => r.estado === 'pendiente_funcional' || r.estado === 'requiere_otro_rol').length} pendientes.</p>
                         <p className="text-xs text-slate-500">Esto no equivale a haber probado todos los flujos de alta, edición,
                           permisos, evidencias, cobro o cierre. Las pruebas funcionales pendientes se desarrollan por módulo.</p>
+                        <button type="button" onClick={() => void ejecutarRecorridoCompleto(true)}
+                          disabled={ocupado || !permitirEscrituras}
+                          className={botonSecundario + ' w-full border-[#a70d2d] text-[#a70d2d]'}>
+                          {ocupado ? 'Repitiendo pruebas DEMO…' : 'Repetir recorrido DEMO con altas y verificaciones'}
+                        </button>
                         {recorrido.resultados.some((r) => r.estado === 'error') && (
                           <button type="button" className={botonSecundario} disabled={ocupado} onClick={() => void volverAErrores()}>
                             {recorrido.resultados.some((r) => r.estado === 'error' && !reintentados.includes(r.id))
@@ -332,7 +342,7 @@ export function TestBotAcma() {
                           {recorrido.resultados.map((r) => (
                             <li key={r.id} className="rounded-lg bg-slate-50 p-2">
                               <strong>{r.estado === 'error' ? 'Error' :
-                                r.estado === 'crud_demo_verificado' ? 'CRUD DEMO OK' :
+                                r.estado === 'alta_cambio_demo_verificados' ? 'Alta/edición DEMO OK' :
                                 r.estado === 'alta_demo_verificada' ? 'Alta DEMO OK' :
                                 r.estado === 'consulta_verificada' ? 'Consulta OK' : 'Pendiente'}: {r.nombre}</strong>
                               <p>{r.mensaje}</p>
