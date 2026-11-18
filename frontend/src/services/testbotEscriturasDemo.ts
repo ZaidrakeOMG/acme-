@@ -9,10 +9,9 @@ export const ETIQUETA_TESTBOT = 'TESTBOT DEMO'
 const CLIENTE = 'EMPRESA DEMO ACMA SA DE CV'
 const PRESTADOR = 'MANTENIMIENTO DEMO ACMA SA DE CV'
 
-export type TipoVerificacionDemo = 'crud_demo_verificado' | 'alta_demo_verificada'
+export type TipoVerificacionDemo = 'alta_cambio_demo_verificados' | 'alta_demo_verificada'
 export type VerificacionDemo = { estado: TipoVerificacionDemo; mensaje: string; detalles: string[] }
 type Registro = { id: string; [clave: string]: unknown }
-type Ambito = Registro & { razon_social: string; estado: string }
 type Contexto = { tenantId: string; prestadorId: string }
 
 function exigir(valor: unknown, descripcion: string): asserts valor {
@@ -45,7 +44,7 @@ async function contexto(): Promise<Contexto> {
   return { tenantId: t.id, prestadorId: p.id }
 }
 function resultado(mensaje: string, detalles: string[], crud = false): VerificacionDemo {
-  return { estado: crud ? 'crud_demo_verificado' : 'alta_demo_verificada', mensaje, detalles }
+  return { estado: crud ? 'alta_cambio_demo_verificados' : 'alta_demo_verificada', mensaje, detalles }
 }
 
 /** Una UN aislada para toda la simulación; no toma la primera unidad real. */
