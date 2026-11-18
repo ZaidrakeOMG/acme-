@@ -103,3 +103,32 @@ cierre de folio, órdenes de compra ERP ni elimina registros.
 el cliente/prestador de demostración. GitHub Actions valida el código y las
 simulaciones del repositorio; para confirmar inserciones reales hay que ejecutar el TestBot
 con sesión Superadmin en el ambiente DEMO y revisar los IDs devueltos.
+
+
+## Diagnóstico TXT y prueba de rastreo de folio DEMO
+
+El botón **Descargar diagnóstico de pruebas (.txt)** exporta, desde el navegador,
+la fecha/hora de cada módulo, estado, peticiones HTTP fallidas y códigos del servidor,
+IDs de registros ficticios, errores y pendientes. Se genera localmente y no incluye
+cookies de sesión, tokens, contraseñas ni cuerpos de las peticiones. Si un reporte
+contiene identificadores de la operación, se debe revisar antes de compartirlo.
+
+El botón **Crear / recuperar folio DEMO y rastrearlo** funciona con la sesión **Superadmin
+actual**, sin suplantar cuentas. Crea/reutiliza la UN, una familia y un tipo **globales
+marcados TESTBOT DEMO**, un tipo de falla del **prestador DEMO**, un equipo ficticio
+del **cliente DEMO** y un único folio DEMO. Los catálogos globales de demostración
+son visibles para otros clientes por diseño de ACMA, pero no modifican los existentes.
+
+El seguimiento consulta el **estado real del folio cada 12 segundos**. Si el folio
+tiene un técnico asignado, busca el dato folio.tecnico_id en tablero.tecnicos[].usuario_id;
+el ID de la ruta GPS es tablero.tecnicos[].tecnico_id (son dos campos distintos).
+No fabrica coordenadas. El técnico debe entrar con **su propia cuenta Técnico**,
+iniciar jornada y permitir ubicación desde un dispositivo con GPS e Internet.
+Mientras no lo haga, el estado del folio puede seguirse pero la ubicación seguirá
+sin datos. En **Operaciones en tiempo real**, el botón Rastrear de cada folio toma
+el técnico correcto y actualiza su recorrido cada 12 segundos. Los tableros se
+refrescan cada 20 segundos.
+
+Se requiere ejecutar las pruebas contra la instancia DEMO real para confirmar
+permisos, recepción de GPS, asignación, persistencia y actualizaciones. Ni
+GitHub Actions ni un GET correcto prueban por sí mismos esos escenarios.
