@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../contexts/AuthContext'
 import { ErrorAPI, mensajeDeError } from '../services/api'
 import { ejecutarPasoDemo, INICIAL_DEMO, PASOS_DEMO, type ProgresoDemo } from '../services/testbotFlujoDemo'
+import { INICIAL_RECORRIDO, SECUENCIA_ACMA, guardarResultado, probarModuloLectura, type EstadoRecorrido } from '../services/testbotSecuencia'
 
 const boton = 'rounded-xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50'
 const botonSecundario = boton + ' border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -26,6 +27,23 @@ function cargar(usuarioId: string): ProgresoDemo {
 }
 function guardarLocal(usuarioId: string, p: ProgresoDemo) {
   try { localStorage.setItem(clave(usuarioId), JSON.stringify(p)) } catch { /* el modo temporal no interrumpe la prueba */ }
+}
+const claveRecorrido = (usuarioId: string) => 'acma.testbot.secuencia.v1.' + usuarioId
+function leerRecorrido(usuarioId: string): EstadoRecorrido {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(claveRecorrido(usuarioId)) || 'null') as EstadoRecorrido | null
+    if (!guardado || !Number.isInteger(guardado.indice) || guardado.indice < 0 ||
+        guardado.indice > SECUENCIA_ACMA.length || !Array.isArray(guardado.resultados)) {
+      return { ...INICIAL_RECORRIDO, resultados: [] }
+    }
+    return guardado
+  } catch {
+    return { ...INICIAL_RECORRIDO, resultados: [] }
+  }
+}
+function persistirRecorrido(usuarioId: string, estado: EstadoRecorrido) {
+  try { localStorage.setItem(claveRecorrido(usuarioId), JSON.stringify(estado)) }
+  catch { /* sin almacenamiento: el recorrido continúa en esta sesión */ }
 }
 function errorLegible(error: unknown): string {
   if (error instanceof ErrorAPI) return mensajeDeError(error)
@@ -52,6 +70,7 @@ export function TestBotAcma() {
   const [sugerencia, setSugerencia] = useState(true)
   const [modo, setModo] = useState<'ayuda' | 'pruebas'>('ayuda')
   const [progreso, setProgreso] = useState<ProgresoDemo>(() => cargar(usuarioId))
+  const [recorrido, setRecorrido] = useState<EstadoRecorrido>(() => leerRecorrido(usuarioId))
   const [ocupado, setOcupado] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [historial, setHistorial] = useState<string[]>([])
@@ -63,6 +82,7 @@ export function TestBotAcma() {
     const guardado = cargar(usuarioId)
     progresoRef.current = guardado
     setProgreso(guardado)
+    setRecorrido(leerRecorrido(usuarioId))
     setMensaje('')
     setHistorial([])
     setOcupado(false)
@@ -113,6 +133,41 @@ export function TestBotAcma() {
       setOcupado(false)
       bloqueado.current = false
     }
+  }
+
+  async function siguienteDeACMA() {
+    if (!esSuperadmin || bloqueado.current || progresoRef.current.paso !== PASOS_DEMO.length) return
+    const actual = SECUENCIA_ACMA[recorrido.indice]
+    if (!actual) return
+    bloqueado.current = true
+    setOcupado(true)
+    setMensaje('Comprobando ' + actual.nombre + '…')
+    try {
+      const resultado = await probarModuloLectura(actual.id)
+      const actualizado = guardarResultado(recorrido, resultado)
+      setRecorrido(actualizado)
+      persistirRecorrido(usuarioId, actualizado)
+      registrar((resultado.estado === 'error' ? '✗ ' : resultado.estado === 'consulta_verificada' ? '✓ ' : '• ') +
+        actual.nombre + ': ' + resultado.mensaje)
+      navegar(actual.ruta)
+    } catch (e) {
+      registrar('No se pudo guardar la prueba de ' + actual.nombre + ': ' + errorLegible(e))
+    } finally {
+      bloqueado.current = false
+      setOcupado(false)
+    }
+  }
+
+  function volverAErrores() {
+    if (ocupado) return
+    const primerError = recorrido.resultados.find((r) => r.estado === 'error')
+    if (!primerError) return
+    const indice = SECUENCIA_ACMA.findIndex((m) => m.id === primerError.id)
+    if (indice < 0) return
+    const actualizado = { ...recorrido, indice }
+    setRecorrido(actualizado)
+    persistirRecorrido(usuarioId, actualizado)
+    setMensaje('Se reanudará en ' + primerError.nombre + ' para comprobar de nuevo los errores.')
   }
 
   if (!usuario) return null
@@ -166,8 +221,59 @@ export function TestBotAcma() {
                     <p className="text-xs text-slate-500">La ejecución completa crea o reutiliza un formulario DEMO, lo publica y envía una respuesta ficticia. No modifica folios ni contratos reales.</p>
                   </>
                 ) : (
-                  <div className="rounded-xl bg-green-50 p-3 text-sm font-semibold text-green-800">
-                    ✓ Formulario DEMO guardado, publicado, contestado y verificado.
+                  <div className="space-y-3" data-testid="testbot-recorrido">
+                    <div className="rounded-xl bg-green-50 p-3 text-sm font-semibold text-green-800">
+                      ✓ Formularios dinámicos: 7/7 pruebas funcionales aprobadas.
+                    </div>
+                    {recorrido.indice < SECUENCIA_ACMA.length ? (
+                      <>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Recorrido general · {recorrido.indice} de {SECUENCIA_ACMA.length} módulos siguientes
+                        </p>
+                        <div role="progressbar" aria-label="Avance del recorrido de módulos"
+                          aria-valuemin={0} aria-valuemax={SECUENCIA_ACMA.length} aria-valuenow={recorrido.indice}
+                          className="h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-full bg-[#a70d2d]" style={{ width: (recorrido.indice / SECUENCIA_ACMA.length * 100) + '%' }} />
+                        </div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          Sigue: {SECUENCIA_ACMA[recorrido.indice]?.nombre}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Siguiente abre el módulo, verifica consultas reales y registra errores. Las altas y permisos
+                          que requieran una prueba propia quedan identificados como pendientes, no como aprobados.
+                        </p>
+                        <button type="button" onClick={() => void siguienteDeACMA()} disabled={ocupado}
+                          className={boton + ' w-full bg-[#a70d2d] text-white hover:bg-[#870b25]'}>
+                          {ocupado ? 'Probando módulo…' : 'Siguiente · probar ' + (SECUENCIA_ACMA[recorrido.indice]?.nombre ?? '')}
+                        </button>
+                      </>
+                    ) : (
+                      <div className="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+                        <strong className="block">Recorrido de consultas terminado</strong>
+                        <p>{recorrido.resultados.filter((r) => r.estado === 'consulta_verificada').length} consultas de módulos verificadas,
+                          {' '}{recorrido.resultados.filter((r) => r.estado === 'error').length} con error,
+                          {' '}{recorrido.resultados.filter((r) => r.estado !== 'consulta_verificada' && r.estado !== 'error').length} pendientes.</p>
+                        <p className="text-xs text-slate-500">Esto no equivale a haber probado todos los flujos de alta, edición,
+                          permisos, evidencias, cobro o cierre. Las pruebas funcionales pendientes se desarrollan por módulo.</p>
+                        {recorrido.resultados.some((r) => r.estado === 'error') && (
+                          <button type="button" className={botonSecundario} onClick={volverAErrores}>Revisar módulos con error</button>
+                        )}
+                      </div>
+                    )}
+                    {recorrido.resultados.length > 0 && (
+                      <details className="text-xs text-slate-700" data-testid="testbot-resultados">
+                        <summary className="cursor-pointer font-semibold">Resultados del recorrido ({recorrido.resultados.length})</summary>
+                        <ol className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+                          {recorrido.resultados.map((r) => (
+                            <li key={r.id} className="rounded-lg bg-slate-50 p-2">
+                              <strong>{r.estado === 'error' ? 'Error' : r.estado === 'consulta_verificada' ? 'Consulta OK' : 'Pendiente'}: {r.nombre}</strong>
+                              <p>{r.mensaje}</p>
+                              {r.detalles.map((detalle, i) => <p key={i}>{detalle}</p>)}
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    )}
                   </div>
                 )}
                 {mensaje && <p role="status" aria-live="polite" className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{mensaje}</p>}
