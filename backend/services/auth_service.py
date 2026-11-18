@@ -58,9 +58,16 @@ async def cargar_como_usuario(db: AsyncSession, usuario_id: uuid.UUID) -> Usuari
 
 
 def vida_sesion(usuario: Usuario) -> timedelta:
-    """§6.9.5: 8 h de sesión, 2 h para los roles administrativos."""
-    horas = config.sesion_horas_admin if usuario.rol in ROLES_ADMINISTRATIVOS else config.sesion_horas
-    return timedelta(hours=horas)
+    """Vida absoluta de sesión persistente: 30 días general, 7 días administradores por defecto."""
+    dias = config.sesion_dias_admin if usuario.rol in ROLES_ADMINISTRATIVOS else config.sesion_dias
+    return timedelta(days=dias)
+
+
+def inactividad_maxima(usuario: Usuario) -> timedelta:
+    """El plazo de inactividad también diferencia cuentas administrativas."""
+    dias = (config.sesion_inactividad_dias_admin if usuario.rol in ROLES_ADMINISTRATIVOS
+            else config.sesion_inactividad_dias)
+    return timedelta(days=dias)
 
 
 def requiere_mfa(usuario: Usuario) -> bool:
@@ -262,7 +269,7 @@ async def refrescar(db: AsyncSession, request: Request, refresh_token: str) -> t
         await db.commit()
         raise no_autenticado("La sesión expiró; inicia sesión de nuevo")
     inactivo = datetime.now(UTC) - (sesion.ultimo_acceso_at or sesion.created_at)
-    if inactivo > timedelta(minutes=config.sesion_inactividad_minutos):
+    if inactivo > inactividad_maxima(usuario):
         await _revocar_familia(db, sesion.familia_id, "inactividad")
         await _auditar(db, "auth.sesion_cerrada_por_inactividad", request, usuario,
                        minutos=int(inactivo.total_seconds() // 60))
