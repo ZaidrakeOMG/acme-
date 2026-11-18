@@ -1,4 +1,23 @@
-# ACMA TestBot — primera integración (solo rama de revisión)
+# ACMA TestBot — primera integración
+
+## Actualización: modo autónomo DEMO
+
+El primer TestBot fallaba al pulsar Siguiente si se había recargado el constructor y faltaban los cuatro campos. Además el backend rechaza el formulario con cliente específico si el superadmin no indica prestador_id.
+
+Esta versión resuelve ambos problemas mediante el flujo seguro frontend/src/services/testbotFlujoDemo.ts:
+
+1. Identifica por razón social exacta el cliente EMPRESA DEMO ACMA SA DE CV y el prestador MANTENIMIENTO DEMO ACMA SA DE CV.
+2. Reutiliza por ID o nombre+cliente+prestador el formulario «Inspección de mantenimiento DEMO»; si no existe lo crea con exactamente cuatro campos.
+3. Comprueba que los obligatorios rechacen vacíos y acepten datos ficticios.
+4. Publica únicamente la versión DEMO pendiente; no crea una nueva si ya está publicada.
+5. Comprueba que figure en Mis formularios del rol Superadmin.
+6. Guarda y envía una respuesta ficticia al mismo cliente; conserva IDs y evita repetir la respuesta.
+7. Relee los valores y comprueba el estado enviado e inmutable.
+
+**Controles:** Superadmin exclusivamente; no toca otros clientes ni prestadores; no borra formularios con estructura inesperada, no toca folios/contratos/equipos reales; bitácora de errores comprensible. El botón Siguiente realiza un paso real; Ejecutar todas las pruebas DEMO encadena las siete tareas.
+
+El avance v2 se conserva por usuario en el navegador. Las pantallas del constructor se recargan con el formulario guardado cuando se ejecuta solo el primer paso. Después de la prueba completa abre Mis formularios.
+
 
 ## Alcance
 
