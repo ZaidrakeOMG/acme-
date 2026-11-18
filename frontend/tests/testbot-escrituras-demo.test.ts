@@ -63,7 +63,7 @@ describe('TestBot escrituras DEMO', () => {
       throw Error('Ruta imprevista: ' + ruta + ' ' + (o?.metodo ?? 'GET'))
     })
     const prueba = await ejecutarEscrituraDemo('unidades')
-    expect(prueba?.estado).toBe('crud_demo_verificado')
+    expect(prueba?.estado).toBe('alta_cambio_demo_verificados')
     expect(fakeApi.mock.calls.some(([, o]) => o?.metodo === 'POST')).toBe(false)
     expect(fakeApi.mock.calls.some(([, o]) => o?.metodo === 'PATCH')).toBe(false)
     expect(fakeApi.mock.calls.some(([, o]) => o?.metodo === 'PUT')).toBe(false)
