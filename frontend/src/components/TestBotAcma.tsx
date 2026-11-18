@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../contexts/AuthContext'
 import { ErrorAPI, mensajeDeError } from '../services/api'
 import { ejecutarPasoDemo, INICIAL_DEMO, PASOS_DEMO, type ProgresoDemo } from '../services/testbotFlujoDemo'
-import { INICIAL_RECORRIDO, SECUENCIA_ACMA, guardarResultado, probarModuloLectura, type EstadoRecorrido } from '../services/testbotSecuencia'
+import { INICIAL_RECORRIDO, SECUENCIA_ACMA, guardarResultado, probarModuloDemo, type EstadoRecorrido } from '../services/testbotSecuencia'
 
 const boton = 'rounded-xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50'
 const botonSecundario = boton + ' border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -73,6 +73,7 @@ export function TestBotAcma() {
   const [recorrido, setRecorrido] = useState<EstadoRecorrido>(() => leerRecorrido(usuarioId))
   const [reintentados, setReintentados] = useState<string[]>([])
   const [ocupado, setOcupado] = useState(false)
+  const [permitirEscrituras, setPermitirEscrituras] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [historial, setHistorial] = useState<string[]>([])
   const [mascotaFallida, setMascotaFallida] = useState(false)
@@ -145,7 +146,7 @@ export function TestBotAcma() {
     setOcupado(true)
     setMensaje('Comprobando ' + actual.nombre + '…')
     try {
-      const resultado = await probarModuloLectura(actual.id)
+      const resultado = await probarModuloDemo(actual.id, permitirEscrituras)
       const actualizado = guardarResultado(recorrido, resultado)
       setRecorrido(actualizado)
       persistirRecorrido(usuarioId, actualizado)
@@ -157,6 +158,38 @@ export function TestBotAcma() {
     } finally {
       bloqueado.current = false
       setOcupado(false)
+    }
+  }
+
+  async function ejecutarRecorridoCompleto(reiniciar = false) {
+    if (!esSuperadmin || !permitirEscrituras || bloqueado.current ||
+        progresoRef.current.paso !== PASOS_DEMO.length) return
+    bloqueado.current = true
+    setOcupado(true)
+    let avance: EstadoRecorrido = reiniciar ? { ...INICIAL_RECORRIDO, resultados: [] } : recorrido
+    if (reiniciar) {
+      setRecorrido(avance)
+      persistirRecorrido(usuarioId, avance)
+      setReintentados([])
+    }
+    try {
+      while (avance.indice < SECUENCIA_ACMA.length) {
+        const actual = SECUENCIA_ACMA[avance.indice]!
+        setMensaje('Probando datos ficticios de ' + actual.nombre + ' (' +
+          (avance.indice + 1) + '/' + SECUENCIA_ACMA.length + ')…')
+        // El test guarda su propio resultado incluso cuando una ruta falla.
+        const resultado = await probarModuloDemo(actual.id, true)
+        avance = guardarResultado(avance, resultado)
+        setRecorrido(avance)
+        persistirRecorrido(usuarioId, avance)
+        registrar((resultado.estado === 'error' ? '✗ ' : '• ') + actual.nombre + ': ' + resultado.mensaje)
+      }
+      registrar('Recorrido DEMO terminado: revisa resultados; módulos sin ejecutor y roles ajenos siguen pendientes.')
+    } catch (e) {
+      registrar('El recorrido quedó guardado para reanudar: ' + errorLegible(e))
+    } finally {
+      setOcupado(false)
+      bloqueado.current = false
     }
   }
 
@@ -172,7 +205,7 @@ export function TestBotAcma() {
     setOcupado(true)
     try {
       setMensaje('Revisando de nuevo ' + primerError.nombre + '…')
-      const resultado = await probarModuloLectura(primerError.id)
+      const resultado = await probarModuloDemo(primerError.id, permitirEscrituras)
       const actualizado = { ...recorrido, resultados: recorrido.resultados.map((r) =>
         r.id === resultado.id ? resultado : r) }
       setRecorrido(actualizado)
@@ -243,6 +276,14 @@ export function TestBotAcma() {
                     <div className="rounded-xl bg-green-50 p-3 text-sm font-semibold text-green-800">
                       ✓ Formularios dinámicos: 7/7 pruebas funcionales aprobadas.
                     </div>
+                    <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-slate-800">
+                      <input type="checkbox" checked={permitirEscrituras}
+                        onChange={(e) => setPermitirEscrituras(e.target.checked)}
+                        disabled={ocupado} className="mt-0.5" />
+                      <span><strong>Autorizar altas y cambios de prueba.</strong> Solo registros con marca
+                        TESTBOT DEMO en el cliente y prestador DEMO. No envía mensajes externos,
+                        no utiliza cuentas de otros roles y no modifica clientes reales.</span>
+                    </label>
                     {recorrido.indice < SECUENCIA_ACMA.length ? (
                       <>
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -257,22 +298,34 @@ export function TestBotAcma() {
                           Sigue: {SECUENCIA_ACMA[recorrido.indice]?.nombre}
                         </p>
                         <p className="text-xs text-slate-500">
-                          Siguiente abre el módulo, verifica consultas reales y registra errores. Las altas y permisos
-                          que requieran una prueba propia quedan identificados como pendientes, no como aprobados.
+                          Siguiente consulta el módulo. Si autorizas pruebas DEMO, también intenta
+                          crear, editar y releer registros ficticios en los módulos implementados.
                         </p>
                         <button type="button" onClick={() => void siguienteDeACMA()} disabled={ocupado}
                           className={boton + ' w-full bg-[#a70d2d] text-white hover:bg-[#870b25]'}>
                           {ocupado ? 'Probando módulo…' : 'Siguiente · probar ' + (SECUENCIA_ACMA[recorrido.indice]?.nombre ?? '')}
                         </button>
+                        <button type="button" onClick={() => void ejecutarRecorridoCompleto()}
+                          disabled={ocupado || !permitirEscrituras}
+                          className={botonSecundario + ' w-full border-[#a70d2d] text-[#a70d2d]'}>
+                          {ocupado ? 'Ejecutando recorrido…' : 'Ejecutar todo el recorrido DEMO y guardar resultados'}
+                        </button>
                       </>
                     ) : (
                       <div className="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
                         <strong className="block">Recorrido de consultas terminado</strong>
-                        <p>{recorrido.resultados.filter((r) => r.estado === 'consulta_verificada').length} consultas de módulos verificadas,
+                        <p>{recorrido.resultados.filter((r) => r.estado === 'alta_cambio_demo_verificados').length} altas y ediciones DEMO verificadas,
+                          {' '}{recorrido.resultados.filter((r) => r.estado === 'alta_demo_verificada').length} altas DEMO verificadas,
+                          {' '}{recorrido.resultados.filter((r) => r.estado === 'consulta_verificada').length} solo lectura,
                           {' '}{recorrido.resultados.filter((r) => r.estado === 'error').length} con error,
-                          {' '}{recorrido.resultados.filter((r) => r.estado !== 'consulta_verificada' && r.estado !== 'error').length} pendientes.</p>
+                          {' '}{recorrido.resultados.filter((r) => r.estado === 'pendiente_funcional' || r.estado === 'requiere_otro_rol').length} pendientes.</p>
                         <p className="text-xs text-slate-500">Esto no equivale a haber probado todos los flujos de alta, edición,
                           permisos, evidencias, cobro o cierre. Las pruebas funcionales pendientes se desarrollan por módulo.</p>
+                        <button type="button" onClick={() => void ejecutarRecorridoCompleto(true)}
+                          disabled={ocupado || !permitirEscrituras}
+                          className={botonSecundario + ' w-full border-[#a70d2d] text-[#a70d2d]'}>
+                          {ocupado ? 'Repitiendo pruebas DEMO…' : 'Repetir recorrido DEMO con altas y verificaciones'}
+                        </button>
                         {recorrido.resultados.some((r) => r.estado === 'error') && (
                           <button type="button" className={botonSecundario} disabled={ocupado} onClick={() => void volverAErrores()}>
                             {recorrido.resultados.some((r) => r.estado === 'error' && !reintentados.includes(r.id))
@@ -288,7 +341,10 @@ export function TestBotAcma() {
                         <ol className="mt-2 max-h-48 space-y-2 overflow-y-auto">
                           {recorrido.resultados.map((r) => (
                             <li key={r.id} className="rounded-lg bg-slate-50 p-2">
-                              <strong>{r.estado === 'error' ? 'Error' : r.estado === 'consulta_verificada' ? 'Consulta OK' : 'Pendiente'}: {r.nombre}</strong>
+                              <strong>{r.estado === 'error' ? 'Error' :
+                                r.estado === 'alta_cambio_demo_verificados' ? 'Alta/edición DEMO OK' :
+                                r.estado === 'alta_demo_verificada' ? 'Alta DEMO OK' :
+                                r.estado === 'consulta_verificada' ? 'Consulta OK' : 'Pendiente'}: {r.nombre}</strong>
                               <p>{r.mensaje}</p>
                               {r.detalles.map((detalle, i) => <p key={i}>{detalle}</p>)}
                             </li>
