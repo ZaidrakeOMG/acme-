@@ -120,7 +120,7 @@ describe('ACMA TestBot — pruebas DEMO sin duplicados', () => {
           obligatorio: false, config: {}, condiciones: [],
         }] },
       ] },
-    } as Formulario)
+    } as unknown as Formulario)
     await expect(ejecutarPasoDemo({ ...INICIAL_DEMO }, () => undefined)).rejects.toThrow(/campos diferentes/)
     expect(serv.pruebas).not.toContain('PUT /formularios/form-1')
   })
