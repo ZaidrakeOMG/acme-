@@ -335,12 +335,29 @@ async function trabajoEspecial(ctx: Contexto): Promise<VerificacionDemo> {
 
 async function medidoresDemo(ctx: Contexto): Promise<VerificacionDemo> {
   const { equipo: eq } = await equipo(ctx)
-  const tipos = await filas('/medidores/tipos')
-  const tipo = tipos.find(t => t.activo !== false && t.tenant_id == null &&
-    (t.prestador_id == null || t.prestador_id === ctx.prestadorId))
-  exigir(tipo, 'No hay tipo de medidor visible para el equipo DEMO.')
+  // No depender de un catálogo global preexistente: el prestador DEMO puede tenerlo vacío.
+  // La API solo permite que Superadmin cree tipos globales; siempre usamos uno marcado TESTBOT.
+  const nombreTipo = 'TESTBOT DEMO - Horómetro de laboratorio ficticio'
+  let tipos = await filas('/medidores/tipos')
+  const coincidencias = tipos.filter(t => t.nombre === nombreTipo)
+  exigir(coincidencias.length <= 1, 'Hay tipos de medidor TESTBOT DEMO duplicados. Revisión manual necesaria.')
+  let tipo = coincidencias[0] ?? null
+  if (!tipo) {
+    tipo = await api<Registro>('/medidores/tipos', { metodo: 'POST', cuerpo: {
+      global: true, nombre: nombreTipo, unidad: 'h', categoria: 'personalizado',
+      descripcion: 'TESTBOT DEMO: horómetro ficticio para pruebas. No asociar a equipos reales.',
+      requiere_foto: false, permite_estimacion: true, decimales: 0,
+    } })
+  }
+  exigir(tipo.nombre === nombreTipo && tipo.tenant_id == null && tipo.prestador_id == null &&
+    tipo.activo !== false, 'Tipo de medidor no global/activo; se bloqueó el uso de un catálogo ajeno.')
+  tipos = await filas('/medidores/tipos')
+  exigir(tipos.some(t => t.id === tipo.id && t.nombre === nombreTipo &&
+    t.tenant_id == null && t.prestador_id == null && t.activo !== false),
+    'El tipo de medidor TESTBOT DEMO no persistió.')
+
   let medidores = await filas('/medidores/equipos/' + eq.id)
-  let m = unico(medidores.filter(x => x.tipo_medidor_id === tipo.id), 'medidor DEMO')
+  let m = unico(medidores.filter(x => x.tipo_medidor_id === tipo.id), 'medidor TESTBOT DEMO')
   if (!m) {
     m = await api<Registro>('/medidores/equipos/' + eq.id, { metodo: 'POST',
       cuerpo: { tipo_medidor_id: tipo.id, valor_inicial: 0,
@@ -348,14 +365,20 @@ async function medidoresDemo(ctx: Contexto): Promise<VerificacionDemo> {
   }
   exigir(m.numero_serie_medidor === 'TESTBOT-DEMO-MED' && m.tipo_medidor_id === tipo.id,
     'No se permite alterar un medidor no creado por el TestBot.')
+  if (Number(m.valor_maximo ?? 0) !== 99999) {
+    await api('/medidores/' + m.id, { metodo: 'PUT', cuerpo: { valor_maximo: 99999 } })
+  }
   medidores = await filas('/medidores/equipos/' + eq.id)
-  const guardado = medidores.find(x => x.id === m.id && x.numero_serie_medidor === 'TESTBOT-DEMO-MED')
-  exigir(guardado, 'El medidor ficticio no persistió en el equipo DEMO.')
-  return resultado('Medidor ficticio del equipo DEMO insertado y reconsultado.', [
-    'Medidor: ' + guardado.id, 'Equipo ficticio: ' + eq.id, 'Lecturas por rol: pendientes.',
-  ])
+  const guardado = medidores.find(x => x.id === m.id && x.tipo_medidor_id === tipo.id &&
+    x.numero_serie_medidor === 'TESTBOT-DEMO-MED')
+  exigir(guardado && Number(guardado.valor_maximo) === 99999,
+    'El alta o la edición del medidor ficticio no persistió en el equipo DEMO.')
+  return resultado('Tipo, medidor, edición y relectura DEMO verificados.', [
+    'Tipo: ' + tipo.id, 'Medidor: ' + guardado.id,
+    'Equipo ficticio: ' + eq.id, 'Valor máximo ficticio: 99999 h.',
+    'Captura y aprobación de lecturas con Técnico y Operador: pendientes.',
+  ], true)
 }
-
 async function activoISO(ctx: Contexto): Promise<VerificacionDemo> {
   const { equipo: eq } = await equipo(ctx)
   exigir(eq.codigo === 'TESTBOT-DEMO-EQ', 'No se modificarán activos que no sean del TestBot.')
