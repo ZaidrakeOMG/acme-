@@ -70,3 +70,36 @@ Limitación: otros módulos aún no tienen ejecutores automáticos; el asistente
 - Interfaz y motor: frontend/src/components/TestBotAcma.tsx
 - Comunicación con el constructor: frontend/src/services/testbotAcma.ts
 - Acción protegida: frontend/src/pages/formularios/Constructor.tsx
+
+
+## Versión 4 — recorrido con escrituras DEMO (opt-in)
+
+La cuenta Superadmin puede marcar **Autorizar altas y cambios de prueba** en ACMA TestBot y pulsar
+**Ejecutar todo el recorrido DEMO y guardar resultados**. No inicia escrituras sin esa autorización
+explícita. El avance se guarda por usuario en el navegador después de cada módulo; ante fallas se
+continúa con los siguientes módulos y se conserva el error para reintento.
+
+Implementación: frontend/src/services/testbotEscriturasDemo.ts y
+frontend/src/services/testbotSecuencia.ts.
+
+- Pruebas reales de **alta, edición y relectura**: unidades de negocio y grupo, inventario con entrada,
+  presupuestos y planes preventivos. Se reutilizan registros identificados con claves exactas TESTBOT DEMO.
+- Pruebas reales de **alta y relectura**: folio correctivo, equipo/activo y trabajo especial. Las transiciones
+  operativas, firmas y permisos de otro rol **no se dan por aprobados**.
+- **Seguimiento**: configura el período presupuestal mensual solo si falta en el cliente DEMO.
+- Los módulos restantes conservan la prueba GET original. No son declarados CRUD completos.
+- Los reportes distinguen CRUD DEMO OK, Alta DEMO OK, Consulta OK, Pendiente y Error.
+
+Antes de escribir, el ejecutor exige coincidencia exacta y única de EMPRESA DEMO ACMA SA DE CV
+y MANTENIMIENTO DEMO ACMA SA DE CV activos, y que el cliente tenga **un solo prestador vinculado
+y activo**, precisamente el de DEMO. Si no se satisface el ámbito, aborta las escrituras. Nunca
+debe elegirse arbitrariamente el primer cliente o prestador para escrituras.
+Solo edita entidades con claves/nombres TESTBOT DEMO dentro de ese ámbito.
+No genera usuarios, credenciales, pagos, envíos a proveedores, WhatsApp/SMS, firmas,
+cierre de folio, órdenes de compra ERP ni elimina registros.
+
+**Importante**: El botón de recorrido hace escrituras reales en el servidor y su base de datos
+(Supabase en producción si la API de Railway está configurada así). Debe usarse solo con
+el cliente/prestador de demostración. GitHub Actions valida el código y las
+simulaciones del repositorio; para confirmar inserciones reales hay que ejecutar el TestBot
+con sesión Superadmin en el ambiente DEMO y revisar los IDs devueltos.
