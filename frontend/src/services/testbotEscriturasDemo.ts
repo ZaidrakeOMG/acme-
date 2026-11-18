@@ -411,6 +411,79 @@ async function contratoDemo(ctx: Contexto): Promise<VerificacionDemo> {
   ], true)
 }
 
+
+export interface SeguimientoFolioDemo {
+  id: string
+  numero: string
+  estado: string
+  tecnicoId: string | null
+  tecnicoNombre: string | null
+  enJornada: boolean
+  ultimaPosicion: string | null
+  lat: number | null
+  lng: number | null
+  diagnosticoGPS: string
+  comprobadoEn: string
+}
+
+/** Lectura con la sesión REAL del usuario actual: jamás suplanta un Técnico. */
+export async function consultarSeguimientoFolioDemo(): Promise<SeguimientoFolioDemo | null> {
+  const ctx = await contexto()
+  const anteriores = await filas('/folios', { tenant_id: ctx.tenantId })
+  const descripcion = 'TESTBOT DEMO - Folio de avería ficticia, no realizar servicio'
+  const posibles = anteriores.filter(x => x.tenant_id === ctx.tenantId && x.descripcion === descripcion)
+  const f = unico(posibles, 'folio ficticio rastreable TESTBOT DEMO')
+  if (!f) return null
+  const detalle = await api<{ folio: Registro }>('/folios/' + f.id)
+  exigir(detalle.folio, 'El detalle del folio ficticio no está disponible.')
+  const folio = detalle.folio
+  idDe(folio, 'tenant_id', ctx.tenantId)
+  exigir(folio.descripcion === descripcion && folio.id === f.id, 'No se rastrearán folios ajenos al TestBot.')
+  const tecnicoId = typeof folio.tecnico_id === 'string' ? folio.tecnico_id : null
+  let tecnicoNombre: string | null = null
+  let enJornada = false
+  let ultimaPosicion: string | null = null
+  let lat: number | null = null
+  let lng: number | null = null
+  let diagnosticoGPS = 'Sin técnico asignado. El folio puede consultarse, pero aún no existe una ubicación GPS asociada.'
+  if (tecnicoId) {
+    // El GPS proviene de la jornada real del Técnico y nunca de una ubicación inventada.
+    try {
+      const tablero = await api<{ tecnicos: Registro[] }>('/operacion/tablero')
+      const tecnico = tablero.tecnicos.find(t => t.tecnico_id === tecnicoId)
+      if (tecnico) {
+        tecnicoNombre = typeof tecnico.nombre === 'string' ? tecnico.nombre : null
+        enJornada = tecnico.en_jornada === true
+        ultimaPosicion = typeof tecnico.ultima_posicion_at === 'string' ? tecnico.ultima_posicion_at : null
+        lat = typeof tecnico.lat === 'number' ? tecnico.lat : null
+        lng = typeof tecnico.lng === 'number' ? tecnico.lng : null
+        diagnosticoGPS = !enJornada ? 'El Técnico no tiene jornada abierta.'
+          : lat == null || lng == null ? 'Jornada abierta, pero el servidor no recibió coordenadas GPS.'
+          : 'Se recibió la última posición registrada; no confirma movimiento en este instante.'
+      } else {
+        diagnosticoGPS = 'El técnico asignado no aparece en el tablero de operaciones.'
+      }
+    } catch (error) {
+      diagnosticoGPS = 'No se pudo consultar GPS del técnico: ' +
+        (error instanceof Error ? error.message : String(error))
+    }
+  }
+  return {
+    id: f.id, numero: String(folio.numero_folio ?? f.id), estado: String(folio.estado ?? 'desconocido'),
+    tecnicoId, tecnicoNombre, enJornada, ultimaPosicion, lat, lng, diagnosticoGPS,
+    comprobadoEn: new Date().toISOString(),
+  }
+}
+
+/** Crear o reutilizar folio SOLO DEMO mediante el token de la sesión activa del Superadmin. */
+export async function crearYSeguirFolioDemo(): Promise<SeguimientoFolioDemo> {
+  const ctx = await contexto()
+  await folio(ctx)
+  const resultado = await consultarSeguimientoFolioDemo()
+  exigir(resultado, 'El folio fue enviado, pero no pudo localizarse en la consulta posterior.')
+  return resultado
+}
+
 export const MODULOS_CON_ALTAS_DEMO = [
   'folios', 'preventivos', 'seguimiento', 'trabajos_especiales', 'inventario',
   'presupuestos', 'activos', 'unidades', 'contratos', 'sla', 'medidores', 'iso55000',
