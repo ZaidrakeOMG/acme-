@@ -282,9 +282,51 @@ async function trabajoEspecial(ctx: Contexto): Promise<VerificacionDemo> {
   ])
 }
 
+
+async function contratoDemo(ctx: Contexto): Promise<VerificacionDemo> {
+  const marcador = 'TESTBOT DEMO - Contrato'
+  const contratos = await filas('/contratos', { tenant_id: ctx.tenantId })
+  let c = unico(contratos.filter(x => x.tenant_id === ctx.tenantId &&
+    x.prestador_id === ctx.prestadorId && String(x.nombre ?? '').startsWith(marcador)), 'contrato DEMO')
+  if (!c) {
+    // Nunca se traslapa con otro contrato activo: se elige un año reservado libre.
+    const year = Array.from({ length: 25 }, (_, i) => 2035 + i).find(y =>
+      !contratos.some(x => x.tenant_id === ctx.tenantId && x.prestador_id === ctx.prestadorId &&
+        x.estado === 'activo' && String(x.fecha_inicio ?? '') <= String(y) + '-12-31' &&
+        String(x.fecha_fin ?? '') >= String(y) + '-01-01'))
+    exigir(year, 'No hay un año futuro aislado para el contrato DEMO; no se modificaron contratos.')
+    const niveles = ['critica', 'alta', 'media', 'baja', 'muy_baja']
+    const tiempos = [[2, 8], [4, 24], [8, 72], [24, 168], [72, 720]]
+    c = await api<Registro>('/contratos', { metodo: 'POST', cuerpo: {
+      tenant_id: ctx.tenantId, prestador_id: ctx.prestadorId,
+      nombre: marcador + ' ficticio', modalidad: 'evento',
+      fecha_inicio: String(year) + '-01-01', fecha_fin: String(year) + '-12-31',
+      slas: niveles.map((nivel_severidad, i) => ({
+        nivel_severidad, tiempo_respuesta_horas: tiempos[i]![0],
+        tiempo_resolucion_horas: tiempos[i]![1], penalizacion_valor: 0,
+      })),
+    } })
+  }
+  idDe(c, 'tenant_id', ctx.tenantId)
+  idDe(c, 'prestador_id', ctx.prestadorId)
+  if (c.nombre !== marcador + ' validado') {
+    await api('/contratos/' + c.id, { metodo: 'PATCH',
+      cuerpo: { nombre: marcador + ' validado' } })
+  }
+  const leido = await api<Registro>('/contratos/' + c.id)
+  idDe(leido, 'tenant_id', ctx.tenantId)
+  idDe(leido, 'prestador_id', ctx.prestadorId)
+  exigir(leido.nombre === marcador + ' validado', 'El cambio en contrato DEMO no persistió.')
+  exigir(Array.isArray(leido.slas) && leido.slas.length === 5,
+    'El contrato de prueba no conserva los cinco niveles SLA.')
+  return resultado('Contrato ficticio y sus cinco SLA guardados y verificados.', [
+    'Contrato: ' + c.id, 'Cinco niveles SLA: crítica, alta, media, baja y muy baja.',
+  ], true)
+}
+
 export const MODULOS_CON_ALTAS_DEMO = [
   'folios', 'preventivos', 'seguimiento', 'trabajos_especiales', 'inventario',
-  'presupuestos', 'activos', 'unidades',
+  'presupuestos', 'activos', 'unidades', 'contratos', 'sla',
 ] as const
 
 /** Retorna null cuando el módulo solo tiene comprobación de consulta o requiere otro rol. */
@@ -309,6 +351,8 @@ export async function ejecutarEscrituraDemo(id: string): Promise<VerificacionDem
     case 'trabajos_especiales': return trabajoEspecial(ctx)
     case 'inventario': return inventario(ctx)
     case 'presupuestos': return presupuesto(ctx)
+    case 'contratos':
+    case 'sla': return contratoDemo(ctx)
     default: return null
   }
 }
