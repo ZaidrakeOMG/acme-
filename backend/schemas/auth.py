@@ -17,7 +17,7 @@ class Tokens(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expira_en: int = Field(description="Segundos de vida del token de acceso")
-    sesion_expira_en: int = Field(default=0, description="Segundos que le quedan a la sesión (8 h, 2 h para administrativos)")
+    sesion_expira_en: int = Field(default=0, description="Segundos restantes de sesión persistente (30 días general, 7 días administradores por defecto)")
     csrf: str = Field(default="", description="Mismo valor que la cookie `acma_csrf`; va en la cabecera X-ACMA-CSRF")
 
 
