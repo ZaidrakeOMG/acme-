@@ -34,7 +34,7 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//, /^\/ws\//, /^\/restablecer\/seguro(?:\/|$)/],
         runtimeCaching: [
           {
-            urlPattern: ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET' && !url.pathname.endsWith('/stream'),
+            urlPattern: ({ url, request }) => url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/auth/') && request.method === 'GET' && !url.pathname.endsWith('/stream'),
             handler: 'NetworkFirst',
             options: { cacheName: 'acma-api', networkTimeoutSeconds: 8, expiration: { maxEntries: 500, maxAgeSeconds: 7 * 24 * 3600 }, cacheableResponse: { statuses: [200] } },
           },
