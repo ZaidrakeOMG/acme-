@@ -9,7 +9,7 @@
 import { api } from './api'
 import { MODULOS } from '../config/modulos'
 
-type TipoRespuesta = 'lista' | 'objeto' | 'json'
+type TipoRespuesta = 'lista' | 'objeto' | 'json' | 'nullable'
 type Chequeo = { ruta: string; tipo: TipoRespuesta; titulo: string; params?: Record<string, string> }
 export type EstadoModulo = 'consulta_verificada' | 'pendiente_funcional' | 'requiere_otro_rol' | 'error'
 export interface ResultadoModulo {
@@ -52,8 +52,8 @@ const PRUEBAS: Record<string, Chequeo[]> = {
     { ruta: '/folios/transiciones', tipo: 'json', titulo: 'Transiciones permitidas' },
   ],
   preventivos: [
-    { ruta: '/preventivos/calendario', tipo: 'lista', titulo: 'Calendario del mes', params: { mes: 'actual' } },
-    { ruta: '/planes', tipo: 'lista', titulo: 'Planes registrados' },
+    { ruta: '/preventivos/calendario', tipo: 'lista', titulo: 'Calendario del mes DEMO', params: { mes: 'actual', tenant_id: '@demoTenant' } },
+    { ruta: '/planes', tipo: 'lista', titulo: 'Planes del prestador DEMO', params: { prestador_id: '@demoPrestador' } },
   ],
   reasignaciones: [{ ruta: '/reasignaciones/reporte', tipo: 'json', titulo: 'Reporte de reasignaciones' }],
   notificaciones: [
@@ -62,7 +62,7 @@ const PRUEBAS: Record<string, Chequeo[]> = {
   ],
   minuta: [{ ruta: '/minutas', tipo: 'json', titulo: 'Minutas de jornada' }],
   seguimiento: [
-    { ruta: '/seguimiento/periodos-presupuestales', tipo: 'json', titulo: 'Períodos de seguimiento' },
+    { ruta: '/seguimiento/periodos-presupuestales', tipo: 'nullable', titulo: 'Período presupuestal del cliente DEMO', params: { tenant_id: '@demoTenant' } },
   ],
   clasificacion: [
     { ruta: '/clasificacion/pendientes', tipo: 'json', titulo: 'Folios pendientes de clasificar' },
@@ -81,22 +81,22 @@ const PRUEBAS: Record<string, Chequeo[]> = {
     { ruta: '/medidores/lecturas/por-revisar', tipo: 'json', titulo: 'Lecturas por revisar' },
   ],
   rutas: [
-    { ruta: '/rutas/mercados', tipo: 'lista', titulo: 'Mercados de rutas' },
-    { ruta: '/rutas/configuracion', tipo: 'objeto', titulo: 'Configuración de rutas' },
+    { ruta: '/rutas/mercados', tipo: 'lista', titulo: 'Mercados del prestador DEMO', params: { prestador_id: '@demoPrestador' } },
+    { ruta: '/rutas/tiempos-servicio', tipo: 'lista', titulo: 'Tiempos de servicio del prestador DEMO', params: { prestador_id: '@demoPrestador' } },
   ],
   iso55000: [
-    { ruta: '/criticidad/configuracion', tipo: 'objeto', titulo: 'Configuración de criticidad' },
-    { ruta: '/criticidad/resumen', tipo: 'json', titulo: 'Resumen ISO 55000' },
+    { ruta: '/criticidad/guia', tipo: 'json', titulo: 'Guía de criticidad sin crear configuración' },
+    { ruta: '/criticidad/resumen', tipo: 'json', titulo: 'Resumen ISO 55000 del cliente DEMO', params: { tenant_id: '@demoTenant' } },
   ],
   erp: [
-    { ruta: '/erp/configuracion', tipo: 'json', titulo: 'Configuración ERP (sin mostrar secretos)' },
+    { ruta: '/erp/exportaciones', tipo: 'lista', titulo: 'Exportaciones ERP (sin generar nuevas)' },
     { ruta: '/erp/eventos', tipo: 'json', titulo: 'Eventos de integración' },
   ],
   sla: [{ ruta: '/contratos', tipo: 'lista', titulo: 'Contratos disponibles para calcular SLA' }],
   bi: [{ ruta: '/bi/tablero', tipo: 'json', titulo: 'Indicadores BI' }],
   mensajeria: [
-    { ruta: '/mensajeria/configuracion', tipo: 'json', titulo: 'Configuración de mensajería' },
-    { ruta: '/mensajeria/consumo', tipo: 'json', titulo: 'Consumo del mes (sin enviar mensajes)' },
+    { ruta: '/mensajeria/configuracion', tipo: 'nullable', titulo: 'Configuración de mensajería del prestador DEMO', params: { prestador_id: '@demoPrestador' } },
+    { ruta: '/mensajeria/consumo', tipo: 'json', titulo: 'Consumo del prestador DEMO (sin enviar mensajes)', params: { prestador_id: '@demoPrestador' } },
   ],
   usuarios: [{ ruta: '/usuarios', tipo: 'lista', titulo: 'Listado de usuarios (sin modificaciones)' }],
   tenants: [{ ruta: '/tenants', tipo: 'lista', titulo: 'Clientes registrados' }],
@@ -107,17 +107,38 @@ const PRUEBAS: Record<string, Chequeo[]> = {
   ],
   contratos: [{ ruta: '/contratos', tipo: 'lista', titulo: 'Contratos y vigencias' }],
   alertas: [
-    { ruta: '/alertas/configuracion', tipo: 'json', titulo: 'Configuración de alertas' },
+    { ruta: '/alertas/configuracion', tipo: 'json', titulo: 'Configuración de alertas del prestador DEMO', params: { prestador_id: '@demoPrestador' } },
     { ruta: '/alertas/catalogo', tipo: 'json', titulo: 'Catálogo de alertas' },
   ],
   capacitacion: [
     { ruta: '/capacitacion/cursos', tipo: 'lista', titulo: 'Cursos' },
-    { ruta: '/capacitacion/vencimientos', tipo: 'json', titulo: 'Vencimientos de certificaciones' },
+    // El backend exige actor.prestador_id, que la cuenta Superadmin no tiene.
+    // No se invoca ni se confunde con un error funcional del módulo.
   ],
   auditoria: [{ ruta: '/auditoria/eventos', tipo: 'json', titulo: 'Bitácora de auditoría' }],
 }
 
+const PRESTADOR_DEMO = 'MANTENIMIENTO DEMO ACMA SA DE CV'
+const TENANT_DEMO = 'EMPRESA DEMO ACMA SA DE CV'
+type Ambito = { id: string; razon_social: string; estado: string }
+function normalizar(valor: string): string {
+  return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim()
+}
+/** Nunca elige "el primer cliente": exige una única coincidencia exacta y activa de DEMO. */
+async function obtenerAmbitoDemostracion(tipo: '@demoTenant' | '@demoPrestador'): Promise<string> {
+  const ruta = tipo === '@demoTenant' ? '/tenants' : '/prestadores'
+  const esperado = tipo === '@demoTenant' ? TENANT_DEMO : PRESTADOR_DEMO
+  const lista = await api<Ambito[]>(ruta)
+  if (!Array.isArray(lista)) throw new Error('No se pudo obtener ' + ruta)
+  const exactos = lista.filter((r) => normalizar(r.razon_social) === esperado && r.estado === 'activo')
+  if (exactos.length !== 1) {
+    throw new Error('Se requiere exactamente un registro DEMO activo en ' + ruta + ', se encontraron ' + exactos.length)
+  }
+  return exactos[0]!.id
+}
+
 function estructuraCorrecta(tipo: TipoRespuesta, datos: unknown): boolean {
+  if (tipo === 'nullable') return datos === null || !!datos && typeof datos === 'object'
   if (tipo === 'lista') return Array.isArray(datos)
   if (tipo === 'objeto') return !!datos && typeof datos === 'object' && !Array.isArray(datos)
   return datos !== undefined && datos !== null && typeof datos === 'object'
@@ -147,15 +168,39 @@ export async function probarModuloLectura(id: string): Promise<ResultadoModulo> 
   }
   const detalles: string[] = []
   try {
+    const cacheAmbito: Partial<Record<'@demoTenant' | '@demoPrestador', string>> = {}
+    let faltaConfiguracion = false
     for (const check of checks) {
-      const params = check.params && Object.fromEntries(
-        Object.entries(check.params).map(([k,v]) => [k,v === 'actual' ? new Date().toISOString().slice(0,7) : v]),
-      )
+      const entradas = check.params ? Object.entries(check.params) : []
+      const params: Record<string, string> = {}
+      for (const [key, valor] of entradas) {
+        if (valor === 'actual') params[key] = new Date().toISOString().slice(0, 7)
+        else if (valor === '@demoTenant' || valor === '@demoPrestador') {
+          if (!cacheAmbito[valor]) cacheAmbito[valor] = await obtenerAmbitoDemostracion(valor)
+          params[key] = cacheAmbito[valor]!
+        } else params[key] = valor
+      }
       const datos = await api<unknown>(check.ruta, { params })
       if (!estructuraCorrecta(check.tipo, datos)) {
         throw new Error('El servidor devolvió una estructura inesperada en ' + check.titulo)
       }
-      detalles.push('✓ ' + check.titulo + ' — consulta confirmada')
+      if (check.tipo === 'nullable' && datos === null) {
+        faltaConfiguracion = true
+        detalles.push('• ' + check.titulo + ' — no configurado; el servidor respondió null (permitido)')
+      } else {
+        detalles.push('✓ ' + check.titulo + ' — consulta confirmada')
+      }
+    }
+    if (id === 'capacitacion') {
+      detalles.push('• Vencimientos de certificaciones — pendiente con una cuenta Admin prestador; el backend exige actor.prestador_id')
+      return { id, nombre: modulo.nombre, comprobadoEn: ahora, estado: 'requiere_otro_rol',
+        mensaje: 'Catálogo de cursos consultado. Los vencimientos requieren una sesión asociada a un prestador.',
+        detalles }
+    }
+    if (faltaConfiguracion) {
+      return { id, nombre: modulo.nombre, comprobadoEn: ahora, estado: 'pendiente_funcional',
+        mensaje: 'Consulta válida, pero falta una configuración opcional DEMO. No es un error del servidor.',
+        detalles }
     }
     return { id, nombre: modulo.nombre, comprobadoEn: ahora, estado: 'consulta_verificada',
       mensaje: 'Consultas del servidor verificadas. La prueba funcional de altas, cambios y permisos sigue pendiente.',
