@@ -64,7 +64,7 @@ class VistaAcma extends StatefulWidget {
   State<VistaAcma> createState() => _VistaAcmaState();
 }
 
-class _VistaAcmaState extends State<VistaAcma> {
+class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
   final Uri? _origen = ConfiguracionAcma.url;
   WebViewController? _controlador;
   int _progreso = 0;
@@ -74,6 +74,7 @@ class _VistaAcmaState extends State<VistaAcma> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final origen = _origen;
     if (origen == null) return;
 
@@ -154,6 +155,25 @@ class _VistaAcmaState extends State<VistaAcma> {
       }));
     }
     unawaited(controller.loadRequest(origen));
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state != AppLifecycleState.resumed) return;
+    final controlador = _controlador;
+    if (controlador == null) return;
+    // No recargamos la WebView: se perderían formularios sin guardar.
+    // React reintenta restaurar la cookie segura cuando la app vuelve al primer plano.
+    unawaited(controlador.runJavaScript(
+      "window.dispatchEvent(new Event('acma:resume'));",
+    ).catchError((_) {}));
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   NavigationDecision _navegar(NavigationRequest solicitud) {
