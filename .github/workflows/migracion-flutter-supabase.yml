@@ -62,6 +62,7 @@ jobs:
               frontend/src/contexts/AuthContext.tsx|\
               frontend/src/services/api.ts|\
               frontend/src/components/TestBotAcma.tsx|\
+              frontend/src/pages/operaciones/Operaciones.tsx|\
               frontend/src/pages/formularios/Constructor.tsx|\
               frontend/src/services/testbotAcma.ts|\
               frontend/src/services/testbotFlujoDemo.ts|\
