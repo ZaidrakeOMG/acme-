@@ -221,7 +221,7 @@ function FormularioPrestador({ prestador, alGuardar }: { prestador: Prestador | 
     <form onSubmit={enviar} className="space-y-3" noValidate>
       {error && <Aviso>{error}</Aviso>}
       <Campo etiqueta="Razón social" error={formState.errors.razon_social?.message} {...register('razon_social')} />
-      <Campo etiqueta="RFC" disabled={prestadorGuardado !== null} error={formState.errors.rfc?.message} {...register('rfc')} />
+      <Campo etiqueta="RFC" disabled={prestador !== null} error={formState.errors.rfc?.message} {...register('rfc')} />
       <div className="grid grid-cols-2 gap-3">
         <Campo etiqueta="Color primario" type="color" {...register('color_primario')} />
         <Campo etiqueta="Color de acento" type="color" {...register('color_acento')} />
