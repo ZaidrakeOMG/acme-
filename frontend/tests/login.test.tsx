@@ -76,7 +76,7 @@ describe('Login', () => {
     const { sesion } = await import('../src/services/api')
     sesion.guardar(TOKENS)
     let sinRed = true
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (entrada, init) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (entrada) => {
       if (sinRed) throw new TypeError('Failed to fetch')
       const ruta = new URL(String(entrada), 'http://localhost').pathname
       const json = ruta === '/api/auth/refresh'
