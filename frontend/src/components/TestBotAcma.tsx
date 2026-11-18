@@ -71,6 +71,7 @@ export function TestBotAcma() {
   const [modo, setModo] = useState<'ayuda' | 'pruebas'>('ayuda')
   const [progreso, setProgreso] = useState<ProgresoDemo>(() => cargar(usuarioId))
   const [recorrido, setRecorrido] = useState<EstadoRecorrido>(() => leerRecorrido(usuarioId))
+  const [reintentados, setReintentados] = useState<string[]>([])
   const [ocupado, setOcupado] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [historial, setHistorial] = useState<string[]>([])
@@ -83,6 +84,7 @@ export function TestBotAcma() {
     progresoRef.current = guardado
     setProgreso(guardado)
     setRecorrido(leerRecorrido(usuarioId))
+    setReintentados([])
     setMensaje('')
     setHistorial([])
     setOcupado(false)
@@ -158,16 +160,32 @@ export function TestBotAcma() {
     }
   }
 
-  function volverAErrores() {
-    if (ocupado) return
-    const primerError = recorrido.resultados.find((r) => r.estado === 'error')
-    if (!primerError) return
-    const indice = SECUENCIA_ACMA.findIndex((m) => m.id === primerError.id)
-    if (indice < 0) return
-    const actualizado = { ...recorrido, indice }
-    setRecorrido(actualizado)
-    persistirRecorrido(usuarioId, actualizado)
-    setMensaje('Se reanudará en ' + primerError.nombre + ' para comprobar de nuevo los errores.')
+  async function volverAErrores() {
+    if (!esSuperadmin || bloqueado.current) return
+    const primerError = recorrido.resultados.find((r) => r.estado === 'error' && !reintentados.includes(r.id))
+    if (!primerError) {
+      setReintentados([])
+      setMensaje('Revisión reiniciada: podrás volver a comprobar los errores pendientes.')
+      return
+    }
+    bloqueado.current = true
+    setOcupado(true)
+    try {
+      setMensaje('Revisando de nuevo ' + primerError.nombre + '…')
+      const resultado = await probarModuloLectura(primerError.id)
+      const actualizado = { ...recorrido, resultados: recorrido.resultados.map((r) =>
+        r.id === resultado.id ? resultado : r) }
+      setRecorrido(actualizado)
+      persistirRecorrido(usuarioId, actualizado)
+      setReintentados((anteriores) => [...anteriores, primerError.id])
+      registrar((resultado.estado === 'error' ? '✗ ' : '✓ ') + primerError.nombre + ': ' + resultado.mensaje)
+      navegar(SECUENCIA_ACMA.find((m) => m.id === primerError.id)?.ruta ?? '/')
+    } catch (e) {
+      setMensaje('No se pudo repetir la comprobación: ' + errorLegible(e))
+    } finally {
+      bloqueado.current = false
+      setOcupado(false)
+    }
   }
 
   if (!usuario) return null
@@ -256,7 +274,11 @@ export function TestBotAcma() {
                         <p className="text-xs text-slate-500">Esto no equivale a haber probado todos los flujos de alta, edición,
                           permisos, evidencias, cobro o cierre. Las pruebas funcionales pendientes se desarrollan por módulo.</p>
                         {recorrido.resultados.some((r) => r.estado === 'error') && (
-                          <button type="button" className={botonSecundario} onClick={volverAErrores}>Revisar módulos con error</button>
+                          <button type="button" className={botonSecundario} disabled={ocupado} onClick={() => void volverAErrores()}>
+                            {recorrido.resultados.some((r) => r.estado === 'error' && !reintentados.includes(r.id))
+                              ? 'Siguiente · reintentar error pendiente'
+                              : 'Reiniciar revisión de errores'}
+                          </button>
                         )}
                       </div>
                     )}
