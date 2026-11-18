@@ -132,3 +132,30 @@ refrescan cada 20 segundos.
 Se requiere ejecutar las pruebas contra la instancia DEMO real para confirmar
 permisos, recepción de GPS, asignación, persistencia y actualizaciones. Ni
 GitHub Actions ni un GET correcto prueban por sí mismos esos escenarios.
+
+
+## Corrección 2026-11-18: medidores sin tipos disponibles
+
+Si el catálogo de medidores está vacío, el TestBot Superadmin ahora crea
+exclusivamente un tipo **global** con el nombre exacto
+**TESTBOT DEMO - Horómetro de laboratorio ficticio**, marcado en su descripción
+como equipo no real. Lo reutiliza por nombre y comprueba su persistencia.
+No toma un medidor ajeno ni modifica tipos existentes. El tipo global será
+visible en la plataforma por el alcance normal del catálogo.
+
+El TestBot crea o reutiliza un medidor de número de serie TESTBOT-DEMO-MED
+en el equipo TESTBOT-DEMO-EQ, modifica su límite a 99999 h y vuelve a
+consultar para verificar que el cambio se guardó. El resultado se marca
+**Alta y edición DEMO OK** solo después de la relectura.
+
+Registrar lecturas, revisión de anomalías y permisos de Técnico y Operador
+requieren sus propias pruebas de campo; **no** quedan aprobados por esta
+corrección. El diagnóstico TXT seguirá marcando los otros módulos que
+únicamente validan consultas GET.
+
+Para comprobar el arreglo en ACMA: refrescar la web después del despliegue,
+usar TestBot con Superadmin y habilitar escrituras DEMO. Elegir
+**Repetir recorrido DEMO** (o reintentar el error de Medidores), descargar
+el TXT y compartirlo para confirmar la inserción real en la base conectada.
+Para el folio GPS, pulsar **Crear / recuperar folio DEMO y rastrearlo**;
+el último TXT muestra que todavía no se hizo ese paso.
