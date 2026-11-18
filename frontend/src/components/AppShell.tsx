@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { IndicadorConectividad } from './IndicadorConectividad'
 import { IconoAcma } from './IconosAcma'
+import { TestBotAcma } from './TestBotAcma'
 
 const GRUPOS: GrupoModulo[] = ['Operación', 'Seguimiento', 'Administración', 'Finanzas y activos', 'Análisis']
 
@@ -266,6 +267,8 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      <TestBotAcma />
 
       <nav aria-label="Accesos rápidos" className="acma-barra-movil fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 lg:hidden">
         <NavLink to="/" end className={({ isActive }) => `acma-acceso-rapido ${isActive ? 'acma-acceso-activo' : ''}`}>
