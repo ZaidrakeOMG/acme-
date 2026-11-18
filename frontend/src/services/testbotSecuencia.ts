@@ -7,11 +7,12 @@
  * Es deliberadamente read-only en producción.
  */
 import { api } from './api'
+import { ejecutarEscrituraDemo } from './testbotEscriturasDemo'
 import { MODULOS } from '../config/modulos'
 
 type TipoRespuesta = 'lista' | 'objeto' | 'json' | 'nullable'
 type Chequeo = { ruta: string; tipo: TipoRespuesta; titulo: string; params?: Record<string, string> }
-export type EstadoModulo = 'consulta_verificada' | 'pendiente_funcional' | 'requiere_otro_rol' | 'error'
+export type EstadoModulo = 'consulta_verificada' | 'pendiente_funcional' | 'requiere_otro_rol' | 'alta_demo_verificada' | 'crud_demo_verificado' | 'error'
 export interface ResultadoModulo {
   id: string
   nombre: string
@@ -210,6 +211,34 @@ export async function probarModuloLectura(id: string): Promise<ResultadoModulo> 
     return { id, nombre: modulo.nombre, comprobadoEn: ahora, estado: 'error',
       mensaje: 'Error real durante la consulta. Se conserva el fallo y el recorrido puede continuar.',
       detalles }
+  }
+}
+
+/**
+ * Ejecuta primero las comprobaciones originales y, solo con autorización en la interfaz,
+ * hace pruebas reales sobre datos DEMO. Una escritura fallida nunca se etiqueta como OK.
+ */
+export async function probarModuloDemo(id: string, habilitarEscrituras: boolean): Promise<ResultadoModulo> {
+  const lectura = await probarModuloLectura(id)
+  if (!habilitarEscrituras || lectura.estado === 'error' || lectura.estado === 'requiere_otro_rol') {
+    return lectura
+  }
+  try {
+    const funcional = await ejecutarEscrituraDemo(id)
+    if (!funcional) return lectura
+    // Repetir GET después de escribir: se detecta también cualquier fallo de relectura.
+    const posterior = await probarModuloLectura(id)
+    if (posterior.estado === 'error') return posterior
+    return {
+      ...posterior,
+      estado: funcional.estado,
+      mensaje: funcional.mensaje,
+      detalles: [...posterior.detalles, ...funcional.detalles],
+    }
+  } catch (error) {
+    return { ...lectura, estado: 'error',
+      mensaje: 'Falló una prueba real de alta o edición DEMO. No se tocaron registros ajenos al ámbito.',
+      detalles: [...lectura.detalles, 'ERROR funcional: ' + detalleError(error)] }
   }
 }
 
