@@ -4,6 +4,7 @@ import { modulosDe, NOMBRE_ROL, type GrupoModulo, type Modulo } from '../config/
 import { useAuth } from '../contexts/AuthContext'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { IndicadorConectividad } from './IndicadorConectividad'
+import { TestBotAcma } from './TestBotAcma'
 import { IconoAcma } from './IconosAcma'
 
 const GRUPOS: GrupoModulo[] = ['Operación', 'Seguimiento', 'Administración', 'Finanzas y activos', 'Análisis']
@@ -233,6 +234,11 @@ export function AppShell() {
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <div className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 xl:flex"><IndicadorConectividad /></div>
             <CampanaNotificaciones />
+            <button type="button" title="Abrir asistente ACMA" aria-label="Abrir asistente ACMA"
+              onClick={() => window.dispatchEvent(new Event('acma:testbot:mostrar'))}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[11px] font-black text-[#243b84] shadow-sm hover:bg-slate-50">
+              AC
+            </button>
             <div className="relative">
               <button type="button" aria-label="Opciones de usuario" aria-expanded={perfilAbierto}
                 onClick={() => setPerfilAbierto(v => !v)}
@@ -266,6 +272,8 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      <TestBotAcma />
 
       <nav aria-label="Accesos rápidos" className="acma-barra-movil fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 lg:hidden">
         <NavLink to="/" end className={({ isActive }) => `acma-acceso-rapido ${isActive ? 'acma-acceso-activo' : ''}`}>
