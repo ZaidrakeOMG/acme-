@@ -55,7 +55,7 @@ async def login(datos: LoginEntrada, request: Request, respuesta: Response, db: 
              description="Lee el refresh de la cookie `acma_refresh` (httpOnly), la rota y emite un token de acceso "
                          "nuevo. Exige la cabecera `X-ACMA-CSRF` con el valor de la cookie `acma_csrf`. Presentar un "
                          "refresh ya usado invalida toda la familia de sesiones; la sesión se cierra al vencer su vida "
-                         "máxima (8 h, 2 h para roles administrativos) o por inactividad.")
+                         "máxima configurable (30 días general y 7 días para roles administrativos por defecto) o por inactividad.")
 async def refresh(request: Request, respuesta: Response, db: DB) -> Tokens:
     cookies.exigir_csrf(request)
     _, tokens = await svc.refrescar(db, request, cookies.refresh_de(request))
