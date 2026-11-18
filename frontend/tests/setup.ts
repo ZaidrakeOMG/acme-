@@ -34,4 +34,6 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   localStorage.clear()
+  // Las cookies jsdom sobreviven entre pruebas; aislar la cookie CSRF de cada sesión.
+  document.cookie = 'acma_csrf=; Max-Age=0; path=/'
 })
