@@ -259,7 +259,7 @@ export function TestBotAcma() {
         setMensaje('Esta primera serie ya terminó. Descarga el reporte; añadiremos pruebas de los demás módulos sin repetir las anteriores.')
       }
     } catch (e) {
-      const detalle = mensajeDeError(e)
+      const detalle = e instanceof ErrorAPI ? mensajeDeError(e) : e instanceof Error ? e.message : mensajeDeError(e)
       setMensaje(`Prueba detenida: ${detalle}`)
       setProgreso(p => ({ ...p, registros: [...p.registros, {
         momento: ahora(), prueba: PASOS[Math.min(p.paso, PASOS.length - 1)] ?? 'Prueba',
