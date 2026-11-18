@@ -3,7 +3,7 @@
  * No usa usuarios ficticios, tokens ajenos, pagos, envíos o eliminaciones.
  * Reusa registros identificados por claves exactas para poder reanudar.
  */
-import { api as apiCliente, ErrorAPI } from './api'
+import { api as apiCliente } from './api'
 
 /** Incluye la ruta HTTP que falló; no registra tokens, contraseñas ni cuerpos de peticiones. */
 const api = async <T>(ruta: string, opciones: Parameters<typeof apiCliente>[1] = {}): Promise<T> => {
@@ -11,8 +11,9 @@ const api = async <T>(ruta: string, opciones: Parameters<typeof apiCliente>[1] =
     return await apiCliente<T>(ruta, opciones)
   } catch (e) {
     const metodo = opciones.metodo ?? 'GET'
-    const detalle = e instanceof ErrorAPI
-      ? 'HTTP ' + e.estado + ' · ' + e.codigo + ' · ' + e.mensaje
+    const err = e as { estado?: unknown; codigo?: unknown; mensaje?: unknown } | null
+    const detalle = err && typeof err.estado === 'number'
+      ? 'HTTP ' + err.estado + ' · ' + String(err.codigo ?? 'SIN_CODIGO') + ' · ' + String(err.mensaje ?? '')
       : e instanceof Error ? e.message : String(e)
     throw new Error(metodo + ' /api' + ruta + ' → ' + detalle)
   }
