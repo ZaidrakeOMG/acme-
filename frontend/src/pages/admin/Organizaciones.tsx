@@ -171,6 +171,10 @@ export function Prestadores() {
 function FormularioPrestador({ prestador, alGuardar }: { prestador: Prestador | null; alGuardar: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null)
   const [logo, setLogo] = useState<File | null>(null)
+  // Si el POST funcionó, conservar el id aunque la subida del logo falle.
+  // Así, un reintento no vuelve a crear el mismo prestador.
+  const [prestadorCreado, setPrestadorCreado] = useState<Prestador | null>(null)
+  const prestadorGuardado = prestador ?? prestadorCreado
   const { register, handleSubmit, formState } = useForm<z.infer<typeof esquemaPrestador>>({
     resolver: zodResolver(esquemaPrestador),
     defaultValues: {
@@ -183,10 +187,11 @@ function FormularioPrestador({ prestador, alGuardar }: { prestador: Prestador | 
 
   const enviar = handleSubmit(async (d) => {
     setError(null)
+    let creadoAhora = false
     const datos_fiscales = d.regimen_fiscal || d.codigo_postal ? { regimen_fiscal: d.regimen_fiscal || null, codigo_postal: d.codigo_postal || null } : undefined
     try {
-      const guardado = prestador
-        ? await api<Prestador>(`/prestadores/${prestador.id}`, {
+      const guardado = prestadorGuardado
+        ? await api<Prestador>(`/prestadores/${prestadorGuardado.id}`, {
             metodo: 'PATCH',
             cuerpo: { razon_social: d.razon_social, color_primario: d.color_primario, color_acento: d.color_acento, datos_fiscales },
           })
@@ -194,6 +199,10 @@ function FormularioPrestador({ prestador, alGuardar }: { prestador: Prestador | 
             metodo: 'POST',
             cuerpo: { razon_social: d.razon_social, rfc: d.rfc, color_primario: d.color_primario, color_acento: d.color_acento, datos_fiscales },
           })
+      if (!prestadorGuardado) {
+        setPrestadorCreado(guardado)
+        creadoAhora = true
+      }
       if (logo) {
         const formulario = new FormData()
         formulario.append('archivo', logo)
@@ -201,7 +210,10 @@ function FormularioPrestador({ prestador, alGuardar }: { prestador: Prestador | 
       }
       await alGuardar()
     } catch (e) {
-      setError(mensajeDeError(e))
+      const detalle = mensajeDeError(e)
+      setError(creadoAhora || prestadorCreado
+        ? `El prestador ya quedó registrado, pero no se completó el proceso: ${detalle}. Corrige el problema y vuelve a guardar; no se creará otro prestador.`
+        : detalle)
     }
   })
 

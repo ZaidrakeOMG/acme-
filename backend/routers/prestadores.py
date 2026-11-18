@@ -50,6 +50,11 @@ async def listar(db: DB, actor: Actor = Depends(ADMIN)):
 @router.post("", response_model=PrestadorSalida, status_code=201, summary="Crear prestador",
              description="Crea el prestador, sus permisos configurables con los valores por defecto (§6.8.3 y §6.8.3b) y sus 5 niveles de severidad (§6.10.1).")
 async def crear(datos: PrestadorEntrada, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN)):
+    existente = (await db.execute(select(Prestador.id).where(
+        Prestador.rfc == datos.rfc, Prestador.pais == datos.pais,
+    ))).scalar_one_or_none()
+    if existente is not None:
+        raise ErrorAPI(409, "RFC_PRESTADOR_DUPLICADO", "Ya existe un prestador registrado con ese RFC en el país indicado")
     valores = datos.model_dump(exclude={"datos_fiscales"})
     p = Prestador(**valores)
     if datos.datos_fiscales:
