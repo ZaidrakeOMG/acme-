@@ -283,6 +283,44 @@ async function trabajoEspecial(ctx: Contexto): Promise<VerificacionDemo> {
 }
 
 
+
+async function medidoresDemo(ctx: Contexto): Promise<VerificacionDemo> {
+  const { equipo: eq } = await equipo(ctx)
+  const tipos = await filas('/medidores/tipos')
+  const tipo = tipos.find(t => t.activo !== false && t.tenant_id == null &&
+    (t.prestador_id == null || t.prestador_id === ctx.prestadorId))
+  exigir(tipo, 'No hay tipo de medidor visible para el equipo DEMO.')
+  let medidores = await filas('/medidores/equipos/' + eq.id)
+  let m = unico(medidores.filter(x => x.tipo_medidor_id === tipo.id), 'medidor DEMO')
+  if (!m) {
+    m = await api<Registro>('/medidores/equipos/' + eq.id, { metodo: 'POST',
+      cuerpo: { tipo_medidor_id: tipo.id, valor_inicial: 0,
+        metodo_actualizacion: 'tecnico', numero_serie_medidor: 'TESTBOT-DEMO-MED' } })
+  }
+  exigir(m.numero_serie_medidor === 'TESTBOT-DEMO-MED' && m.tipo_medidor_id === tipo.id,
+    'No se permite alterar un medidor no creado por el TestBot.')
+  medidores = await filas('/medidores/equipos/' + eq.id)
+  const guardado = medidores.find(x => x.id === m.id && x.numero_serie_medidor === 'TESTBOT-DEMO-MED')
+  exigir(guardado, 'El medidor ficticio no persistió en el equipo DEMO.')
+  return resultado('Medidor ficticio del equipo DEMO insertado y reconsultado.', [
+    'Medidor: ' + guardado.id, 'Equipo ficticio: ' + eq.id, 'Lecturas por rol: pendientes.',
+  ])
+}
+
+async function activoISO(ctx: Contexto): Promise<VerificacionDemo> {
+  const { equipo: eq } = await equipo(ctx)
+  exigir(eq.codigo === 'TESTBOT-DEMO-EQ', 'No se modificarán activos que no sean del TestBot.')
+  await api('/catalogos/equipos/' + eq.id, { metodo: 'PATCH',
+    cuerpo: { criticidad: 'C', notas: 'TESTBOT DEMO: criticidad de prueba, sin equipo físico' } })
+  const guardado = await api<Registro>('/catalogos/equipos/' + eq.id)
+  idDe(guardado, 'tenant_id', ctx.tenantId)
+  exigir(guardado.codigo === 'TESTBOT-DEMO-EQ' && guardado.criticidad === 'C' &&
+    String(guardado.notas ?? '').startsWith('TESTBOT DEMO'), 'La edición del activo DEMO no persistió.')
+  return resultado('Activo DEMO editado y reconsultado; criticidad C validada.', [
+    'Equipo: ' + guardado.id, 'Criticidad ficticia: C.',
+  ], true)
+}
+
 async function contratoDemo(ctx: Contexto): Promise<VerificacionDemo> {
   const marcador = 'TESTBOT DEMO - Contrato'
   const contratos = await filas('/contratos', { tenant_id: ctx.tenantId })
@@ -326,7 +364,7 @@ async function contratoDemo(ctx: Contexto): Promise<VerificacionDemo> {
 
 export const MODULOS_CON_ALTAS_DEMO = [
   'folios', 'preventivos', 'seguimiento', 'trabajos_especiales', 'inventario',
-  'presupuestos', 'activos', 'unidades', 'contratos', 'sla',
+  'presupuestos', 'activos', 'unidades', 'contratos', 'sla', 'medidores', 'iso55000',
 ] as const
 
 /** Retorna null cuando el módulo solo tiene comprobación de consulta o requiere otro rol. */
@@ -341,10 +379,9 @@ export async function ejecutarEscrituraDemo(id: string): Promise<VerificacionDem
         'Unidad: ' + un.id, 'Grupo: ' + g.id,
       ], true)
     }
-    case 'activos': {
-      const { equipo: eq } = await equipo(ctx)
-      return resultado('Activo/equipo DEMO creado y consultado.', ['Activo DEMO: ' + eq.id])
-    }
+    case 'activos': return activoISO(ctx)
+    case 'iso55000': return activoISO(ctx)
+    case 'medidores': return medidoresDemo(ctx)
     case 'folios': return folio(ctx)
     case 'preventivos': return plan(ctx)
     case 'seguimiento': return seguimiento(ctx)
