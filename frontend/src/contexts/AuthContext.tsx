@@ -110,25 +110,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void reintentarSesion()
 
     const alRecuperarConexion = () => {
-      if (!usuarioRestaurado.current && sesion.tieneRefresh()) void reintentarSesion()
+      if (!sesion.tieneRefresh()) return
+      if (usuarioRestaurado.current) {
+        // iPhone/Android pueden reanudar después de horas en segundo plano.
+        // Renueva el acceso vencido sin recargar la WebView ni perder formularios.
+        if (sesion.accesoPorVencer()) void refrescar()
+      } else {
+        void reintentarSesion()
+      }
     }
     const alVolverVisible = () => {
       if (document.visibilityState === 'visible') alRecuperarConexion()
     }
     const enOtraPestana = (evento: StorageEvent) => {
-      if (evento.key === 'acma.sesion' && evento.newValue === null) {
+      if (evento.key === 'acma.sesion' && evento.newValue !== '1') {
         // Otra pestaña cerró sesión: no reabrir el perfil de forma accidental.
-        sesion.limpiar()
+        sesion.limpiar(false)
         usuarioRestaurado.current = false
         setEsperandoConexion(false)
         setUsuario(null)
       }
     }
+    window.addEventListener('pageshow', alRecuperarConexion)
+    window.addEventListener('focus', alRecuperarConexion)
     window.addEventListener('online', alRecuperarConexion)
     window.addEventListener('acma:resume', alRecuperarConexion)
     window.addEventListener('storage', enOtraPestana)
     document.addEventListener('visibilitychange', alVolverVisible)
     return () => {
+      window.removeEventListener('pageshow', alRecuperarConexion)
+      window.removeEventListener('focus', alRecuperarConexion)
       window.removeEventListener('online', alRecuperarConexion)
       window.removeEventListener('acma:resume', alRecuperarConexion)
       window.removeEventListener('storage', enOtraPestana)
