@@ -34,6 +34,25 @@ let refrescoEnCurso: Promise<boolean> | null = null
 let alExpirarSesion: (() => void) | null = null
 // Al recibir un 401/403 definitivo no se intenta restaurar repetidamente una cookie rechazada.
 let refrescoRechazado = false
+let accesoVenceEn = 0
+let revisionAcceso = 0
+
+// El JWT solo circula en memoria entre pestañas del MISMO origen. Nunca se escribe en localStorage.
+const canalAuth: BroadcastChannel | null = (() => {
+  try {
+    return typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('acma-sesion')
+  } catch {
+    return null
+  }
+})()
+
+function cierreExplicito(): boolean {
+  try {
+    return localStorage.getItem(CLAVE_SESION) === '0'
+  } catch {
+    return false
+  }
+}
 
 /** Marca local: no es un secreto, solo dice que este navegador tuvo sesión (para intentar renovar al abrir). */
 function hayMarca(): boolean {
@@ -61,29 +80,53 @@ export function tokenActual(): string | null {
 }
 
 export const sesion = {
-  guardar(tokens: Tokens) {
+  guardar(tokens: Tokens, compartir = true) {
     refrescoRechazado = false
     tokenAcceso = tokens.access_token
+    accesoVenceEn = Date.now() + tokens.expira_en * 1000
+    revisionAcceso += 1
     try {
       localStorage.setItem(CLAVE_SESION, '1')
     } catch {
-      /* almacenamiento no disponible: la sesión dura lo que la pestaña */
+      /* Sin almacenamiento: la sesión depende de las cookies y la pestaña. */
     }
+    if (compartir) canalAuth?.postMessage({ tipo: 'tokens', tokens })
   },
-  limpiar() {
+  limpiar(compartir = true) {
     refrescoRechazado = true
     tokenAcceso = null
+    accesoVenceEn = 0
+    revisionAcceso += 1
     try {
-      localStorage.removeItem(CLAVE_SESION)
+      // '0' evita que la cookie httpOnly todavía existente reabra la sesión después
+      // de un cierre sin Internet (cuando el servidor no pudo borrar la cookie).
+      localStorage.setItem(CLAVE_SESION, '0')
     } catch {
       /* sin almacenamiento */
     }
+    if (compartir) canalAuth?.postMessage({ tipo: 'salir' })
   },
-  /** ¿Conviene intentar renovar? La cookie no se puede leer, así que basta la marca o el CSRF visible. */
-  tieneRefresh: () => !refrescoRechazado && (hayMarca() || csrfActual() !== null),
+  /** Sin secretos persistidos: solo la marca y la cookie CSRF legible. */
+  tieneRefresh: () => !refrescoRechazado && !cierreExplicito() && (hayMarca() || csrfActual() !== null),
+  accesoPorVencer: () => !tokenAcceso || Date.now() >= accesoVenceEn - 60_000,
   alExpirar(fn: () => void) {
     alExpirarSesion = fn
   },
+}
+
+// Compartir el nuevo JWT corto con otras pestañas evita que roten una misma cookie
+// repetidamente. El refresh permanece en httpOnly y nunca se transmite.
+if (canalAuth) {
+  canalAuth.onmessage = (evento: MessageEvent) => {
+    const mensaje = evento.data
+    if (mensaje?.tipo === 'tokens' && typeof mensaje.tokens?.access_token === 'string' &&
+        typeof mensaje.tokens?.expira_en === 'number' && sesion.tieneRefresh()) {
+      sesion.guardar(mensaje.tokens as Tokens, false)
+    } else if (mensaje?.tipo === 'salir') {
+      sesion.limpiar(false)
+      alExpirarSesion?.()
+    }
+  }
 }
 
 async function aErrorAPI(respuesta: Response): Promise<ErrorAPI> {
@@ -102,24 +145,37 @@ export function refrescar(): Promise<boolean> {
   if (!refrescoEnCurso) {
     refrescoEnCurso = (async () => {
       if (!sesion.tieneRefresh()) return false
+      const revisionAlPedir = revisionAcceso
       const renovar = async (): Promise<boolean> => {
         if (!sesion.tieneRefresh()) return false
+        // Al salir de Web Locks, otra pestaña pudo renovar y compartir su acceso.
+        // En ese caso no volvemos a rotar la cookie ni a invalidar accesos válidos.
+        if (revisionAcceso !== revisionAlPedir && tokenAcceso &&
+            Date.now() < accesoVenceEn - 60_000) return true
+        const controlador = new AbortController()
+        const limite = setTimeout(() => controlador.abort(), 15_000)
         try {
           const r = await fetch(`${BASE}/auth/refresh`, {
             method: 'POST',
             headers: cabecerasCsrf(),
             credentials: 'same-origin',
             cache: 'no-store',
+            signal: controlador.signal,
           })
           if (!r.ok) {
-            // Un problema de red o de servidor no debe eliminar una sesión recuperable.
-            if (r.status === 401 || r.status === 403) sesion.limpiar()
+            // Los 5xx y la pérdida de red no deben borrar una sesión recuperable.
+            if (r.status === 401 || r.status === 403) {
+              sesion.limpiar()
+              alExpirarSesion?.()
+            }
             return false
           }
           sesion.guardar((await r.json()) as Tokens)
           return true
         } catch {
           return false
+        } finally {
+          clearTimeout(limite)
         }
       }
       // En varias pestañas abiertas, rotar la misma cookie a la vez invalidaría toda la familia.
