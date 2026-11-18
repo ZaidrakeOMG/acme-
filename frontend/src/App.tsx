@@ -108,13 +108,33 @@ function SinPermiso() {
 }
 
 export function App() {
-  const { usuario, cargando } = useAuth()
+  const { usuario, cargando, esperandoConexion, reintentarSesion } = useAuth()
   const { pathname } = useLocation()
   // Un enlace de recuperacion debe abrirse incluso si existe una sesion activa
   // (p. ej. al abrir el correo desde una computadora donde ya se inicio sesion).
   if (pathname === '/restablecer') return <Restablecer />
   if (cargando) {
     return <div className="flex min-h-screen items-center justify-center text-slate-500">Cargando…</div>
+  }
+  if (!usuario && esperandoConexion) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <section className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-xl font-semibold text-slate-900">Recuperando tu sesión</h1>
+          <p className="mt-3 text-sm text-slate-600">
+            No podemos contactar al servidor. Tu sesión permanece guardada en este dispositivo y
+            volveremos a intentar conectarnos, sin pedirte la contraseña.
+          </p>
+          <button
+            type="button"
+            className="mt-6 rounded-xl bg-primario px-6 py-3 font-semibold text-white"
+            onClick={() => void reintentarSesion()}
+          >
+            Reintentar conexión
+          </button>
+        </section>
+      </main>
+    )
   }
   if (!usuario) {
     return (

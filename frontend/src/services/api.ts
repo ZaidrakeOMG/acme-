@@ -32,6 +32,8 @@ export class ErrorAPI extends Error implements ErrorEstandar {
 let tokenAcceso: string | null = null
 let refrescoEnCurso: Promise<boolean> | null = null
 let alExpirarSesion: (() => void) | null = null
+// Al recibir un 401/403 definitivo no se intenta restaurar repetidamente una cookie rechazada.
+let refrescoRechazado = false
 
 /** Marca local: no es un secreto, solo dice que este navegador tuvo sesión (para intentar renovar al abrir). */
 function hayMarca(): boolean {
@@ -60,6 +62,7 @@ export function tokenActual(): string | null {
 
 export const sesion = {
   guardar(tokens: Tokens) {
+    refrescoRechazado = false
     tokenAcceso = tokens.access_token
     try {
       localStorage.setItem(CLAVE_SESION, '1')
@@ -68,6 +71,7 @@ export const sesion = {
     }
   },
   limpiar() {
+    refrescoRechazado = true
     tokenAcceso = null
     try {
       localStorage.removeItem(CLAVE_SESION)
@@ -76,7 +80,7 @@ export const sesion = {
     }
   },
   /** ¿Conviene intentar renovar? La cookie no se puede leer, así que basta la marca o el CSRF visible. */
-  tieneRefresh: () => hayMarca() || csrfActual() !== null,
+  tieneRefresh: () => !refrescoRechazado && (hayMarca() || csrfActual() !== null),
   alExpirar(fn: () => void) {
     alExpirarSesion = fn
   },
@@ -91,24 +95,40 @@ async function aErrorAPI(respuesta: Response): Promise<ErrorAPI> {
   }
 }
 
-/** Renueva tokens una sola vez aunque la pidan varias peticiones a la vez. */
+/** Renueva el acceso y serializa rotaciones también entre pestañas con Web Locks (si está disponible).
+ * El refresh rotativo permanece exclusivamente en la cookie httpOnly; nunca se copia al almacenamiento web.
+ */
 export function refrescar(): Promise<boolean> {
   if (!refrescoEnCurso) {
     refrescoEnCurso = (async () => {
       if (!sesion.tieneRefresh()) return false
-      try {
-        const r = await fetch(`${BASE}/auth/refresh`, {
-          method: 'POST',
-          headers: cabecerasCsrf(),
-          credentials: 'same-origin',
-        })
-        if (!r.ok) {
-          // 0 y 5xx pueden ser falta de red: no se borra la marca para no perder la sesión al recargar sin señal.
-          if (r.status >= 400 && r.status < 500) sesion.limpiar()
+      const renovar = async (): Promise<boolean> => {
+        if (!sesion.tieneRefresh()) return false
+        try {
+          const r = await fetch(`${BASE}/auth/refresh`, {
+            method: 'POST',
+            headers: cabecerasCsrf(),
+            credentials: 'same-origin',
+            cache: 'no-store',
+          })
+          if (!r.ok) {
+            // Un problema de red o de servidor no debe eliminar una sesión recuperable.
+            if (r.status === 401 || r.status === 403) sesion.limpiar()
+            return false
+          }
+          sesion.guardar((await r.json()) as Tokens)
+          return true
+        } catch {
           return false
         }
-        sesion.guardar((await r.json()) as Tokens)
-        return true
+      }
+      // En varias pestañas abiertas, rotar la misma cookie a la vez invalidaría toda la familia.
+      // Web Locks funciona por origen y evita esas rotaciones simultáneas en navegadores compatibles.
+      try {
+        if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+          return await navigator.locks.request('acma-refresh-cookie', renovar)
+        }
+        return await renovar()
       } catch {
         return false
       }
@@ -155,7 +175,8 @@ export async function api<T>(ruta: string, opciones: Opciones = {}, reintento = 
 
   if (respuesta.status === 401 && !sinAuth && reintento && sesion.tieneRefresh()) {
     if (await refrescar()) return api<T>(ruta, opciones, false)
-    alExpirarSesion?.()
+    // Si el servidor/red no responde, mantener la sesión para reanudar al volver la conexión.
+    if (!sesion.tieneRefresh()) alExpirarSesion?.()
   }
   if (!respuesta.ok) throw await aErrorAPI(respuesta)
   if (respuesta.status === 204) return undefined as T

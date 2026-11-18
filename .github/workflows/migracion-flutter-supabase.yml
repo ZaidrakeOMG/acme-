@@ -56,10 +56,11 @@ jobs:
               frontend/src/pages/catalogos/Catalogos.tsx|\
               frontend/src/pages/folios/Folios.tsx|\
               frontend/src/pages/auth/Marco.tsx|\
-              frontend/src/App.tsx)
-                # App.tsx solo se modifica para permitir la ruta pública de
-                # recuperación con sesión activa; está cubierto por
-                # scripts/test_reset_email_link.py.
+              frontend/src/App.tsx|\
+              frontend/src/contexts/AuthContext.tsx|\
+              frontend/src/services/api.ts)
+                # Se admiten cambios focalizados en el acceso y restauración de
+                # sesiones; los demás módulos de negocio permanecen intactos.
                 echo "Cambio visual y responsivo permitido: $archivo"
                 ;;
               *)

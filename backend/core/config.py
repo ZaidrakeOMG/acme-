@@ -53,12 +53,14 @@ class Configuracion(BaseSettings):
     jwt_algoritmo: str = "HS256"
     jwt_acceso_minutos: int = 15
     jwt_mfa_minutos: int = 5
-    # §6.9.5: la sesión vive 8 h (2 h para roles administrativos) y se cierra por inactividad; el token de acceso
-    # sigue siendo corto y se renueva con el refresh rotativo mientras la sesión esté viva.
-    # P11a cierra así la decisión pendiente n.º 1 (P01 pedía 15 min + 7 días; §6.9.5 pide 8 h / 2 h).
-    sesion_horas: int = 8
-    sesion_horas_admin: int = 2
-    sesion_inactividad_minutos: int = 30
+    # Sesión persistente para web/PWA y WebView Flutter (iPhone/Android): el access JWT
+    # dura 15 minutos; el refresh rotativo en cookie httpOnly conserva la sesión.
+    # Vida absoluta máxima por dispositivo: 30 días (general) y 7 días (administradores).
+    # No se permite que la rotación extienda estos topes; el cierre de sesión o revocación son inmediatos.
+    sesion_dias: int = Field(default=30, ge=1, le=90)
+    sesion_dias_admin: int = Field(default=7, ge=1, le=30)
+    sesion_inactividad_dias: int = Field(default=30, ge=1, le=90)
+    sesion_inactividad_dias_admin: int = Field(default=7, ge=1, le=30)
     # §6.9.5: vencimiento de la contraseña de los roles administrativos (0 = sin vencimiento).
     contrasena_dias_admin: int = 90
     # §6.9.5: retención de la bitácora de API (90 días normales, 1 año los errores 4xx/5xx).
