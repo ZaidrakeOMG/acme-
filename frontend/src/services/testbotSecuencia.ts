@@ -12,7 +12,7 @@ import { MODULOS } from '../config/modulos'
 
 type TipoRespuesta = 'lista' | 'objeto' | 'json' | 'nullable'
 type Chequeo = { ruta: string; tipo: TipoRespuesta; titulo: string; params?: Record<string, string> }
-export type EstadoModulo = 'consulta_verificada' | 'pendiente_funcional' | 'requiere_otro_rol' | 'alta_demo_verificada' | 'crud_demo_verificado' | 'error'
+export type EstadoModulo = 'consulta_verificada' | 'pendiente_funcional' | 'requiere_otro_rol' | 'alta_demo_verificada' | 'alta_cambio_demo_verificados' | 'error'
 export interface ResultadoModulo {
   id: string
   nombre: string
