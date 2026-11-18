@@ -5,6 +5,7 @@ import { Aviso, Boton, Campo as CampoUI, Encabezado, Insignia, Modal, Selector, 
 import { useAuth } from '../../contexts/AuthContext'
 import { useRecurso } from '../../hooks/useRecurso'
 import { api, mensajeDeError } from '../../services/api'
+import { prepararEsquemaDemo } from '../../services/testbot/formularioDemo'
 import type { Rol, Tenant } from '../../types/api'
 import {
   CATALOGOS_SISTEMA, CONFIG_DEFECTO, NOMBRE_TIPO, TIPOS_CALCULADOS, TIPOS_CAMPO, TIPOS_CON_DEFECTO, TIPOS_CON_OPCIONES, camposDe,
@@ -130,6 +131,59 @@ export function Constructor() {
       return null
     }
   }
+
+  // El TestBot reutiliza exactamente el borrador abierto en el constructor,
+  // incluidos cambios sin guardar. Nunca reemplaza otros formularios.
+  useEffect(() => {
+    const prepararParaTest = (evento: Event) => {
+      const solicitud = evento as CustomEvent<{
+        resolver: (resultado: { formularioId: string; nombre: string; totalCampos: number }) => void
+        rechazar: (error: Error) => void
+      }>
+      if (!solicitud.detail?.resolver || !solicitud.detail?.rechazar) return
+      evento.preventDefault()
+      void (async () => {
+        if (!esSuper) throw new Error('Solo Superadmin puede ejecutar estas pruebas.')
+        if (meta.es_plantilla_base) throw new Error('No se modifica una plantilla base para hacer pruebas.')
+        const esquemaPreparado = prepararEsquemaDemo(esquema)
+        const nombre = meta.nombre.trim() === 'Nuevo formulario' ? 'Inspección de mantenimiento DEMO' : meta.nombre
+        const roles = Array.from(new Set<Rol>([...meta.rol_destino, 'superadmin']))
+        const cuerpo = {
+          nombre,
+          descripcion: meta.descripcion || 'Formulario de prueba para inspección de equipos',
+          tipo: meta.tipo,
+          rol_destino: roles,
+          tenant_id: meta.tenant_id || null,
+          esquema: esquemaPreparado,
+        }
+        setError(null)
+        let guardado: Formulario
+        if (f) {
+          guardado = await api<Formulario>(`/formularios/${f.id}`, { metodo: 'PUT', cuerpo })
+        } else {
+          guardado = await api<Formulario>('/formularios', {
+            metodo: 'POST', cuerpo: { ...cuerpo, es_plantilla_base: false, prestador_id: null },
+          })
+          navegar(`/formularios/constructor/${guardado.id}`, { replace: true })
+        }
+        setF(guardado)
+        setMeta(m => ({ ...m, nombre: guardado.nombre, descripcion: guardado.descripcion, rol_destino: roles }))
+        setEsquema(guardado.esquema_json)
+        setAviso('TestBot preparó y guardó este formulario conservando los campos existentes.')
+        solicitud.detail.resolver({
+          formularioId: guardado.id,
+          nombre: guardado.nombre,
+          totalCampos: guardado.esquema_json.secciones.reduce((n, sec) => n + sec.campos.length, 0),
+        })
+      })().catch((e: unknown) => {
+        const error = e instanceof Error ? e : new Error(String(e))
+        setError(mensajeDeError(error))
+        solicitud.detail.rechazar(error)
+      })
+    }
+    window.addEventListener('acma:testbot:preparar', prepararParaTest)
+    return () => window.removeEventListener('acma:testbot:preparar', prepararParaTest)
+  }, [esSuper, esquema, meta, f, navegar])
 
   async function publicarAhora() {
     const g = await guardar()
