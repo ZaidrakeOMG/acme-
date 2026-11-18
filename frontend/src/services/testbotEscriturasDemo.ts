@@ -38,6 +38,10 @@ async function contexto(): Promise<Contexto> {
   const t = unico(tenants.filter(x => normalizar(String(x.razon_social ?? '')) === CLIENTE && x.estado === 'activo'), 'cliente DEMO')
   const p = unico(prestadores.filter(x => normalizar(String(x.razon_social ?? '')) === PRESTADOR && x.estado === 'activo'), 'prestador DEMO')
   exigir(t && p, 'Falta el cliente o prestador DEMO activo. No se hizo ninguna escritura.')
+  const vinculos = await filas('/tenants/' + t.id + '/prestadores')
+  const activos = vinculos.filter(x => x.estado === 'activo')
+  exigir(activos.length === 1 && activos[0]?.prestador_id === p.id,
+    'El cliente DEMO debe tener únicamente al prestador DEMO activo para que las escrituras sean seguras.')
   return { tenantId: t.id, prestadorId: p.id }
 }
 function resultado(mensaje: string, detalles: string[], crud = false): VerificacionDemo {
@@ -98,7 +102,10 @@ async function equipo(ctx: Contexto): Promise<{ equipo: Registro; tipo: Registro
   const un = await unidad(ctx)
   // Para no alterar catálogos reales, solo se usan tipos globales ya existentes.
   const tipos = await filas('/catalogos/tipos-equipo')
-  const tipo = tipos.find(x => x.tenant_id == null && typeof x.familia_id === 'string')
+  const fallas = await filas('/catalogos/tipos-falla', { prestador_id: ctx.prestadorId })
+  const tipo = tipos.find(x => x.tenant_id == null && typeof x.familia_id === 'string' &&
+    fallas.some(f => f.prestador_id === ctx.prestadorId && f.familia_equipo_id === x.familia_id && f.activa !== false)) ??
+    tipos.find(x => x.tenant_id == null && typeof x.familia_id === 'string')
   exigir(tipo, 'No hay tipos globales de equipo: no se fabricó un tipo ajeno al cliente DEMO.')
   const disponibles = await filas('/catalogos/equipos', { tenant_id: ctx.tenantId })
   const codigo = 'TESTBOT-DEMO-EQ'
@@ -144,9 +151,9 @@ async function inventario(ctx: Contexto): Promise<VerificacionDemo> {
   idDe(almacen, 'prestador_id', ctx.prestadorId)
   let existencias = await filas('/inventario/existencias', { ubicacion_id: almacen.id, articulo_id: articulo.id })
   let cantidad = Number(existencias.find(x => x.articulo_id === articulo.id && x.ubicacion_id === almacen.id)?.cantidad ?? 0)
-  if (cantidad === 0) {
+  if (cantidad < 5) {
     await api('/inventario/movimientos/entrada', { metodo: 'POST', cuerpo: {
-      articulo_id: articulo.id, ubicacion_id: almacen.id, cantidad: 5, costo_unitario: 10,
+      articulo_id: articulo.id, ubicacion_id: almacen.id, cantidad: 5 - cantidad, costo_unitario: 10,
       referencia: 'TESTBOT DEMO - primera entrada', razon: 'Prueba ficticia de inserción',
     } })
     existencias = await filas('/inventario/existencias', { ubicacion_id: almacen.id, articulo_id: articulo.id })
@@ -244,7 +251,9 @@ async function folio(ctx: Contexto): Promise<VerificacionDemo> {
   }
   idDe(f, 'tenant_id', ctx.tenantId)
   exigir(f.un_id === un.id && f.equipo_id === eq.id, 'El folio no pertenece al equipo ficticio.')
-  const leido = await api<Registro>('/folios/' + f.id)
+  const detalle = await api<{ folio: Registro }>('/folios/' + f.id)
+  const leido = detalle.folio
+  exigir(leido, 'El servidor no devolvió los datos del folio.')
   idDe(leido, 'tenant_id', ctx.tenantId)
   exigir(leido.descripcion === descripcion && leido.equipo_id === eq.id, 'El folio no persistió.')
   return resultado('Folio ficticio insertado y comprobado en el servidor; cierre/asignación requieren roles.', [
