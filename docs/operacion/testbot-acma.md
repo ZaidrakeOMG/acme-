@@ -194,3 +194,34 @@ aunque se hayan creado en días anteriores. Antes el tablero omitía
 F-000001 cuando pasaba al día siguiente. Esto no implica que estén
 asignados ni que haya GPS: se muestran como pendientes y la ubicación
 requiere jornada Técnica real o la capa local de prueba personal.
+
+
+## Indicadores visuales por módulo — 2026-11-19
+
+La navegación del Superadmin y la lista del TestBot muestran iconos SVG de la
+**última prueba**, acompañados de color, leyenda accesible y detalles al pasar
+el cursor. Los iconos también están en el menú lateral de móvil.
+
+- **Verde (círculo con paloma):** alta, edición y relectura DEMO comprobadas.
+- **Turquesa (círculo con +):** alta DEMO comprobada, otros pasos pueden faltar.
+- **Azul (círculo con i):** solo consultas GET comprobadas; NO indica CRUD completo.
+- **Ámbar (reloj):** prueba pendiente o requisito de otro rol.
+- **Rojo (X):** error detectado en la última prueba.
+- **Gris (círculo):** apartado sin prueba específica guardada.
+
+El constructor de Formularios muestra verde solo si su recorrido DEMO
+completó los 7 pasos; Mis formularios y Catálogos maestros pueden seguir
+grises si no tienen un registro de prueba independiente. **No significa que
+estén dañados**, solo que no hay certificación para ese módulo.
+
+Los indicadores se basan en el último recorrido guardado localmente por
+usuario (acma.testbot.secuencia.v1.<usuario_id>), no en una comprobación de
+salud en tiempo real. Al guardar un nuevo resultado o terminar Formularios
+se actualizan inmediatamente en la misma pestaña y entre pestañas mediante
+el evento storage; el TestBot no requiere repetir escrituras para pintar
+el estado. No se muestra el resultado de pruebas de Superadmin a otros roles.
+
+El TXT del 19-nov-2026 contiene 31/31 evaluados, 0 errores, 12 pruebas con
+alguna escritura DEMO verificada, 16 consultas sin CRUD y 3 pendientes.
+No demuestra que todos los apartados estén funcionalmente completos; el
+folio F-000001 todavía figura sin Técnico asignado ni jornada GPS oficial.
