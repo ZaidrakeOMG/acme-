@@ -119,7 +119,7 @@ export function Operaciones() {
       const folio = folioId ? datos?.folios.find(x => x.folio_id === folioId) : null
       const actual = posicionTecnicoDelFolio(folio ?? null, datos?.tecnicos ?? [])
       if (actual) setCentrarEn({ lat: actual.lat, lng: actual.lng, zoom: 17 })
-      else if (ultimo) setCentrarEn({ lat: ultimo.lat, lng: ultimo.lng, zoom: folioId ? 17 : 15 })
+      else if (!folioId && ultimo) setCentrarEn({ lat: ultimo.lat, lng: ultimo.lng, zoom: 15 })
     } catch (e) { setError(mensajeDeError(e)) }
   }
 
