@@ -32,7 +32,7 @@ from core.errors import ErrorAPI, no_encontrado, prohibido
 from models.auditoria import ConfiguracionPrestador
 from models.base import Rol
 from models.catalogos import EstadoActivo, Tecnico
-from models.folios import EstadoFolio, Folio
+from models.folios import ESTADOS_ABIERTOS, EstadoFolio, Folio
 from models.operaciones import (
     AlertaOperacionSeguimiento, CerradaPorJornada, EstadoJornada, EstatusOperativo, JornadaPausa, JornadaTecnico,
     MotivoPausaJornada, RespuestaAlertaTecnico, TecnicoPosicion,
@@ -582,7 +582,7 @@ ORDEN_ESTATUS = {"sin_senal": 0, "en_servicio": 1, "en_ruta": 2, "pausa": 3, "fu
 
 
 async def panel_folios(db: AsyncSession, actor: Actor, *, ahora: datetime | None = None) -> list[dict[str, Any]]:
-    """Folios activos del día con el contador regresivo del SLA de P10 y su técnico.
+    """Folios abiertos y capturados hoy con contador regresivo del SLA de P10 y su técnico.
 
     El contador se arma con los datos de `folios_sla` en una sola consulta: la pantalla se refresca cada pocos
     segundos y recalcular folio por folio (como hace el detalle) costaría tres consultas por folio.
@@ -592,7 +592,10 @@ async def panel_folios(db: AsyncSession, actor: Actor, *, ahora: datetime | None
 
     ahora = ahora or datetime.now(UTC)
     hoy = datetime.combine(date.today(), time.min, tzinfo=UTC)
-    consulta = select(Folio).where(or_(Folio.estado.in_(ESTADOS_ACTIVOS), Folio.capturado_at >= hoy))
+    # Mostrar también los folios abiertos en espera de revisión/asignación, aunque se
+    # hayan capturado ayer: antes el tablero ocultaba F-000001 y otros pendientes.
+    # La lista de unidades con servicio operativo sigue contando solo ESTADOS_ACTIVOS.
+    consulta = select(Folio).where(or_(Folio.estado.in_(ESTADOS_ABIERTOS), Folio.capturado_at >= hoy))
     filtro = folios_captura_service.filtro_alcance(actor)
     if filtro is not None:
         consulta = consulta.where(filtro)
