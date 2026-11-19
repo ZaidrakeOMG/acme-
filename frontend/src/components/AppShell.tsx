@@ -108,7 +108,7 @@ function Navegacion({ modulos, alNavegar, rutaActual, indicadores, mostrarEstado
               {abierto && (
                 <div id={id} className="acma-nav-opciones">
                   {delGrupo.map(m => (
-                    <NavLink key={m.id} to={m.ruta} className={estiloEnlace} onClick={alNavegar}>
+                    <NavLink key={m.id} to={m.ruta} aria-label={m.nombre} className={estiloEnlace} onClick={alNavegar}>
                       <span className="acma-nav-icono"><IconoAcma nombre={m.id} /></span>
                       <span className="min-w-0 flex-1 truncate">{m.nombre}</span>
                       {mostrarEstados && (
