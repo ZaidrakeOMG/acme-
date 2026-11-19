@@ -225,3 +225,24 @@ El TXT del 19-nov-2026 contiene 31/31 evaluados, 0 errores, 12 pruebas con
 alguna escritura DEMO verificada, 16 consultas sin CRUD y 3 pendientes.
 No demuestra que todos los apartados estén funcionalmente completos; el
 folio F-000001 todavía figura sin Técnico asignado ni jornada GPS oficial.
+
+
+## Folio rastreado: indicador grande en mapa de Operaciones
+
+Al hacer clic en **Rastrear** dentro de la tabla de folios, se selecciona
+el folio y se marca su fila. Si el técnico asignado inició jornada y el
+servidor recibió coordenadas GPS válidas, el mapa muestra un marcador
+**azul grande**, con un pulso y el **número del folio**, sobre la última
+ubicación real de ese técnico. El mapa se centra en el marcador y este se
+mueve al llegar nuevas posiciones. Un botón **Centrar en el folio** permite
+enfocarlo de nuevo. No indica la posición física del activo ni de la sucursal.
+
+Si el usuario Superadmin inició el GPS **personal TESTBOT DEMO**, su
+posición se muestra con un marcador **rojo grande**, pulso y etiqueta
+**GPS PERSONAL · DEMO**, vinculado visualmente al folio ficticio y
+sin alteración de roles, usuarios o registros de producción.
+
+**Sin GPS o sin técnico asignado, no se coloca un pin inventado**. La
+pantalla muestra expresamente por qué no hay coordenadas de seguimiento.
+Los colores van acompañados de iconos/leyendas y la animación respeta la
+preferencia del dispositivo de reducir movimiento.

@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { Aviso, Boton, Encabezado, Insignia, Tarjeta } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { mensajeDeError } from '../../services/api'
+import { posicionTecnicoDelFolio } from '../../services/marcadorFolio'
 import { abrirCanalGpsDemo, validarPuntoGpsDemo, type EventoGpsDemo, type PuntoGpsDemo } from '../../services/testbotGpsDemo'
 import { atenderAlerta, cerrarJornadaDe, recorridoDe, suscribirOperacion, tablero } from '../../services/operacion'
 import { aceptarPropuesta, propuestasPendientes, rechazarPropuesta } from '../../services/rutas'
@@ -71,6 +72,7 @@ export function Operaciones() {
   const [conexion, setConexion] = useState<'conectando' | 'en_vivo' | 'reconectando'>('conectando')
   const [ultimoEvento, setUltimoEvento] = useState<string | null>(null)
   const [seleccionado, setSeleccionado] = useState<string | null>(null)
+  const [folioRastreadoId, setFolioRastreadoId] = useState<string | null>(null)
   const [recorrido, setRecorrido] = useState<PuntoRecorrido[]>([])
   const [centrarEn, setCentrarEn] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
   const [orden, setOrden] = useState<'estatus' | 'folios' | 'tiempo'>('estatus')
@@ -106,14 +108,18 @@ export function Operaciones() {
     return cerrar
   }, [cargar])
 
-  async function verRecorrido(tecnicoId: string) {
+  async function verRecorrido(tecnicoId: string, folioId?: string) {
+    setFolioRastreadoId(folioId ?? null)
     setSeleccionado(tecnicoId)
     setError(null)
     try {
       const r = await recorridoDe(tecnicoId, datos?.parametros.horas_recorrido ?? 2)
       setRecorrido(r.puntos)
       const ultimo = r.puntos.at(-1)
-      if (ultimo) setCentrarEn({ lat: ultimo.lat, lng: ultimo.lng, zoom: 15 })
+      const folio = folioId ? datos?.folios.find(x => x.folio_id === folioId) : null
+      const actual = posicionTecnicoDelFolio(folio ?? null, datos?.tecnicos ?? [])
+      if (actual) setCentrarEn({ lat: actual.lat, lng: actual.lng, zoom: 17 })
+      else if (!folioId && ultimo) setCentrarEn({ lat: ultimo.lat, lng: ultimo.lng, zoom: 15 })
     } catch (e) { setError(mensajeDeError(e)) }
   }
 
@@ -135,25 +141,35 @@ export function Operaciones() {
 
   function rastrearFolio(f: FolioEnTablero) {
     setAviso(null)
+    setFolioRastreadoId(f.folio_id)
+    // Esta ubicación es una prueba personal, no una ubicación de Técnico.
+    if (gpsPersonal?.folioId === f.folio_id) {
+      setCentrarEn({ lat: gpsPersonal.lat, lng: gpsPersonal.lng, zoom: 17 })
+      setAviso('Rastreando la ubicación personal DEMO de ' + f.numero_folio +
+        '. El marcador rojo es una prueba local, no una jornada de Técnico.')
+      return
+    }
     if (!f.tecnico_id) {
       setAviso('El folio ' + f.numero_folio +
-        ' todavía no tiene técnico asignado. Puedes seguir el estado, pero no hay GPS por rastrear.')
+        ' todavía no tiene técnico asignado. No se puede mostrar GPS real.')
       return
     }
-    // Folio.tecnico_id es Usuario.id; el endpoint GPS espera Tecnico.id.
+    // Folio.tecnico_id = Usuario.id, mientras que el historial GPS utiliza Tecnico.id.
     const tecnico = datos?.tecnicos.find(t => t.usuario_id === f.tecnico_id)
     if (!tecnico) {
-      setAviso('El técnico asignado al folio ' + f.numero_folio + ' no aparece en el tablero.')
+      setAviso('El técnico del folio ' + f.numero_folio + ' no aparece en el tablero GPS.')
       return
     }
-    if (!tecnico.en_jornada || tecnico.lat == null || tecnico.lng == null) {
+    const posicion = posicionTecnicoDelFolio(f, datos?.tecnicos ?? [])
+    if (!posicion) {
       setAviso('Folio ' + f.numero_folio +
-        ': el técnico debe iniciar jornada y autorizar GPS para que aparezca una ruta real.')
+        ': el técnico debe tener jornada abierta y ubicación GPS disponible para que aparezca el marcador.')
     } else {
-      setAviso('Rastreando al técnico asignado al folio ' + f.numero_folio +
-        '. Su recorrido se actualiza cada 12 segundos.')
+      setCentrarEn({ lat: posicion.lat, lng: posicion.lng, zoom: 17 })
+      setAviso('Rastreando ' + f.numero_folio +
+        ': marcador azul sobre la última ubicación GPS recibida del técnico.')
     }
-    void verRecorrido(tecnico.tecnico_id)
+    void verRecorrido(tecnico.tecnico_id, f.folio_id)
   }
 
   // GPS DEMO del usuario Superadmin: solo entre pestañas de ESTE navegador.
@@ -192,6 +208,14 @@ export function Operaciones() {
   }, [usuario?.id, usuario?.rol])
 
   const tecnicos = useMemo(() => ordenarTecnicos(datos?.tecnicos ?? [], orden), [datos?.tecnicos, orden])
+  const folioEnRastreo = datos?.folios.find(f => f.folio_id === folioRastreadoId) ?? null
+  const folioDestacado = useMemo(() => {
+    const folio = datos?.folios.find(f => f.folio_id === folioRastreadoId)
+    const posicion = posicionTecnicoDelFolio(folio ?? null, datos?.tecnicos ?? [])
+    return folio && posicion
+      ? { numero: folio.numero_folio, lat: posicion.lat, lng: posicion.lng }
+      : null
+  }, [datos?.folios, datos?.tecnicos, folioRastreadoId])
   const elegido = tecnicos.find((t) => t.tecnico_id === seleccionado) ?? null
   const enJornada = tecnicos.filter((t) => t.en_jornada)
 
@@ -217,6 +241,24 @@ export function Operaciones() {
       )}
 
       <Indicadores datos={datos} enJornada={enJornada.length} ultimoEvento={ultimoEvento} />
+      {folioEnRastreo && (
+        <div className="my-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm"
+          data-testid="operaciones-folio-rastreado">
+          <strong className="text-blue-950">Seguimiento de {folioEnRastreo.numero_folio}</strong>
+          <p className="mt-1 text-slate-700">
+            {folioDestacado ? 'Marcador azul grande: última posición registrada del técnico asignado.'
+              : gpsPersonal?.folioId === folioEnRastreo.folio_id
+                ? 'Marcador rojo grande: tu GPS personal de prueba. No es seguimiento oficial.'
+                : 'Sin coordenadas GPS del técnico: no se dibuja una ubicación inventada.'}
+          </p>
+          {folioDestacado && (
+            <button type="button" className="mt-2 rounded-lg bg-blue-800 px-3 py-1.5 font-semibold text-white"
+              onClick={() => setCentrarEn({ lat: folioDestacado.lat, lng: folioDestacado.lng, zoom: 17 })}>
+              Centrar en el folio
+            </button>
+          )}
+        </div>
+      )}
       {gpsPersonal && (
         <div className="my-3 rounded-lg border border-blue-300 bg-blue-50 p-3 text-sm"
           data-testid="operaciones-gps-personal-demo">
@@ -244,7 +286,8 @@ export function Operaciones() {
           <SiFallaElMapa>
             <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-slate-100" />}>
               <Mapa tecnicos={enJornada} unidades={datos?.unidades ?? []} recorrido={recorrido}
-                    gpsPersonal={gpsPersonal} rutaGpsPersonal={rutaGpsPersonal}
+                    folioDestacado={folioDestacado}
+                     gpsPersonal={gpsPersonal} rutaGpsPersonal={rutaGpsPersonal}
                     seleccionado={seleccionado} centrarEn={centrarEn}
                     alElegirTecnico={(id) => void verRecorrido(id)} />
             </Suspense>
@@ -264,7 +307,8 @@ export function Operaciones() {
             <span className="text-slate-400">· Fila roja: alerta activa. Fila amarilla: desvío de ruta (§6.8.4).</span>
           </div>
 
-          <PanelFolios folios={datos?.folios ?? []} alRastrear={rastrearFolio} />
+          <PanelFolios folios={datos?.folios ?? []} alRastrear={rastrearFolio}
+             folioRastreadoId={folioRastreadoId} />
         </div>
 
         <div className="space-y-4">
@@ -549,9 +593,10 @@ function DetalleTecnico({ tecnico, recorrido, folios, soloLectura, alCerrarJorna
   )
 }
 
-function PanelFolios({ folios, alRastrear }: {
+function PanelFolios({ folios, alRastrear, folioRastreadoId }: {
   folios: FolioEnTablero[]
   alRastrear: (folio: FolioEnTablero) => void
+  folioRastreadoId: string | null
 }) {
   const [orden, setOrden] = useState<'urgencia' | 'hora'>('urgencia')
   const lista = useMemo(() => {
@@ -583,7 +628,8 @@ function PanelFolios({ folios, alRastrear }: {
               <tr><td colSpan={6} className="py-4 text-center text-slate-400">Sin folios del día.</td></tr>
             )}
             {lista.map((f) => (
-              <tr key={f.folio_id} className={f.incumplido ? 'bg-red-50' : f.en_riesgo ? 'bg-amber-50' : ''}>
+              <tr key={f.folio_id} className={folioRastreadoId === f.folio_id ? 'bg-blue-100 ring-1 ring-blue-300' :
+                f.incumplido ? 'bg-red-50' : f.en_riesgo ? 'bg-amber-50' : ''}>
                 <td className="py-1">
                   <Link to={`/folios/${f.folio_id}`} className="text-primario hover:underline">{f.numero_folio}</Link>
                 </td>
@@ -600,8 +646,11 @@ function PanelFolios({ folios, alRastrear }: {
                 </td>
                 <td className="py-1 text-xs">
                   <button type="button" onClick={() => alRastrear(f)}
-                    className="rounded border border-slate-300 px-2 py-1 text-primario">
-                    Rastrear
+                    aria-pressed={folioRastreadoId === f.folio_id}
+                    title={'Mostrar ubicación GPS del folio ' + f.numero_folio}
+                    className={'rounded border px-2 py-1 font-semibold ' + (folioRastreadoId === f.folio_id
+                      ? 'border-blue-800 bg-blue-800 text-white' : 'border-slate-300 text-primario')}>
+                    {folioRastreadoId === f.folio_id ? 'Seleccionado' : 'Rastrear'}
                   </button>
                 </td>
               </tr>

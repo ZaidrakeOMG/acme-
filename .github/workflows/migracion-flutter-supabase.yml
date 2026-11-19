@@ -67,6 +67,7 @@ jobs:
               frontend/src/pages/operaciones/Operaciones.tsx|\
               frontend/src/pages/operaciones/MapaOperaciones.tsx|\
               frontend/src/services/mapas.ts|\
+              frontend/src/services/marcadorFolio.ts|\
               frontend/src/pages/formularios/Constructor.tsx|\
               frontend/src/services/testbotAcma.ts|\
               frontend/src/services/testbotFlujoDemo.ts|\
