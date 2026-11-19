@@ -326,3 +326,104 @@ body { background: #f7f7fa; color: var(--acma-ink); }
   .acma-header { gap: .3rem; }
   .acma-contenido { padding-left: .7rem; padding-right: .7rem; }
 }
+
+
+/* Ubicación destacada al rastrear un folio: el marcador y el texto tienen alto contraste.
+   Azul = técnico asignado con GPS real; rojo = GPS personal TESTBOT DEMO sin jornada oficial. */
+.acma-folio-destacado.leaflet-div-icon {
+  background: transparent;
+  border: 0;
+}
+.acma-folio-pin {
+  position: relative;
+  width: 80px;
+  height: 88px;
+  --acma-pin-color: #1852a4;
+  --acma-pin-borde: #dbeafe;
+}
+.acma-folio-pin--demo {
+  --acma-pin-color: #b91c47;
+  --acma-pin-borde: #ffe4e6;
+}
+.acma-folio-pin__pulso {
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  width: 72px;
+  height: 72px;
+  border: 4px solid var(--acma-pin-color);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--acma-pin-color) 18%, transparent);
+  animation: acma-folio-resaltar 2.2s ease-out infinite;
+  pointer-events: none;
+}
+.acma-folio-pin__cuerpo {
+  position: absolute;
+  left: 9px;
+  top: 7px;
+  z-index: 2;
+  display: grid;
+  width: 62px;
+  height: 62px;
+  place-items: center;
+  border: 5px solid white;
+  border-radius: 50%;
+  background: var(--acma-pin-color);
+  color: #fff;
+  box-shadow: 0 5px 15px rgb(15 23 42 / 34%), 0 0 0 3px var(--acma-pin-borde);
+}
+.acma-folio-pin__cuerpo::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  bottom: -14px;
+  width: 17px;
+  height: 17px;
+  transform: rotate(45deg);
+  border-radius: 1px 0 0 0;
+  background: var(--acma-pin-color);
+  z-index: -1;
+}
+.acma-folio-pin__etiqueta {
+  position: absolute;
+  left: 50%;
+  bottom: 91px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 165px;
+  max-width: 220px;
+  gap: 2px;
+  transform: translateX(-50%);
+  border: 1px solid white;
+  border-radius: 13px;
+  background: #172038;
+  padding: 7px 12px;
+  box-shadow: 0 6px 20px rgb(15 23 42 / 30%);
+  color: white;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  pointer-events: none;
+}
+.acma-folio-pin__etiqueta strong {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  overflow-wrap: anywhere;
+}
+.acma-folio-pin__etiqueta span {
+  color: #cbd5e1;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+@keyframes acma-folio-resaltar {
+  0% { transform: scale(.74); opacity: .85; }
+  70%, 100% { transform: scale(1.65); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .acma-folio-pin__pulso { animation: none; opacity: .3; }
+}
