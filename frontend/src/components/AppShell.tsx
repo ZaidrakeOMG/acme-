@@ -4,6 +4,8 @@ import { modulosDe, NOMBRE_ROL, type GrupoModulo, type Modulo } from '../config/
 import { useAuth } from '../contexts/AuthContext'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { IndicadorConectividad } from './IndicadorConectividad'
+import { IndicadorEstadoTestBot } from './IndicadorEstadoTestBot'
+import { useIndicadoresTestBot, type IndicadoresTestBot } from '../services/testbotEstadoVisual'
 import { IconoAcma } from './IconosAcma'
 import { TestBotAcma } from './TestBotAcma'
 
@@ -19,10 +21,12 @@ function nombreActual(modulos: Modulo[], pathname: string): string {
   return encontrados[0]?.nombre ?? 'Espacio de trabajo'
 }
 
-function Navegacion({ modulos, alNavegar, rutaActual }: {
+function Navegacion({ modulos, alNavegar, rutaActual, indicadores, mostrarEstados }: {
   modulos: Modulo[]
   alNavegar: () => void
   rutaActual: string
+  indicadores: IndicadoresTestBot
+  mostrarEstados: boolean
 }) {
   const [busqueda, setBusqueda] = useState('')
   const [gruposAbiertos, setGruposAbiertos] = useState<GrupoModulo[]>(['Operación'])
@@ -62,6 +66,22 @@ function Navegacion({ modulos, alNavegar, rutaActual }: {
           />
         </div>
       </div>
+      {mostrarEstados && (
+        <details className="mb-2 shrink-0 px-3 text-[11px] text-white/65">
+          <summary className="cursor-pointer select-none hover:text-white">
+            Indicadores de la última prueba DEMO
+          </summary>
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+            <span><span className="text-emerald-300">●</span> Alta y edición</span>
+            <span><span className="text-teal-300">●</span> Alta</span>
+            <span><span className="text-sky-300">●</span> Solo consulta</span>
+            <span><span className="text-amber-300">●</span> Pendiente</span>
+            <span><span className="text-rose-300">●</span> Error</span>
+            <span><span className="text-slate-300">●</span> Sin probar</span>
+          </div>
+          <p className="mt-1 text-white/50">No representan salud en tiempo real ni aprobación total.</p>
+        </details>
+      )}
       <nav aria-label="Módulos de ACMA" className="acma-menu-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pb-5 pr-1">
         <NavLink to="/" end className={estiloEnlace} onClick={alNavegar}>
           <span className="acma-nav-icono"><IconoAcma nombre="inicio" /></span>
@@ -91,6 +111,10 @@ function Navegacion({ modulos, alNavegar, rutaActual }: {
                     <NavLink key={m.id} to={m.ruta} className={estiloEnlace} onClick={alNavegar}>
                       <span className="acma-nav-icono"><IconoAcma nombre={m.id} /></span>
                       <span className="min-w-0 flex-1 truncate">{m.nombre}</span>
+                      {mostrarEstados && (
+                        <IndicadorEstadoTestBot compacto
+                          estado={m.id === 'formularios' ? indicadores.formularios : indicadores.modulos[m.id]} />
+                      )}
                     </NavLink>
                   ))}
                 </div>
@@ -117,6 +141,7 @@ function Navegacion({ modulos, alNavegar, rutaActual }: {
 /** Shell compartido por React Web y la WebView Android. Mantiene rutas, permisos y estados existentes. */
 export function AppShell() {
   const { usuario, cerrarSesion } = useAuth()
+  const indicadoresTestBot = useIndicadoresTestBot(usuario?.id ?? '', usuario?.rol === 'superadmin')
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [perfilAbierto, setPerfilAbierto] = useState(false)
   const ubicacion = useLocation()
@@ -200,7 +225,8 @@ export function AppShell() {
         </div>
 
         {(!anchoMovil || menuAbierto) && (
-          <Navegacion modulos={modulos} rutaActual={ubicacion.pathname} alNavegar={volverAlInicio} />
+          <Navegacion modulos={modulos} rutaActual={ubicacion.pathname} alNavegar={volverAlInicio}
+            indicadores={indicadoresTestBot} mostrarEstados={usuario.rol === 'superadmin'} />
         )}
         <div className="acma-sidebar-cuenta relative z-10 mt-3 shrink-0 border-t border-white/10 pt-3">
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
