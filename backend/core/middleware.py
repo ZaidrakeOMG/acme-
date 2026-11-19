@@ -61,7 +61,11 @@ def instalar_middleware(app: FastAPI) -> None:
             respuesta.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         respuesta.headers["X-Frame-Options"] = "DENY"
         respuesta.headers["X-Content-Type-Options"] = "nosniff"
-        respuesta.headers["Referrer-Policy"] = "no-referrer"
+        # La SPA debe enviar solo su ORIGEN a proveedores de teselas: OSM bloquea 
+        # solicitudes sin Referer. La API mantiene la politica estricta para no filtrar rutas.
+        respuesta.headers["Referrer-Policy"] = (
+            "no-referrer" if ruta.startswith(("/api/", "/ws/")) else "strict-origin-when-cross-origin"
+        )
         respuesta.headers["Permissions-Policy"] = "camera=(self), geolocation=(self), microphone=()"
         respuesta.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         respuesta.headers["Cross-Origin-Resource-Policy"] = "same-origin"
