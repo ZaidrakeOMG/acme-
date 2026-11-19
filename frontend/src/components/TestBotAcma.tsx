@@ -4,12 +4,22 @@ import { useAuth } from '../contexts/AuthContext'
 import { ErrorAPI, mensajeDeError } from '../services/api'
 import { crearYSeguirFolioDemo, consultarSeguimientoFolioDemo, type SeguimientoFolioDemo } from '../services/testbotEscriturasDemo'
 import { reporteTestBotTXT } from '../services/testbotReporte'
+import { IndicadorEstadoTestBot } from './IndicadorEstadoTestBot'
+import { estadoDePrueba, EVENTO_FORMULARIOS_TESTBOT, EVENTO_RECORRIDO_TESTBOT, type TipoIndicador } from '../services/testbotEstadoVisual'
 import { abrirCanalGpsDemo, type EventoGpsDemo, type PuntoGpsDemo } from '../services/testbotGpsDemo'
 import { ejecutarPasoDemo, INICIAL_DEMO, PASOS_DEMO, type ProgresoDemo } from '../services/testbotFlujoDemo'
 import { INICIAL_RECORRIDO, SECUENCIA_ACMA, guardarResultado, probarModuloDemo, type EstadoRecorrido } from '../services/testbotSecuencia'
 
 const boton = 'rounded-xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50'
 const botonSecundario = boton + ' border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+const CLASE_TARJETA: Record<TipoIndicador, string> = {
+  edicion: 'border-emerald-200 bg-emerald-50',
+  alta: 'border-teal-200 bg-teal-50',
+  consulta: 'border-sky-200 bg-sky-50',
+  pendiente: 'border-amber-200 bg-amber-50',
+  error: 'border-rose-200 bg-rose-50',
+  sin_prueba: 'border-slate-200 bg-slate-50',
+}
 const clave = (usuarioId: string) => 'acma.testbot.formularios.v2.' + usuarioId
 
 function cargar(usuarioId: string): ProgresoDemo {
@@ -30,6 +40,7 @@ function cargar(usuarioId: string): ProgresoDemo {
 }
 function guardarLocal(usuarioId: string, p: ProgresoDemo) {
   try { localStorage.setItem(clave(usuarioId), JSON.stringify(p)) } catch { /* el modo temporal no interrumpe la prueba */ }
+  window.dispatchEvent(new Event(EVENTO_FORMULARIOS_TESTBOT))
 }
 const claveRecorrido = (usuarioId: string) => 'acma.testbot.secuencia.v1.' + usuarioId
 function leerRecorrido(usuarioId: string): EstadoRecorrido {
@@ -47,6 +58,7 @@ function leerRecorrido(usuarioId: string): EstadoRecorrido {
 function persistirRecorrido(usuarioId: string, estado: EstadoRecorrido) {
   try { localStorage.setItem(claveRecorrido(usuarioId), JSON.stringify(estado)) }
   catch { /* sin almacenamiento: el recorrido continúa en esta sesión */ }
+  window.dispatchEvent(new Event(EVENTO_RECORRIDO_TESTBOT))
 }
 function errorLegible(error: unknown): string {
   if (error instanceof ErrorAPI) return mensajeDeError(error)
@@ -550,16 +562,19 @@ export function TestBotAcma() {
                     )}
                     {recorrido.resultados.length > 0 && (
                       <details className="text-xs text-slate-700" data-testid="testbot-resultados">
-                        <summary className="cursor-pointer font-semibold">Resultados del recorrido ({recorrido.resultados.length})</summary>
+                        <summary className="cursor-pointer font-semibold">Resultados del recorrido ({recorrido.resultados.length}) · ver estados de color</summary>
                         <ol className="mt-2 max-h-48 space-y-2 overflow-y-auto">
                           {recorrido.resultados.map((r) => (
-                            <li key={r.id} className="rounded-lg bg-slate-50 p-2">
-                              <strong>{r.estado === 'error' ? 'Error' :
-                                r.estado === 'alta_cambio_demo_verificados' ? 'Alta/edición DEMO OK' :
-                                r.estado === 'alta_demo_verificada' ? 'Alta DEMO OK' :
-                                r.estado === 'consulta_verificada' ? 'Consulta OK' : 'Pendiente'}: {r.nombre}</strong>
-                              <p>{r.mensaje}</p>
-                              {r.detalles.map((detalle, i) => <p key={i}>{detalle}</p>)}
+                            <li key={r.id} className={'rounded-xl border p-3 ' +
+                              CLASE_TARJETA[estadoDePrueba(r.estado).tipo]}>
+                              <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                                <strong className="min-w-0 flex-1 text-slate-900">{r.nombre}</strong>
+                                <IndicadorEstadoTestBot estado={estadoDePrueba(r.estado, r.comprobadoEn)} />
+                              </div>
+                              <p className="font-medium text-slate-700">{r.mensaje}</p>
+                              <div className="mt-2 space-y-1 text-slate-600">
+                                {r.detalles.map((detalle, i) => <p key={i}>{detalle}</p>)}
+                              </div>
                             </li>
                           ))}
                         </ol>
