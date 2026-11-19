@@ -51,8 +51,8 @@ describe('Iconos del estado real de ACMA TestBot', () => {
       }))
       window.dispatchEvent(new Event(EVENTO_RECORRIDO_TESTBOT))
     })
-    expect(result.current.modulos.folios.tipo).toBe('alta')
-    expect(result.current.modulos.app_campo.tipo).toBe('pendiente')
+    expect(result.current.modulos.folios?.tipo).toBe('alta')
+    expect(result.current.modulos.app_campo?.tipo).toBe('pendiente')
     expect(result.current.formularios.tipo).toBe('sin_prueba')
     act(() => {
       localStorage.setItem('acma.testbot.formularios.v2.super-1', JSON.stringify({ paso: 7 }))
