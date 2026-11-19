@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { Aviso, Boton, Encabezado, Insignia, Tarjeta } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { mensajeDeError } from '../../services/api'
+import { abrirCanalGpsDemo, validarPuntoGpsDemo, type EventoGpsDemo, type PuntoGpsDemo } from '../../services/testbotGpsDemo'
 import { atenderAlerta, cerrarJornadaDe, recorridoDe, suscribirOperacion, tablero } from '../../services/operacion'
 import { aceptarPropuesta, propuestasPendientes, rechazarPropuesta } from '../../services/rutas'
 import type { Propuesta } from '../../types/rutas'
@@ -73,6 +74,9 @@ export function Operaciones() {
   const [recorrido, setRecorrido] = useState<PuntoRecorrido[]>([])
   const [centrarEn, setCentrarEn] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
   const [orden, setOrden] = useState<'estatus' | 'folios' | 'tiempo'>('estatus')
+  const [gpsPersonal, setGpsPersonal] = useState<PuntoGpsDemo | null>(null)
+  const [rutaGpsPersonal, setRutaGpsPersonal] = useState<Array<{ lat: number; lng: number }>>([])
+  const primerPuntoGpsDemo = useRef(false)
   const vivo = useRef(true)
 
   const cargar = useCallback(async () => {
@@ -152,6 +156,41 @@ export function Operaciones() {
     void verRecorrido(tecnico.tecnico_id)
   }
 
+  // GPS DEMO del usuario Superadmin: solo entre pestañas de ESTE navegador.
+  // Nunca se mezcla con las jornadas oficiales de los técnicos en backend.
+  useEffect(() => {
+    if (!usuario || usuario.rol !== 'superadmin') return
+    const canal = abrirCanalGpsDemo()
+    if (!canal) return
+    const recibir = (evento: MessageEvent<EventoGpsDemo>) => {
+      if (evento.data?.usuarioId !== usuario.id) return
+      if (evento.data.tipo === 'detener') {
+        setGpsPersonal(null)
+        setRutaGpsPersonal([])
+        primerPuntoGpsDemo.current = false
+        return
+      }
+      const punto = validarPuntoGpsDemo(evento.data, usuario.id)
+      if (!punto) return
+      setGpsPersonal(punto)
+      setRutaGpsPersonal(prev => {
+        const ultimo = prev.at(-1)
+        if (ultimo?.lat === punto.lat && ultimo?.lng === punto.lng) return prev
+        return [...prev, { lat: punto.lat, lng: punto.lng }].slice(-100)
+      })
+      if (!primerPuntoGpsDemo.current) {
+        primerPuntoGpsDemo.current = true
+        setCentrarEn({ lat: punto.lat, lng: punto.lng, zoom: 16 })
+      }
+    }
+    canal.addEventListener('message', recibir)
+    canal.postMessage({ tipo: 'solicitud', usuarioId: usuario.id } satisfies EventoGpsDemo)
+    return () => {
+      canal.removeEventListener('message', recibir)
+      canal.close()
+    }
+  }, [usuario?.id, usuario?.rol])
+
   const tecnicos = useMemo(() => ordenarTecnicos(datos?.tecnicos ?? [], orden), [datos?.tecnicos, orden])
   const elegido = tecnicos.find((t) => t.tecnico_id === seleccionado) ?? null
   const enJornada = tecnicos.filter((t) => t.en_jornada)
@@ -178,6 +217,20 @@ export function Operaciones() {
       )}
 
       <Indicadores datos={datos} enJornada={enJornada.length} ultimoEvento={ultimoEvento} />
+      {gpsPersonal && (
+        <div className="my-3 rounded-lg border border-blue-300 bg-blue-50 p-3 text-sm"
+          data-testid="operaciones-gps-personal-demo">
+          <strong>GPS personal TESTBOT DEMO · {gpsPersonal.numero}</strong>
+          <p>Ubicación real de este navegador, vinculada visualmente al folio ficticio.
+            No es un Técnico asignado ni está guardada en el servidor.
+            Para detenerla usa el botón del TestBot.</p>
+          <p className="mt-1 text-xs">Última ubicación: {gpsPersonal.capturadaAt} ·
+            precisión aprox. {Math.round(gpsPersonal.precisionM ?? 0)} m ·
+            {rutaGpsPersonal.length} punto(s) de prueba</p>
+          <Link className="text-xs font-semibold text-primario underline"
+            to={'/folios/' + gpsPersonal.folioId}>Ver folio DEMO</Link>
+        </div>
+      )}
       {datos && enJornada.length === 0 && (
         <p className="my-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
           No hay técnicos con jornada abierta en el tablero. El GPS en tiempo real no aparecerá
@@ -191,6 +244,7 @@ export function Operaciones() {
           <SiFallaElMapa>
             <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-slate-100" />}>
               <Mapa tecnicos={enJornada} unidades={datos?.unidades ?? []} recorrido={recorrido}
+                    gpsPersonal={gpsPersonal} rutaGpsPersonal={rutaGpsPersonal}
                     seleccionado={seleccionado} centrarEn={centrarEn}
                     alElegirTecnico={(id) => void verRecorrido(id)} />
             </Suspense>
@@ -506,7 +560,7 @@ function PanelFolios({ folios, alRastrear }: {
     return copia
   }, [folios, orden])
   return (
-    <Tarjeta titulo={`Folios activos y del día · ${folios.length}`}
+    <Tarjeta titulo={`Folios abiertos y del día · ${folios.length}`}
       acciones={
         <div className="flex gap-1 text-xs">
           {([['urgencia', 'Por urgencia'], ['hora', 'Por hora']] as const).map(([v, texto]) => (

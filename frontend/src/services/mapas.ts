@@ -18,8 +18,8 @@ export interface ProveedorMapa {
 export const OSM: ProveedorMapa = {
   id: 'osm',
   nombre: 'OpenStreetMap',
-  url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  atribucion: '© colaboradores de OpenStreetMap',
+  url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  atribucion: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
   maxZoom: 19,
   requiereLlave: false,
   disponible: true,

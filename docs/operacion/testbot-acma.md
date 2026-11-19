@@ -159,3 +159,38 @@ usar TestBot con Superadmin y habilitar escrituras DEMO. Elegir
 el TXT y compartirlo para confirmar la inserción real en la base conectada.
 Para el folio GPS, pulsar **Crear / recuperar folio DEMO y rastrearlo**;
 el último TXT muestra que todavía no se hizo ese paso.
+
+
+## Prueba GPS personal DEMO con Superadmin — 2026-11-19
+
+En TestBot → Probar sistema → Crear/recuperar folio DEMO, tras obtener F-000001
+u otro folio etiquetado DEMO, se habilita **Iniciar mi GPS personal DEMO (pedir permiso)**.
+
+El usuario Superadmin puede conceder permiso explícito de geolocalización de
+su propio navegador. Se usa navigator.geolocation.watchPosition y un
+BroadcastChannel del mismo origen web para mostrar el marcador rojo
+TESTBOT DEMO y la trayectoria en **Operaciones en tiempo real**, incluso en
+otra pestaña de ACMA del mismo navegador. El botón **Detener mi GPS personal
+DEMO** suspende watchPosition y borra el marcador de la prueba.
+
+**Privacidad y alcance:** esta prueba NO cambia roles, NO crea sesiones Técnico,
+NO envía posiciones al endpoint /api/operacion/posiciones, NO almacena ubicaciones
+en Supabase ni en localStorage y NO crea una jornada real. Por tanto verifica
+la captura GPS del navegador, actualizaciones de mapa y comunicación local
+entre pestañas, pero NO certifica el recorrido del Técnico en el servidor. La
+prueba formal debe completarse posteriormente con una cuenta Técnico real,
+una jornada iniciada y un folio asignado mediante el flujo autorizado.
+
+**Mapa:** el backend antes enviaba Referrer-Policy: no-referrer también para
+la SPA; OpenStreetMap rechazaba teselas con 403 sin Referer. Ahora la web
+solo envía el ORIGEN al proveedor de mapas usando
+strict-origin-when-cross-origin. Las rutas API y WebSocket conservan
+no-referrer; no se envían tokens ni rutas privadas. Se mantiene la
+atribución oficial de OpenStreetMap.
+
+**Tablero de folios:** los folios abiertos en estado capturado,
+en_revision, pendiente_informacion y otros estados no finales aparecen
+aunque se hayan creado en días anteriores. Antes el tablero omitía
+F-000001 cuando pasaba al día siguiente. Esto no implica que estén
+asignados ni que haya GPS: se muestran como pendientes y la ubicación
+requiere jornada Técnica real o la capa local de prueba personal.
