@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { ErrorAPI, mensajeDeError } from '../services/api'
 import { crearYSeguirFolioDemo, consultarSeguimientoFolioDemo, type SeguimientoFolioDemo } from '../services/testbotEscriturasDemo'
 import { reporteTestBotTXT } from '../services/testbotReporte'
+import { abrirCanalGpsDemo, type EventoGpsDemo, type PuntoGpsDemo } from '../services/testbotGpsDemo'
 import { ejecutarPasoDemo, INICIAL_DEMO, PASOS_DEMO, type ProgresoDemo } from '../services/testbotFlujoDemo'
 import { INICIAL_RECORRIDO, SECUENCIA_ACMA, guardarResultado, probarModuloDemo, type EstadoRecorrido } from '../services/testbotSecuencia'
 
@@ -81,6 +82,12 @@ export function TestBotAcma() {
   const [folioRastreado, setFolioRastreado] = useState<SeguimientoFolioDemo | null>(null)
   const [rastreoActivo, setRastreoActivo] = useState(false)
   const [errorRastreo, setErrorRastreo] = useState<string | null>(null)
+  const [gpsDemoActivo, setGpsDemoActivo] = useState(false)
+  const [gpsDemoUltimo, setGpsDemoUltimo] = useState<PuntoGpsDemo | null>(null)
+  const [gpsDemoError, setGpsDemoError] = useState<string | null>(null)
+  const gpsWatchRef = useRef<number | null>(null)
+  const canalGpsRef = useRef<BroadcastChannel | null>(null)
+  const ultimoGpsRef = useRef<PuntoGpsDemo | null>(null)
   const [mascotaFallida, setMascotaFallida] = useState(false)
   const progresoRef = useRef<ProgresoDemo>(progreso)
   const bloqueado = useRef(false)
@@ -96,9 +103,94 @@ export function TestBotAcma() {
     setFolioRastreado(null)
     setRastreoActivo(false)
     setErrorRastreo(null)
+    setGpsDemoActivo(false)
+    setGpsDemoUltimo(null)
+    setGpsDemoError(null)
     setOcupado(false)
     bloqueado.current = false
   }, [usuarioId])
+
+  // Canal del navegador: compartir la prueba con OTRAS pestañas de ACMA,
+  // sin persistir ni enviar posiciones al servidor.
+  useEffect(() => {
+    if (!esSuperadmin || !usuarioId) return
+    const canal = abrirCanalGpsDemo()
+    canalGpsRef.current = canal
+    const responderSolicitud = (evento: MessageEvent<EventoGpsDemo>) => {
+      if (evento.data?.tipo === 'solicitud' && evento.data.usuarioId === usuarioId &&
+          ultimoGpsRef.current) canal?.postMessage(ultimoGpsRef.current)
+    }
+    canal?.addEventListener('message', responderSolicitud)
+    return () => {
+      if (gpsWatchRef.current != null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(gpsWatchRef.current)
+      }
+      gpsWatchRef.current = null
+      canal?.postMessage({ tipo: 'detener', usuarioId } satisfies EventoGpsDemo)
+      canal?.removeEventListener('message', responderSolicitud)
+      canal?.close()
+      canalGpsRef.current = null
+      ultimoGpsRef.current = null
+    }
+  }, [usuarioId, esSuperadmin])
+
+  function detenerGpsPersonal() {
+    if (gpsWatchRef.current != null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(gpsWatchRef.current)
+    }
+    gpsWatchRef.current = null
+    ultimoGpsRef.current = null
+    canalGpsRef.current?.postMessage({ tipo: 'detener', usuarioId } satisfies EventoGpsDemo)
+    setGpsDemoActivo(false)
+    setGpsDemoUltimo(null)
+    setGpsDemoError(null)
+    registrar('GPS personal DEMO detenido; no se guardaron coordenadas en el servidor.')
+  }
+
+  function iniciarGpsPersonal() {
+    if (!esSuperadmin || !folioRastreado || gpsWatchRef.current != null) return
+    if (!navigator.geolocation) {
+      setGpsDemoError('Este navegador no ofrece geolocalización. Prueba desde un teléfono con GPS.')
+      return
+    }
+    if (!canalGpsRef.current) {
+      setGpsDemoError('Este navegador no permite comunicar GPS entre las pestañas de ACMA.')
+      return
+    }
+    setGpsDemoError(null)
+    setGpsDemoActivo(true)
+    const folioId = folioRastreado.id
+    const numero = folioRastreado.numero
+    gpsWatchRef.current = navigator.geolocation.watchPosition(
+      (posicion) => {
+        if (!Number.isFinite(posicion.coords.latitude) || !Number.isFinite(posicion.coords.longitude)) return
+        const punto: PuntoGpsDemo = {
+          tipo: 'posicion', usuarioId, folioId, numero,
+          lat: posicion.coords.latitude, lng: posicion.coords.longitude,
+          precisionM: Number.isFinite(posicion.coords.accuracy) ? posicion.coords.accuracy : null,
+          capturadaAt: new Date(posicion.timestamp).toISOString(),
+        }
+        ultimoGpsRef.current = punto
+        setGpsDemoUltimo(punto)
+        setGpsDemoError(null)
+        canalGpsRef.current?.postMessage(punto)
+      },
+      (error) => {
+        const permisoDenegado = error.code === 1
+        setGpsDemoError(permisoDenegado
+          ? 'No se permitió la ubicación. Actívala en el candado de Chrome y vuelve a iniciar la prueba.'
+          : 'Todavía no llega una ubicación GPS. Revisa permisos, señal y precisión del dispositivo.')
+        if (permisoDenegado && gpsWatchRef.current != null) {
+          navigator.geolocation.clearWatch(gpsWatchRef.current)
+          gpsWatchRef.current = null
+          setGpsDemoActivo(false)
+        }
+      },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
+    )
+    registrar('Iniciada solicitud de GPS personal DEMO para ' + numero +
+      '; se mostrará solo en las pestañas de este navegador.')
+  }
 
   function actualizar(p: ProgresoDemo) {
     progresoRef.current = p
@@ -429,6 +521,33 @@ export function TestBotAcma() {
                         </div>
                       )}
                     </section>
+                    {folioRastreado && (
+                      <section className="space-y-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs"
+                        data-testid="testbot-gps-personal">
+                        <p className="font-bold text-blue-950">Prueba: rastrearme a mí (Superadmin)</p>
+                        <p>Comparte tu GPS real con las otras pestañas abiertas de ACMA.
+                          Verás un marcador vinculado a {folioRastreado.numero} en Operaciones.
+                          Es una <strong>simulación local</strong>, no una jornada de Técnico;
+                          no se guarda tu ubicación en la base de datos.</p>
+                        {!gpsDemoActivo ? (
+                          <button type="button" className={boton + ' w-full bg-blue-700 text-white'}
+                            onClick={iniciarGpsPersonal}>
+                            Iniciar mi GPS personal DEMO (pedir permiso)
+                          </button>
+                        ) : (
+                          <button type="button" className={botonSecundario + ' w-full border-blue-400'}
+                            onClick={detenerGpsPersonal}>Detener mi GPS personal DEMO</button>
+                        )}
+                        {gpsDemoActivo && !gpsDemoUltimo && <p>Esperando permiso y primera ubicación…</p>}
+                        {gpsDemoUltimo && (
+                          <p data-testid="testbot-gps-ultima">
+                            Ubicación recibida: {gpsDemoUltimo.capturadaAt} ·
+                            precisión aproximada {Math.round(gpsDemoUltimo.precisionM ?? 0)} m
+                          </p>
+                        )}
+                        {gpsDemoError && <p role="alert" className="text-red-700">{gpsDemoError}</p>}
+                      </section>
+                    )}
                     {recorrido.resultados.length > 0 && (
                       <details className="text-xs text-slate-700" data-testid="testbot-resultados">
                         <summary className="cursor-pointer font-semibold">Resultados del recorrido ({recorrido.resultados.length})</summary>
