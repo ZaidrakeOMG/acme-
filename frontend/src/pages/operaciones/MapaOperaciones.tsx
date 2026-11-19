@@ -2,6 +2,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useEffect, useMemo, useRef } from 'react'
 import { CENTRO_POR_DEFECTO, ZOOM_POR_DEFECTO, proveedorActual } from '../../services/mapas'
+import type { PuntoGpsDemo } from '../../services/testbotGpsDemo'
 import type { PuntoRecorrido, TecnicoEnTablero, UnidadEnTablero } from '../../types/operaciones'
 import { MARCADOR_ESTATUS, NOMBRE_ESTATUS } from '../../types/operaciones'
 
@@ -9,6 +10,8 @@ interface Props {
   tecnicos: TecnicoEnTablero[]
   unidades: UnidadEnTablero[]
   recorrido: PuntoRecorrido[]
+  gpsPersonal?: PuntoGpsDemo | null
+  rutaGpsPersonal?: Array<{ lat: number; lng: number }>
   seleccionado: string | null
   centrarEn: { lat: number; lng: number; zoom?: number } | null
   alElegirTecnico: (tecnicoId: string) => void
@@ -21,13 +24,16 @@ interface Props {
  * trae otra posición, en lugar de volver a dibujar el mapa. Con 50 técnicos mandando cada 30 segundos, redibujar
  * todo haría parpadear la pantalla de la oficina.
  */
-export default function MapaOperaciones({ tecnicos, unidades, recorrido, seleccionado, centrarEn,
+export default function MapaOperaciones({ tecnicos, unidades, recorrido, gpsPersonal, rutaGpsPersonal,
+                                          seleccionado, centrarEn,
                                           alElegirTecnico }: Props) {
   const contenedor = useRef<HTMLDivElement | null>(null)
   const mapa = useRef<L.Map | null>(null)
   const marcadores = useRef<Map<string, L.CircleMarker>>(new Map())
   const marcadoresUn = useRef<Map<string, L.Marker>>(new Map())
   const linea = useRef<L.Polyline | null>(null)
+  const marcadorGpsDemo = useRef<L.CircleMarker | null>(null)
+  const lineaGpsDemo = useRef<L.Polyline | null>(null)
   const proveedor = useMemo(() => proveedorActual(), [])
 
   // Montaje: una sola vez. La capa de teselas viene del proveedor, así que cambiarlo no toca esta pantalla.
@@ -49,6 +55,8 @@ export default function MapaOperaciones({ tecnicos, unidades, recorrido, selecci
       marcadores.current.clear()
       marcadoresUn.current.clear()
       linea.current = null
+      marcadorGpsDemo.current = null
+      lineaGpsDemo.current = null
     }
   }, [proveedor])
 
@@ -134,6 +142,40 @@ export default function MapaOperaciones({ tecnicos, unidades, recorrido, selecci
     linea.current = L.polyline(recorrido.map((p) => [p.lat, p.lng] as [number, number]),
                                { color: '#1C3D8F', weight: 3, opacity: 0.7, dashArray: '6 6' }).addTo(m)
   }, [recorrido])
+
+  // Marcador y ruta de una prueba GPS personal: totalmente separados de los técnicos reales.
+  useEffect(() => {
+    const m = mapa.current
+    if (!m) return
+    if (!gpsPersonal) {
+      marcadorGpsDemo.current?.remove()
+      marcadorGpsDemo.current = null
+      return
+    }
+    const coords: [number, number] = [gpsPersonal.lat, gpsPersonal.lng]
+    const descripcion = 'TESTBOT DEMO · Tu GPS personal · ' + gpsPersonal.numero +
+      ' (NO es la jornada de un Técnico)'
+    if (marcadorGpsDemo.current) {
+      marcadorGpsDemo.current.setLatLng(coords)
+      marcadorGpsDemo.current.setTooltipContent(descripcion)
+    } else {
+      marcadorGpsDemo.current = L.circleMarker(coords, {
+        radius: 12, color: '#991b1b', fillColor: '#ef4444',
+        weight: 4, fillOpacity: 0.85,
+      }).bindTooltip(descripcion, { direction: 'top' }).addTo(m)
+    }
+  }, [gpsPersonal])
+
+  useEffect(() => {
+    const m = mapa.current
+    if (!m) return
+    lineaGpsDemo.current?.remove()
+    lineaGpsDemo.current = null
+    if (!rutaGpsPersonal || rutaGpsPersonal.length < 2) return
+    lineaGpsDemo.current = L.polyline(rutaGpsPersonal.map(p => [p.lat, p.lng] as [number, number]), {
+      color: '#ef4444', weight: 4, opacity: 0.8,
+    }).addTo(m)
+  }, [rutaGpsPersonal])
 
   // Centrar: en un técnico, en una unidad o en todo el mercado.
   useEffect(() => {
