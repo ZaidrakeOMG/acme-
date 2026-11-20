@@ -246,3 +246,38 @@ sin alteración de roles, usuarios o registros de producción.
 pantalla muestra expresamente por qué no hay coordenadas de seguimiento.
 Los colores van acompañados de iconos/leyendas y la animación respeta la
 preferencia del dispositivo de reducir movimiento.
+
+
+## Cambio de interfaz: menú fijable y Asistente ACMA (2026-11-20)
+
+### Navegación de escritorio
+El botón **Desfijar menú lateral** permite convertir el menú en una barra compacta
+de iconos que ocupa menos ancho de pantalla. Al pasar el cursor o enfocar desde
+el teclado, el menú **se despliega sobre el contenido**, sin desplazar las
+pantallas. **Fijar menú lateral** lo deja abierto permanentemente. La elección
+se recuerda localmente (clave acma.menu.fijado.v1). El menú móvil conserva su
+comportamiento de panel superpuesto, botón Abrir menú y barra inferior; los
+grupos de módulos continúan siendo desplegables.
+
+### Ayuda contextual
+El antiguo TestBot se presenta al usuario como **Asistente ACMA**. Abre en
+**Ayuda** y muestra instrucciones numeradas, específicas para cada uno de los
+34 módulos del menú de ACMA, según los permisos de la cuenta. Identifica la
+pantalla actual y también permite elegir otro apartado visible al usuario.
+La caja de preguntas y las opciones rápidas permiten consultar, por ejemplo,
+"¿Cómo registrar una entrada?" en Inventario o "¿Cómo rastrear un folio?" en
+Folios/Operaciones. La respuesta se construye con guías documentadas, sin
+invocar servicios de IA externos ni efectuar operaciones en la base de datos.
+
+Las preguntas son un buscador de guías por módulo/intención, **no** un chat
+generativo de respuesta libre. Si se necesita una ayuda más específica que no
+exista en el catálogo, hay que documentar ese flujo. No se presentan pasos que
+requieran otros roles como si se pudieran ejecutar desde Superadmin.
+
+### Diagnóstico conservado
+Las pruebas DEMO, los 31 módulos del recorrido, el registro TXT, el folio
+ficticio y GPS personal **no se eliminan**. Para mantener la pantalla limpia,
+Superadmin abre **Herramientas de diagnóstico (solo Superadmin)** dentro de
+Ayuda y luego **Abrir diagnóstico técnico**. El diagnóstico sigue requiriendo
+autorización explícita antes de escribir datos ficticios. Los demás roles ven
+solo la ayuda contextual de los apartados a los que tienen permiso.
