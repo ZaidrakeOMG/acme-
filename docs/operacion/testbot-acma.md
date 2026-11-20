@@ -348,3 +348,49 @@ de preguntas recientes únicamente durante la sesión de la vista.
 El modo TestBot de inserciones ficticias y el diagnóstico TXT permanecen
 bajo Herramientas de diagnóstico, solo para Superadmin. La ayuda
 normal no ejecuta modificaciones en la base de datos.
+
+
+## Ampliación del Asistente ACMA — 2026-11-20
+
+**Asistente de consulta y soporte ACMA**, no de temas generales. Ahora contiene
+86 artículos específicos de preguntas frecuentes e incidencias, además de las
+guías paso a paso de los 34 módulos del menú. Su base documental procede de
+las pantallas/servicios del código y de las especificaciones operativas del
+repositorio, y se organiza por módulo y sinónimos de la pregunta.
+
+Puede responder desde cualquier pantalla sobre alta y cierre de folios,
+aprobaciones, duplicados, usuarios, roles, contratos, SLAs, catálogo,
+formularios, evidencia y firma, actividades de campo y sincronización,
+jornadas GPS, ubicación de técnicos y mapa, preventivos por tiempo/medidor,
+reasignaciones, inventario, OC, presupuestos, caja chica, auditoría,
+mensajería Meta/Twilio, notificaciones, integración ERP, activos ISO 55000
+e indicadores BI. Las respuestas incluyen pasos, precauciones y enlaces
+al módulo disponible para el rol.
+
+**Conversación contextual:** identifica la intención y el tema escrito,
+incluso si se pregunta sobre otro módulo; ofrece temas relacionados y
+permite preguntas de seguimiento como «¿y si no funciona?». Las preguntas
+anteriores se mantienen en memoria local de la sesión de la vista, sin
+subirlas a un servicio de chat. Si el tema pertenece a un módulo que el
+usuario no puede consultar, orienta a revisar permisos sin recomendar
+omitir controles.
+
+**Dudas de formularios:** cuando existe un formulario abierto, puede
+explicar sus etiquetas, el tipo de campo y su obligatoriedad, sin leer
+los valores introducidos ni las contraseñas. Las respuestas ante errores
+HTTP se centran en validaciones, permisos, conexión y registro de auditoría,
+sin presentar un diagnóstico de servidor como hecho confirmado.
+
+**Límites honestos:** el asistente **no usa un modelo generativo ni una
+API externa**: combina recuperación de artículos curados, coincidencia de
+sinónimos, contexto corto y guías por campo. No tiene acceso autónomo
+a los datos de otros usuarios, a los logs privados ni a Internet.
+Ante una pregunta fuera de ACMA o desconocida solicita concretar o
+redirige a temas compatibles; no inventa funcionalidades o estados.
+No ejecuta cambios. La herramienta TestBot DEMO continúa separada en
+Herramientas de diagnóstico, solo Superadmin.
+
+Pruebas: comprobar ayuda entre módulos, continuidad de conversación,
+restricciones por rol, filtrado de temas externos, artículos accesibles
+desde Inicio y ayuda para campos visibles. Un resultado de guía no
+equivale a la validación de un proceso en el servidor real.
