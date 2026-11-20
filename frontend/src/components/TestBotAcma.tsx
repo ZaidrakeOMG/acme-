@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../contexts/AuthContext'
+import { modulosDe } from '../config/modulos'
+import { identificarModuloPorRuta, resolverAyuda, type RespuestaGuia } from '../services/ayudaModulos'
 import { ErrorAPI, mensajeDeError } from '../services/api'
 import { crearYSeguirFolioDemo, consultarSeguimientoFolioDemo, type SeguimientoFolioDemo } from '../services/testbotEscriturasDemo'
 import { reporteTestBotTXT } from '../services/testbotReporte'
@@ -65,13 +67,6 @@ function errorLegible(error: unknown): string {
   if (error instanceof Error) return error.message
   return mensajeDeError(error)
 }
-function ayudaPorRuta(pathname: string): string {
-  if (pathname.startsWith('/formularios/constructor')) return 'Puedo completar los campos y probar la publicación de este formulario DEMO.'
-  if (pathname.startsWith('/mis-formularios')) return 'Aquí puedes iniciar, reanudar y consultar formularios publicados.'
-  if (pathname.startsWith('/catalogos')) return 'Los catálogos vinculan equipos, técnicos, tipos de falla y severidades.'
-  if (pathname.startsWith('/folios')) return 'Un folio permite documentar y dar seguimiento a un servicio.'
-  return '¿Necesitas ayuda para trabajar con ACMA?'
-}
 
 /** Asistente visual; el ejecutor opera exclusivamente sobre el cliente y prestador DEMO. */
 export function TestBotAcma() {
@@ -80,6 +75,14 @@ export function TestBotAcma() {
   const { pathname } = useLocation()
   const usuarioId = usuario?.id ?? ''
   const esSuperadmin = usuario?.rol === 'superadmin'
+  const modulosPermitidos = useMemo(() => usuario ? modulosDe(usuario.rol) : [], [usuario?.rol])
+  const moduloPantalla = identificarModuloPorRuta(pathname, modulosPermitidos)
+  const [moduloGuiaId, setModuloGuiaId] = useState('actual')
+  const [preguntaAyuda, setPreguntaAyuda] = useState('')
+  const [respuestaAyuda, setRespuestaAyuda] = useState<RespuestaGuia | null>(null)
+  const moduloGuia = moduloGuiaId === 'actual' ? moduloPantalla :
+    modulosPermitidos.find(m => m.id === moduloGuiaId) ?? moduloPantalla
+  const guiaVisible = respuestaAyuda ?? resolverAyuda(moduloGuia)
   const [abierto, setAbierto] = useState(false)
   const [oculto, setOculto] = useState(false)
   const [sugerencia, setSugerencia] = useState(true)
@@ -101,8 +104,24 @@ export function TestBotAcma() {
   const canalGpsRef = useRef<BroadcastChannel | null>(null)
   const ultimoGpsRef = useRef<PuntoGpsDemo | null>(null)
   const [mascotaFallida, setMascotaFallida] = useState(false)
+  function preguntarAyuda(pregunta: string) {
+    setPreguntaAyuda(pregunta)
+    setRespuestaAyuda(resolverAyuda(moduloGuia, pregunta))
+  }
+  function cambiarModuloGuia(id: string) {
+    setModuloGuiaId(id)
+    setPreguntaAyuda('')
+    setRespuestaAyuda(null)
+  }
   const progresoRef = useRef<ProgresoDemo>(progreso)
   const bloqueado = useRef(false)
+
+  // Al navegar, la ayuda vuelve al contexto del nuevo apartado.
+  useEffect(() => {
+    setModuloGuiaId('actual')
+    setPreguntaAyuda('')
+    setRespuestaAyuda(null)
+  }, [pathname])
 
   useEffect(() => {
     const guardado = cargar(usuarioId)
@@ -390,10 +409,10 @@ export function TestBotAcma() {
   return (
     <div data-testid="acma-testbot" className="fixed bottom-[calc(5.8rem+env(safe-area-inset-bottom))] right-3 z-40 lg:bottom-6 lg:right-6">
       {abierto && !oculto && (
-        <section role="dialog" aria-label="Asistente ACMA TestBot"
+        <section role="dialog" aria-label="Asistente de ayuda ACMA"
           className="mb-3 flex max-h-[min(74dvh,620px)] w-[min(390px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_65px_rgba(15,23,42,.24)]">
           <header className="flex shrink-0 items-center justify-between gap-3 bg-[#242632] px-4 py-3 text-white">
-            <div><strong className="block text-sm">ACMA TestBot</strong><span className="text-xs text-white/70">Pruebas reales de mantenimiento DEMO</span></div>
+            <div><strong className="block text-sm">Asistente ACMA</strong><span className="text-xs text-white/70">Te guía paso a paso en cada módulo</span></div>
             <div className="flex items-center gap-2">
               <button type="button" aria-label="Ocultar asistente" onClick={() => { setOculto(true); setAbierto(false) }}
                 className="rounded-lg px-2 py-1 text-xs hover:bg-white/10">Ocultar</button>
@@ -402,20 +421,78 @@ export function TestBotAcma() {
             </div>
           </header>
           <div className="space-y-3 overflow-y-auto p-4">
-            {esSuperadmin && (
-              <div className="flex gap-2" role="tablist" aria-label="Modo del asistente">
-                <button type="button" role="tab" aria-selected={modo === 'ayuda'} onClick={() => setModo('ayuda')}
-                  className={modo === 'ayuda' ? boton + ' bg-[#a70d2d] text-white' : botonSecundario}>Ayuda</button>
-                <button type="button" role="tab" aria-selected={modo === 'pruebas'} onClick={() => setModo('pruebas')}
-                  className={modo === 'pruebas' ? boton + ' bg-[#a70d2d] text-white' : botonSecundario}>Probar sistema</button>
-              </div>
-            )}
             {!esSuperadmin || modo === 'ayuda' ? (
-              <div className="space-y-3">
-                <p className="text-sm text-slate-700">{ayudaPorRuta(pathname)}</p>
-                <p className="text-xs text-slate-500">El modo Ayuda no modifica datos ni realiza pruebas automáticas.</p>
+              <div className="space-y-4" data-testid="acma-asistente-ayuda">
+                <div>
+                  <label htmlFor="acma-asistente-modulo" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    ¿Sobre qué apartado necesitas ayuda?
+                  </label>
+                  <select id="acma-asistente-modulo" value={moduloGuiaId}
+                    onChange={event => cambiarModuloGuia(event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900">
+                    <option value="actual">{moduloPantalla ? 'Esta pantalla: ' + moduloPantalla.nombre : 'Inicio de ACMA'}</option>
+                    {modulosPermitidos.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                  </select>
+                </div>
+                <form className="space-y-2" onSubmit={event => {
+                  event.preventDefault()
+                  preguntarAyuda(preguntaAyuda.trim())
+                }}>
+                  <label htmlFor="acma-asistente-pregunta" className="block text-xs font-semibold text-slate-600">
+                    Pregúntame cómo realizar un proceso
+                  </label>
+                  <textarea id="acma-asistente-pregunta" value={preguntaAyuda}
+                    onChange={event => setPreguntaAyuda(event.target.value)}
+                    placeholder="Ejemplo: ¿Cómo rastrear un folio? ¿Cómo registrar una entrada?"
+                    rows={2} maxLength={320}
+                    className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900 placeholder:text-slate-400" />
+                  <button type="submit" className={boton + ' w-full bg-[#a70d2d] text-white hover:bg-[#870b25]'}>
+                    Explicar paso a paso
+                  </button>
+                </form>
+                <div className="flex flex-wrap gap-1.5" aria-label="Preguntas rápidas">
+                  {['¿Para qué sirve?', '¿Cómo consultar?', '¿Cómo registrar?'].map(pregunta => (
+                    <button key={pregunta} type="button" className="rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                      onClick={() => preguntarAyuda(pregunta)}>{pregunta}</button>
+                  ))}
+                  {(moduloGuia?.id === 'folios' || moduloGuia?.id === 'operaciones') && (
+                    <button type="button" onClick={() => preguntarAyuda('¿Cómo rastrear un folio?')}
+                      className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-800">
+                      ¿Cómo rastrear un folio?
+                    </button>
+                  )}
+                </div>
+                <section aria-label="Guía paso a paso" className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <h3 className="text-sm font-bold text-[#92203b]">{guiaVisible.titulo}</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">{guiaVisible.introduccion}</p>
+                  <ol className="mt-3 space-y-2">
+                    {guiaVisible.pasos.map((paso, i) => (
+                      <li key={i} className="flex gap-2 text-sm leading-5 text-slate-800">
+                        <span aria-hidden="true" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-[#a70d2d] shadow-sm">{i + 1}</span>
+                        <span>{paso}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  <p className="mt-3 rounded-lg border border-slate-200 bg-white p-2 text-xs leading-5 text-slate-600">{guiaVisible.consejo}</p>
+                </section>
+                {guiaVisible.ruta && (
+                  <button type="button" className={botonSecundario + ' w-full border-[#a70d2d] text-[#a70d2d]'}
+                    onClick={() => navegar(guiaVisible.ruta!)}>Ir al módulo explicado</button>
+                )}
+                <p className="text-[11px] text-slate-500">Esta ayuda muestra instrucciones documentadas en ACMA; no es un chat de IA externa. No lee datos privados del formulario ni realiza cambios.</p>
+                {esSuperadmin && (
+                  <details className="rounded-xl border border-slate-200 bg-white p-3 text-xs">
+                    <summary className="cursor-pointer font-semibold text-slate-700">Herramientas de diagnóstico (solo Superadmin)</summary>
+                    <p className="my-2 text-slate-500">Las pruebas con registros DEMO se mantienen aparte de la ayuda diaria.</p>
+                    <button type="button" className={botonSecundario + ' w-full'}
+                      onClick={() => setModo('pruebas')}>Abrir diagnóstico técnico</button>
+                  </details>
+                )}
               </div>
             ) : (
+              <div className="space-y-3">
+                <button type="button" className={botonSecundario + ' w-full'}
+                  onClick={() => setModo('ayuda')}>Volver al asistente de ayuda</button>
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Formularios dinámicos · DEMO</p>
                 {progreso.paso < PASOS_DEMO.length ? (
