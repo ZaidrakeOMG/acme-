@@ -110,7 +110,8 @@ function seguimiento(articulo: ArticuloConocimiento, pregunta: string, permitido
     introduccion: 'Sigamos con el mismo proceso. No puedo ver automáticamente tu error ni tus datos.',
     pasos: ['Comprueba de nuevo el paso donde se detiene: ' + (articulo.pasos[0] ?? 'abre el módulo.'),
       'Verifica la conexión, el rol, el cliente y los campos obligatorios.',
-      articulo.pasos.at(-1) ?? 'Revisa el resultado de la operación.',
+      articulo.id.includes('gps') ? 'Para GPS: confirma jornada del Técnico, permiso de ubicación, conexión y fecha de última posición.' :
+        (articulo.pasos.at(-1) ?? 'Revisa el resultado de la operación.'),
       'Copia el mensaje o código de error exacto sin contraseñas. Con eso puedo indicarte la revisión siguiente.'],
     consejo: 'No repitas escrituras que podrían haberse completado sin verificar primero el registro.',
   }}
