@@ -493,7 +493,6 @@ export function TestBotAcma() {
               <div className="space-y-3">
                 <button type="button" className={botonSecundario + ' w-full'}
                   onClick={() => setModo('ayuda')}>Volver al asistente de ayuda</button>
-              <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Formularios dinámicos · DEMO</p>
                 {progreso.paso < PASOS_DEMO.length ? (
                   <>
