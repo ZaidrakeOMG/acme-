@@ -239,8 +239,8 @@ export function AppShell() {
           (menuFijado ? 'lg:shadow-none ' : 'lg:shadow-xl ') +
           (menuAbierto ? 'translate-x-0' : '-translate-x-full')}
       >
-        <div className={'mb-5 flex shrink-0 items-center gap-2 px-2 ' +
-          (menuVisibleEscritorio ? 'justify-between' : 'justify-center')}>
+        <div className={'mb-5 flex shrink-0 items-center gap-1 ' +
+          (anchoMovil || menuVisibleEscritorio ? 'justify-between px-1' : 'justify-center px-0')}>
           <NavLink to="/" className="flex min-w-0 items-center gap-3" aria-label="Inicio ACMA" onClick={volverAlInicio}>
             <div className="acma-logo-caja">
               <img src="/icono.svg" alt="Identidad ACMA" className="h-10 w-10 object-contain" />
@@ -248,7 +248,7 @@ export function AppShell() {
             {(anchoMovil || menuVisibleEscritorio) && (
               <div className="min-w-0">
                 <strong className="block text-xl font-extrabold tracking-[.13em] text-white">ACMA</strong>
-                <span className="block text-[10px] font-medium tracking-wide text-white/55">PLATAFORMA EMPRESARIAL</span>
+                {menuFijado && <span className="block text-[10px] font-medium tracking-wide text-white/55">PLATAFORMA EMPRESARIAL</span>}
               </div>
             )}
           </NavLink>
