@@ -156,6 +156,8 @@ export function TestBotAcma() {
     if (arrastre.movio) {
       guardarBurbuja(usuarioId, posBurbujaRef.current)
       evitarClicRef.current = true
+      // Si el navegador no genera click tras drag, el siguiente toque real no debe perderse.
+      window.setTimeout(() => { evitarClicRef.current = false }, 0)
       setSugerencia(false)
     }
     arrastreRef.current = null
