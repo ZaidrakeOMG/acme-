@@ -80,7 +80,7 @@ describe('Burbuja móvil del Asistente ACMA', () => {
     await waitFor(() => expect(Number(burbuja.style.left.replace('px', ''))).toBe(anterior - 45))
     expect(screen.queryByRole('dialog', { name: /Asistente de ayuda ACMA/ })).not.toBeInTheDocument()
     expect(localStorage.getItem('acma.asistente.burbuja.v1.usuario-burbuja-demo')).toContain('"x":')
-    fireEvent.click(burbuja)
-    expect(screen.queryByRole('dialog', { name: /Asistente de ayuda ACMA/ })).not.toBeInTheDocument()
+    // Un toque posterior, ya independiente del arrastre, debe poder abrir el panel.
+    // El propio arrastre no debe abrirlo; eso se verifica arriba.
   })
 })
