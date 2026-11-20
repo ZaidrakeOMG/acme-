@@ -3,6 +3,9 @@ import type { ReactNode } from 'react'
 /** Iconografía SVG uniforme. Sin emojis, librerías nuevas ni fuentes externas. */
 const TRAZOS: Record<string, ReactNode> = {
   menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
+  fijar: <><path d="m16 3 5 5-2.4 1.3-2.2 4.6-3.4 1.3-2.1 5.8-1.6-1.6 1.7-6-3.9-3.9-4.8 1.3-1.3-1.3 5.2-2.4 1.2-3.9 4.8-1.9z" /></>,
+  desfijar: <><path d="m3 3 18 18M15 4l5 4-2.5 1.5-1.3 3M12 16l-1.4 5-1.6-1.6 1-3M4 10l2-2 2 2" /></>,
+
   cerrar: <><path d="M6 6 18 18M18 6 6 18" /></>,
   chevron: <><path d="m6 9 6 6 6-6" /></>,
   buscar: <><circle cx="11" cy="11" r="7" /><path d="m16 16 4 4" /></>,
