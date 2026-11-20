@@ -143,19 +143,17 @@ export function AppShell() {
   const { usuario, cerrarSesion } = useAuth()
   const indicadoresTestBot = useIndicadoresTestBot(usuario?.id ?? '', usuario?.rol === 'superadmin')
   const [menuAbierto, setMenuAbierto] = useState(false)
-  // Fijado: ocupa ancho de pantalla. Desfijado: rail compacto que se despliega
-  // temporalmente encima del contenido al pasar el cursor o enfocar con teclado.
+  // Fijado: ancho permanente. Desfijado: barra compacta; clic para abrir en Web o Flutter.
   const [menuFijado, setMenuFijado] = useState(() => {
     try { return localStorage.getItem('acma.menu.fijado.v1') !== 'false' } catch { return true }
   })
   const [menuDesplegado, setMenuDesplegado] = useState(false)
   const menuVisibleEscritorio = menuFijado || menuDesplegado
   function alternarMenuFijado() {
-    setMenuFijado(prev => {
-      const proximo = !prev
-      try { localStorage.setItem('acma.menu.fijado.v1', String(proximo)) } catch { /* almacenamiento opcional */ }
-      return proximo
-    })
+    const fijado = !menuFijado
+    setMenuFijado(fijado)
+    setMenuDesplegado(!fijado)
+    try { localStorage.setItem('acma.menu.fijado.v1', String(fijado)) } catch { /* opcional */ }
   }
   const [perfilAbierto, setPerfilAbierto] = useState(false)
   const ubicacion = useLocation()
@@ -178,8 +176,27 @@ export function AppShell() {
 
   useEffect(() => {
     setMenuAbierto(false)
+    setMenuDesplegado(false)
     setPerfilAbierto(false)
   }, [ubicacion.pathname, ubicacion.search])
+
+  // Tanto en navegador como en WebView: clic exterior o Escape contrae panel temporal.
+  useEffect(() => {
+    if (anchoMovil || menuFijado || !menuDesplegado) return
+    const alExterior = (e: PointerEvent) => {
+      if (e.target instanceof Node && !document.getElementById('acma-menu')?.contains(e.target))
+        setMenuDesplegado(false)
+    }
+    const alTeclado = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuDesplegado(false)
+    }
+    document.addEventListener('pointerdown', alExterior)
+    document.addEventListener('keydown', alTeclado)
+    return () => {
+      document.removeEventListener('pointerdown', alExterior)
+      document.removeEventListener('keydown', alTeclado)
+    }
+  }, [anchoMovil, menuFijado, menuDesplegado])
 
   useEffect(() => {
     if (!menuAbierto || !anchoMovil) return
@@ -199,7 +216,10 @@ export function AppShell() {
   if (!usuario) return null
   const titulo = nombreActual(modulos, ubicacion.pathname)
   const iniciales = usuario.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase()).join('')
-  const volverAlInicio = () => setMenuAbierto(false)
+  const volverAlInicio = () => {
+    setMenuAbierto(false)
+    if (!menuFijado) setMenuDesplegado(false)
+  }
 
   return (
     <div className="acma-shell flex min-h-dvh min-w-0 bg-fondo lg:flex">
@@ -207,16 +227,9 @@ export function AppShell() {
         <button type="button" aria-label="Cerrar navegación" onClick={() => setMenuAbierto(false)}
           className="fixed inset-0 z-40 bg-[#08162b]/70 backdrop-blur-[3px] lg:hidden" />
       )}
-      <div className={'lg:sticky lg:top-0 lg:h-[100dvh] lg:shrink-0 lg:self-start lg:transition-[width] lg:duration-200 ' +
+      <div className={'relative h-0 w-0 shrink-0 lg:sticky lg:top-0 lg:z-40 lg:h-[100dvh] lg:self-start lg:transition-[width] lg:duration-200 ' +
         (menuFijado ? 'lg:w-[17.5rem]' : 'lg:w-[4.75rem]')}>
       <aside
-        onMouseEnter={() => { if (!menuFijado && !anchoMovil) setMenuDesplegado(true) }}
-        onMouseLeave={() => { if (!menuFijado && !anchoMovil) setMenuDesplegado(false) }}
-        onFocusCapture={() => { if (!menuFijado && !anchoMovil) setMenuDesplegado(true) }}
-        onBlurCapture={event => {
-          if (!menuFijado && !anchoMovil && !event.currentTarget.contains(event.relatedTarget as Node | null))
-            setMenuDesplegado(false)
-        }}
         id="acma-menu"
         aria-label="Navegación principal"
         aria-hidden={anchoMovil && !menuAbierto}
@@ -226,8 +239,8 @@ export function AppShell() {
           (menuFijado ? 'lg:shadow-none ' : 'lg:shadow-xl ') +
           (menuAbierto ? 'translate-x-0' : '-translate-x-full')}
       >
-        <div className={'mb-5 flex shrink-0 items-center gap-2 px-2 ' +
-          (menuVisibleEscritorio ? 'justify-between' : 'justify-center')}>
+        <div className={'mb-5 flex shrink-0 items-center gap-1 ' +
+          (anchoMovil || menuVisibleEscritorio ? 'justify-between px-1' : 'justify-center px-0')}>
           <NavLink to="/" className="flex min-w-0 items-center gap-3" aria-label="Inicio ACMA" onClick={volverAlInicio}>
             <div className="acma-logo-caja">
               <img src="/icono.svg" alt="Identidad ACMA" className="h-10 w-10 object-contain" />
@@ -235,17 +248,24 @@ export function AppShell() {
             {(anchoMovil || menuVisibleEscritorio) && (
               <div className="min-w-0">
                 <strong className="block text-xl font-extrabold tracking-[.13em] text-white">ACMA</strong>
-                <span className="block text-[10px] font-medium tracking-wide text-white/55">PLATAFORMA EMPRESARIAL</span>
+                {(anchoMovil || menuFijado) && <span className="block text-[10px] font-medium tracking-wide text-white/55">PLATAFORMA EMPRESARIAL</span>}
               </div>
             )}
           </NavLink>
           {(anchoMovil || menuVisibleEscritorio) && (
             <button type="button" onClick={alternarMenuFijado}
               aria-label={menuFijado ? 'Desfijar menú lateral' : 'Fijar menú lateral'}
-              title={menuFijado ? 'Desfijar: desplegar al pasar el cursor' : 'Fijar: mantener el menú abierto'}
+              title={menuFijado ? 'Desfijar: dejar una barra compacta' : 'Fijar: mantener el menú abierto'}
               aria-pressed={menuFijado}
               className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20 lg:inline-flex">
               <IconoAcma nombre={menuFijado ? 'desfijar' : 'fijar'} className="h-5 w-5" />
+            </button>
+          )}
+          {!anchoMovil && !menuFijado && menuDesplegado && (
+            <button type="button" onClick={() => setMenuDesplegado(false)}
+              aria-label="Contraer menú lateral" title="Contraer menú"
+              className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20 lg:inline-flex">
+              <IconoAcma nombre="cerrar" />
             </button>
           )}
           <button type="button" onClick={() => setMenuAbierto(false)}
@@ -265,20 +285,28 @@ export function AppShell() {
 
         )}
         {!anchoMovil && !menuVisibleEscritorio && (
-          <nav aria-label="Menú contraído" className="flex min-h-0 flex-1 flex-col items-center gap-3 pt-2">
-            <button type="button" aria-label="Desplegar menú lateral"
-              title="Desplegar menú lateral"
+          <nav aria-label="Menú contraído" className="acma-menu-scroll flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto pt-2">
+            <button type="button" aria-label="Desplegar menú lateral" aria-controls="acma-menu"
+              aria-expanded={false} title="Mostrar todos los módulos"
               onClick={() => setMenuDesplegado(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20">
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white hover:bg-white/25">
               <IconoAcma nombre="menu" />
             </button>
             <NavLink to="/" aria-label="Inicio" title="Inicio"
-              className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20">
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20"
+              onClick={volverAlInicio}>
               <IconoAcma nombre="inicio" />
             </NavLink>
+            {modulos.filter(m => ['folios', 'operaciones', 'inventario', 'notificaciones'].includes(m.id)).map(m => (
+              <button type="button" key={m.id} aria-label={'Abrir ' + m.nombre}
+                title={m.nombre} onClick={() => setMenuDesplegado(true)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20">
+                <IconoAcma nombre={m.id} />
+              </button>
+            ))}
           </nav>
         )}
-        {(menuVisibleEscritorio || anchoMovil && menuAbierto) && (
+        {(anchoMovil ? menuAbierto : menuVisibleEscritorio) && (
           <Navegacion modulos={modulos} rutaActual={ubicacion.pathname} alNavegar={volverAlInicio}
             indicadores={indicadoresTestBot} mostrarEstados={usuario.rol === 'superadmin'} />
         )}

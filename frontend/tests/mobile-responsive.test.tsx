@@ -60,6 +60,34 @@ describe('ACMA en pantallas pequeñas', () => {
     expect(abrir).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('en WebView móvil ignora la preferencia compacta de PC y siempre abre un menú táctil completo', () => {
+    localStorage.setItem('acma.menu.fijado.v1', 'false')
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>Inicio móvil</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.queryByRole('navigation', { name: 'Menú contraído' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    expect(screen.getByRole('navigation', { name: 'Módulos de ACMA' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Folios' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cerrar menú' })).toBeInTheDocument()
+    const panel = screen.getByRole('complementary', { name: 'Navegación principal' })
+    expect(panel.parentElement).toHaveClass('w-0')
+    expect(panel.parentElement).toHaveClass('h-0')
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar menú' }))
+    expect(screen.queryByRole('navigation', { name: 'Módulos de ACMA' })).not.toBeInTheDocument()
+    expect(localStorage.getItem('acma.menu.fijado.v1')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar módulos' }))
+    expect(screen.getByRole('button', { name: 'Cerrar navegación' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar navegación' }))
+    expect(screen.queryByRole('navigation', { name: 'Módulos de ACMA' })).not.toBeInTheDocument()
+  })
+
   it('permite buscar módulos y abrir o cerrar secciones desde el menú móvil', () => {
     render(
       <MemoryRouter initialEntries={['/']}>

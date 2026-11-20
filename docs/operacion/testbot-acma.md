@@ -281,3 +281,35 @@ Superadmin abre **Herramientas de diagnóstico (solo Superadmin)** dentro de
 Ayuda y luego **Abrir diagnóstico técnico**. El diagnóstico sigue requiriendo
 autorización explícita antes de escribir datos ficticios. Los demás roles ven
 solo la ayuda contextual de los apartados a los que tienen permiso.
+
+
+## Corrección de regresión del menú Web / Flutter WebView (2026-11-20)
+
+La primera versión del menú fijable se abría automáticamente con hover y se
+contraía al salir el puntero. Ese patrón no es fiable en pantallas táctiles
+(WebView de Flutter) y hacía que el menú cambiara sin intención o escondiera
+los módulos. La segunda versión deja la interacción bajo control explícito:
+
+- **Escritorio:** con menú fijado se ve completo; al desfijarlo sigue abierto
+  hasta pulsar Contraer menú lateral. Contraído deja una barra de accesos
+  con un botón siempre visible Desplegar menú lateral y accesos por módulo.
+  Pulsar el botón abre un panel temporal. Fijar lo mantiene abierto;
+  Contraer, Escape, navegar a un módulo o pulsar fuera lo cierran.
+  No depende del hover ni del tipo de puntero.
+- **Celular y Flutter WebView en viewport estrecho:** el menú se abre desde
+  el encabezado o la barra inferior como panel completo superpuesto, se
+  cierra con el botón Cerrar menú, tocando fuera, o al navegar. **Nunca**
+  se muestra la barra compacta de escritorio en este modo, aunque la
+  preferencia de escritorio esté guardada como desfijada.
+- **Tablet/WebView con viewport ancho:** usa los mismos controles por clic/
+  toque del escritorio. Al no depender de hover, pueden accionarse con el
+  dedo. El menú preserva búsqueda, grupos desplegables y resultados TestBot.
+- **Diseño:** el contenedor móvil no ocupa ancho ni alto extra en el flex
+  principal; el panel de escritorio queda encima del contenido cuando está
+  desfijado y expandido. Se conserva la preferencia guardada.
+
+La aplicación Flutter utiliza la página React dentro de su WebView; el
+arreglo principal reside en AppShell.tsx y no exige cambiar permisos nativos.
+Las pruebas automáticas verifican los controles por clic, persistencia y
+comportamiento móvil. La confirmación visual final requiere usar el
+navegador real y la WebView instalada después del despliegue.

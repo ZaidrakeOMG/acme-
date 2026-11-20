@@ -41,32 +41,49 @@ function pantalla() {
   )
 }
 
-describe('Menú ACMA fijable / desplegable en escritorio', () => {
-  it('desfija y abre el carril temporal al pasar el cursor; puede fijarse de nuevo', () => {
+describe('Menú ACMA fijable y táctil en navegador / Flutter WebView', () => {
+  it('desfija sin cerrar bruscamente; botón contraer y botón desplegar funcionan sin hover', () => {
     pantalla()
-    const barra = screen.getByRole('complementary', { name: 'Navegación principal' })
     const desfijar = screen.getByRole('button', { name: 'Desfijar menú lateral' })
     expect(desfijar).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(desfijar)
     expect(localStorage.getItem('acma.menu.fijado.v1')).toBe('false')
+    expect(screen.getByRole('navigation', { name: 'Módulos de ACMA' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Contraer menú lateral' }))
     expect(screen.getByRole('navigation', { name: 'Menú contraído' })).toBeInTheDocument()
-    fireEvent.mouseEnter(barra)
+    expect(screen.queryByRole('navigation', { name: 'Módulos de ACMA' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Desplegar menú lateral' }))
     expect(screen.getByRole('navigation', { name: 'Módulos de ACMA' })).toBeInTheDocument()
     const fijar = screen.getByRole('button', { name: 'Fijar menú lateral' })
-    expect(fijar).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(fijar)
     expect(localStorage.getItem('acma.menu.fijado.v1')).toBe('true')
     expect(screen.queryByRole('navigation', { name: 'Menú contraído' })).not.toBeInTheDocument()
   })
 
-  it('recuerda que el menú estaba desfijado al entrar de nuevo', () => {
+  it('recuerda el estado compacto; un toque abre módulos y Escape vuelve a contraer', () => {
     localStorage.setItem('acma.menu.fijado.v1', 'false')
     pantalla()
-    const lateral = screen.getByRole('complementary', { name: 'Navegación principal' })
     expect(screen.getByRole('navigation', { name: 'Menú contraído' })).toBeInTheDocument()
-    fireEvent.mouseEnter(lateral)
+    fireEvent.click(screen.getByRole('button', { name: 'Desplegar menú lateral' }))
     expect(screen.getByRole('button', { name: 'Fijar menú lateral' })).toBeInTheDocument()
-    fireEvent.mouseLeave(lateral)
+    fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.getByRole('navigation', { name: 'Menú contraído' })).toBeInTheDocument()
+  })
+
+  it('permite desplegar mediante los accesos rápidos y cerrar con clic fuera', () => {
+    localStorage.setItem('acma.menu.fijado.v1', 'false')
+    pantalla()
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Folios' }))
+    expect(screen.getByRole('navigation', { name: 'Módulos de ACMA' })).toBeInTheDocument()
+    fireEvent.pointerDown(screen.getByText('Inicio ACMA de prueba'))
+    expect(screen.getByRole('navigation', { name: 'Menú contraído' })).toBeInTheDocument()
+  })
+
+  it('el panel fijo conserva sus módulos y no depende de pasar el cursor', () => {
+    pantalla()
+    const lateral = screen.getByRole('complementary', { name: 'Navegación principal' })
+    fireEvent.mouseLeave(lateral)
+    expect(screen.getByRole('link', { name: 'Folios' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Desfijar menú lateral' })).toBeInTheDocument()
   })
 })
