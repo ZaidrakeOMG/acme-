@@ -23,6 +23,13 @@ function a(id: string, moduloId: string, titulo: string, claves: string,
 
 export const CONOCIMIENTO_ACMA: ArticuloConocimiento[] = [
   // Seguridad, configuración y acceso (global).
+  a('acma-descripcion','general','Qué es ACMA y para qué sirve','que es acma|para que sirve acma|que hace acma|plataforma acma|modulos de acma',
+    'ACMA es una plataforma de gestión de mantenimiento con folios, equipos, técnicos, contratos, inventario, preventivos y análisis.',
+    ['El cliente organiza empresas y unidades; el prestador configura equipos, servicios, personal y contratos.',
+      'Los folios registran solicitudes de mantenimiento y estados de atención.',
+      'Técnicos y operadores trabajan desde la app de campo; Operaciones muestra jornadas y GPS recibido.',
+      'Otros módulos permiten preventivos, refacciones, presupuesto, SLA, reportes, auditoría y mensajería.'],
+    'El menú y las acciones visibles dependen del rol de tu cuenta.'),
   a('acceso-inicio','general','No puedo entrar a ACMA','iniciar sesion|no puedo entrar|error al entrar|acceso a acma|login|usuario y contraseña',
     'Para entrar necesitas una cuenta activa, la dirección correcta de ACMA y una sesión válida.',
     ['Comprueba que abriste la dirección oficial de ACMA con conexión a Internet.',
