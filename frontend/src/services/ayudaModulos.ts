@@ -117,6 +117,11 @@ const GUIAS: Record<string, Omit<GuiaModulo, 'id'>> = {
     objetivo: 'Revisar folios no críticos y pendientes de clasificación.',
     pasos: ['Abre Folios no críticos.', 'Consulta los folios pendientes.', 'Selecciona un folio para revisar su información.', 'Si tu rol puede clasificarlo, aplica la categoría adecuada y verifica el resultado.'],
   },
+  mensajeria: {
+    objetivo: 'Revisar la configuración de mensajería, canales WhatsApp/SMS y su consumo.',
+    pasos: ['Abre Mensajería (WhatsApp y SMS).', 'Selecciona el prestador para el que tengas permisos.', 'Comprueba si el proveedor de mensajes y los canales están configurados.', 'Consulta el consumo y la actividad registrada.', 'Antes de habilitar envíos reales, valida destinatarios, consentimiento y costos de la integración.'],
+    consejo: 'Una configuración que aparece como pendiente no indica un fallo del servidor. No envíes mensajes de prueba a números reales sin autorización.',
+  },
   trabajos_especiales: {
     objetivo: 'Registrar y consultar trabajos fuera del mantenimiento ordinario.',
     pasos: ['Abre Trabajos especiales.', 'Busca primero si el trabajo ya está registrado.', 'Selecciona el cliente y la unidad correctos.', 'Describe alcance y presupuesto del trabajo, si corresponde.', 'Guarda y consulta su estado de autorización antes de iniciar la ejecución.'],
