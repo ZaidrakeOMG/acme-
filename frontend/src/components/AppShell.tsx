@@ -143,19 +143,17 @@ export function AppShell() {
   const { usuario, cerrarSesion } = useAuth()
   const indicadoresTestBot = useIndicadoresTestBot(usuario?.id ?? '', usuario?.rol === 'superadmin')
   const [menuAbierto, setMenuAbierto] = useState(false)
-  // Fijado: ocupa ancho de pantalla. Desfijado: rail compacto que se despliega
-  // temporalmente encima del contenido al pasar el cursor o enfocar con teclado.
+  // Fijado: ancho permanente. Desfijado: barra compacta; clic para abrir en Web o Flutter.
   const [menuFijado, setMenuFijado] = useState(() => {
     try { return localStorage.getItem('acma.menu.fijado.v1') !== 'false' } catch { return true }
   })
   const [menuDesplegado, setMenuDesplegado] = useState(false)
   const menuVisibleEscritorio = menuFijado || menuDesplegado
   function alternarMenuFijado() {
-    setMenuFijado(prev => {
-      const proximo = !prev
-      try { localStorage.setItem('acma.menu.fijado.v1', String(proximo)) } catch { /* almacenamiento opcional */ }
-      return proximo
-    })
+    const fijado = !menuFijado
+    setMenuFijado(fijado)
+    setMenuDesplegado(!fijado)
+    try { localStorage.setItem('acma.menu.fijado.v1', String(fijado)) } catch { /* opcional */ }
   }
   const [perfilAbierto, setPerfilAbierto] = useState(false)
   const ubicacion = useLocation()
@@ -178,8 +176,27 @@ export function AppShell() {
 
   useEffect(() => {
     setMenuAbierto(false)
+    setMenuDesplegado(false)
     setPerfilAbierto(false)
   }, [ubicacion.pathname, ubicacion.search])
+
+  // Tanto en navegador como en WebView: clic exterior o Escape contrae panel temporal.
+  useEffect(() => {
+    if (anchoMovil || menuFijado || !menuDesplegado) return
+    const alExterior = (e: PointerEvent) => {
+      if (e.target instanceof Node && !document.getElementById('acma-menu')?.contains(e.target))
+        setMenuDesplegado(false)
+    }
+    const alTeclado = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuDesplegado(false)
+    }
+    document.addEventListener('pointerdown', alExterior)
+    document.addEventListener('keydown', alTeclado)
+    return () => {
+      document.removeEventListener('pointerdown', alExterior)
+      document.removeEventListener('keydown', alTeclado)
+    }
+  }, [anchoMovil, menuFijado, menuDesplegado])
 
   useEffect(() => {
     if (!menuAbierto || !anchoMovil) return
@@ -199,7 +216,10 @@ export function AppShell() {
   if (!usuario) return null
   const titulo = nombreActual(modulos, ubicacion.pathname)
   const iniciales = usuario.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase()).join('')
-  const volverAlInicio = () => setMenuAbierto(false)
+  const volverAlInicio = () => {
+    setMenuAbierto(false)
+    if (!menuFijado) setMenuDesplegado(false)
+  }
 
   return (
     <div className="acma-shell flex min-h-dvh min-w-0 bg-fondo lg:flex">
