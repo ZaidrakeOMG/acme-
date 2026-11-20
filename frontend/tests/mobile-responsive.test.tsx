@@ -76,9 +76,16 @@ describe('ACMA en pantallas pequeñas', () => {
     expect(screen.getByRole('navigation', { name: 'Módulos de ACMA' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Folios' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cerrar menú' })).toBeInTheDocument()
+    const panel = screen.getByRole('complementary', { name: 'Navegación principal' })
+    expect(panel.parentElement).toHaveClass('w-0')
+    expect(panel.parentElement).toHaveClass('h-0')
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar menú' }))
     expect(screen.queryByRole('navigation', { name: 'Módulos de ACMA' })).not.toBeInTheDocument()
     expect(localStorage.getItem('acma.menu.fijado.v1')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar módulos' }))
+    expect(screen.getByRole('button', { name: 'Cerrar navegación' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar navegación' }))
+    expect(screen.queryByRole('navigation', { name: 'Módulos de ACMA' })).not.toBeInTheDocument()
   })
 
   it('permite buscar módulos y abrir o cerrar secciones desde el menú móvil', () => {
