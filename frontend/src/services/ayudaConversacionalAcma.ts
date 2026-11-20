@@ -46,6 +46,7 @@ function contieneFrase(pregunta: string, frase: string): boolean {
 function similitud(pregunta: string, articulo: ArticuloConocimiento, moduloActual: string | null,
                    contexto: ContextoConversacion | undefined): number {
   const q = normalizarConsulta(pregunta)
+  if (q === normalizarConsulta(articulo.titulo)) return 80
   const tokens = new Set(palabras(q))
   let puntuacion = 0
   for (const clave of articulo.claves) {
