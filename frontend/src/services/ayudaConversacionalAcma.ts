@@ -140,8 +140,12 @@ export function responderConversacionAcma({
 }: ConsultaConversacion): RespuestaConversacion {
   const q = normalizarConsulta(pregunta).slice(0, 380)
   const accesibles = new Set(permitidos.map(m => m.id))
+  const moduloNombrado = permitidos.find(m => {
+    const nombre = normalizarConsulta(m.nombre)
+    return nombre.length >= 5 && contieneFrase(q, nombre)
+  }) ?? permitidos.find(m => m.id.length > 4 && contieneFrase(q, m.id.replaceAll('_', ' ')))
   const moduloContexto = permitidos.find(m => m.id === contexto?.ultimoModuloId) ?? moduloActual
-  const modulo = moduloActual ?? moduloContexto ?? null
+  const modulo = moduloNombrado ?? moduloActual ?? moduloContexto ?? null
 
   if (SALUDO.test(q)) return {
     respuesta: {
