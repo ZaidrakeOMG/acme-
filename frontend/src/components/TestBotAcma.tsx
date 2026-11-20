@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../contexts/AuthContext'
 import { modulosDe } from '../config/modulos'
 import { identificarModuloPorRuta, resolverAyuda, type RespuestaGuia } from '../services/ayudaModulos'
+import { camposVisiblesPantalla, responderDudaModulo } from '../services/ayudaCampos'
+import { ajustarBurbuja, guardarBurbuja, leerBurbuja, posicionPanel, type PuntoBurbuja } from '../services/asistenteBurbuja'
 import { ErrorAPI, mensajeDeError } from '../services/api'
 import { crearYSeguirFolioDemo, consultarSeguimientoFolioDemo, type SeguimientoFolioDemo } from '../services/testbotEscriturasDemo'
 import { reporteTestBotTXT } from '../services/testbotReporte'
@@ -104,10 +106,97 @@ export function TestBotAcma() {
   const canalGpsRef = useRef<BroadcastChannel | null>(null)
   const ultimoGpsRef = useRef<PuntoGpsDemo | null>(null)
   const [mascotaFallida, setMascotaFallida] = useState(false)
+  const viewport = () => ({ ancho: window.innerWidth, alto: window.innerHeight })
+  const [posBurbuja, setPosBurbuja] = useState<PuntoBurbuja>(() =>
+    typeof window !== 'undefined' ? leerBurbuja(usuarioId, viewport()) : { x: 20, y: 120 })
+  const posBurbujaRef = useRef(posBurbuja)
+  const arrastreRef = useRef<{
+    pointerId: number; x: number; y: number; inicial: PuntoBurbuja; movio: boolean
+  } | null>(null)
+  const evitarClicRef = useRef(false)
+  const posicionPanelActual = typeof window !== 'undefined'
+    ? posicionPanel(posBurbuja, viewport()) : { left: 12, top: 12, ancho: 360, alto: 450 }
+
+  const [preguntasRecientes, setPreguntasRecientes] = useState<Array<{ pregunta: string; titulo: string }>>([])
   function preguntarAyuda(pregunta: string) {
-    setPreguntaAyuda(pregunta)
-    setRespuestaAyuda(resolverAyuda(moduloGuia, pregunta))
+    const consulta = pregunta.trim()
+    setPreguntaAyuda(consulta)
+    const campos = moduloGuia?.id === moduloPantalla?.id
+      ? camposVisiblesPantalla(document.querySelector('main#contenido-acma'))
+      : []
+    const respuesta = responderDudaModulo(moduloGuia, consulta, campos)
+    setRespuestaAyuda(respuesta)
+    if (consulta) setPreguntasRecientes(prev =>
+      [...prev, { pregunta: consulta, titulo: respuesta.titulo }].slice(-5))
   }
+
+  // Un PointerEvent funciona con ratón, dedo y lápiz en Chrome y Flutter WebView.
+  function alComenzarArrastre(e: ReactPointerEvent<HTMLButtonElement>) {
+    if (e.button !== 0) return
+    arrastreRef.current = {
+      pointerId: e.pointerId, x: e.clientX, y: e.clientY,
+      inicial: posBurbujaRef.current, movio: false,
+    }
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* navegadores limitados */ }
+  }
+  function alMoverBurbuja(e: ReactPointerEvent<HTMLButtonElement>) {
+    const arrastre = arrastreRef.current
+    if (!arrastre || arrastre.pointerId !== e.pointerId) return
+    const dx = e.clientX - arrastre.x, dy = e.clientY - arrastre.y
+    if (!arrastre.movio && Math.hypot(dx, dy) < 6) return
+    arrastre.movio = true
+    e.preventDefault()
+    const nueva = ajustarBurbuja({ x: arrastre.inicial.x + dx, y: arrastre.inicial.y + dy }, viewport())
+    posBurbujaRef.current = nueva
+    setPosBurbuja(nueva)
+  }
+  function alTerminarArrastre(e: ReactPointerEvent<HTMLButtonElement>) {
+    const arrastre = arrastreRef.current
+    if (!arrastre || arrastre.pointerId !== e.pointerId) return
+    if (arrastre.movio) {
+      guardarBurbuja(usuarioId, posBurbujaRef.current)
+      evitarClicRef.current = true
+      setSugerencia(false)
+    }
+    arrastreRef.current = null
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* opcional */ }
+  }
+  function alTecladoBurbuja(e: ReactKeyboardEvent<HTMLButtonElement>) {
+    const desplazamiento: Record<string, [number, number]> = {
+      ArrowLeft: [-18, 0], ArrowRight: [18, 0],
+      ArrowUp: [0, -18], ArrowDown: [0, 18],
+    }
+    const delta = desplazamiento[e.key]
+    if (!delta) return
+    e.preventDefault()
+    const nueva = ajustarBurbuja({
+      x: posBurbujaRef.current.x + delta[0], y: posBurbujaRef.current.y + delta[1],
+    }, viewport())
+    posBurbujaRef.current = nueva
+    setPosBurbuja(nueva)
+    guardarBurbuja(usuarioId, nueva)
+  }
+
+  useEffect(() => {
+    const posicion = leerBurbuja(usuarioId, viewport())
+    posBurbujaRef.current = posicion
+    setPosBurbuja(posicion)
+  }, [usuarioId])
+
+  useEffect(() => {
+    const redimension = () => {
+      const posicion = ajustarBurbuja(posBurbujaRef.current, viewport())
+      posBurbujaRef.current = posicion
+      setPosBurbuja(posicion)
+    }
+    window.addEventListener('resize', redimension)
+    window.visualViewport?.addEventListener('resize', redimension)
+    return () => {
+      window.removeEventListener('resize', redimension)
+      window.visualViewport?.removeEventListener('resize', redimension)
+    }
+  }, [])
+
   function cambiarModuloGuia(id: string) {
     setModuloGuiaId(id)
     setPreguntaAyuda('')
@@ -121,6 +210,7 @@ export function TestBotAcma() {
     setModuloGuiaId('actual')
     setPreguntaAyuda('')
     setRespuestaAyuda(null)
+    setPreguntasRecientes([])
   }, [pathname])
 
   useEffect(() => {
@@ -407,10 +497,13 @@ export function TestBotAcma() {
 
   if (!usuario) return null
   return (
-    <div data-testid="acma-testbot" className="fixed bottom-[calc(5.8rem+env(safe-area-inset-bottom))] right-3 z-40 lg:bottom-6 lg:right-6">
+    <div data-testid="acma-testbot" className="pointer-events-none fixed inset-0 z-[65]">
       {abierto && !oculto && (
         <section role="dialog" aria-label="Asistente de ayuda ACMA"
-          className="mb-3 flex max-h-[min(74dvh,620px)] w-[min(390px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_65px_rgba(15,23,42,.24)]">
+          data-testid="acma-asistente-panel"
+          style={{ left: posicionPanelActual.left, top: posicionPanelActual.top,
+            width: posicionPanelActual.ancho, maxHeight: posicionPanelActual.alto }}
+          className="pointer-events-auto fixed flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_65px_rgba(15,23,42,.24)]">
           <header className="flex shrink-0 items-center justify-between gap-3 bg-[#242632] px-4 py-3 text-white">
             <div><strong className="block text-sm">Asistente ACMA</strong><span className="text-xs text-white/70">Te guía paso a paso en cada módulo</span></div>
             <div className="flex items-center gap-2">
@@ -443,7 +536,7 @@ export function TestBotAcma() {
                   </label>
                   <textarea id="acma-asistente-pregunta" value={preguntaAyuda}
                     onChange={event => setPreguntaAyuda(event.target.value)}
-                    placeholder="Ejemplo: ¿Cómo rastrear un folio? ¿Cómo registrar una entrada?"
+                    placeholder="Ejemplo: ¿Qué pongo en el campo? ¿Por qué no me deja guardar?"
                     rows={2} maxLength={320}
                     className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900 placeholder:text-slate-400" />
                   <button type="submit" className={boton + ' w-full bg-[#a70d2d] text-white hover:bg-[#870b25]'}>
@@ -451,7 +544,7 @@ export function TestBotAcma() {
                   </button>
                 </form>
                 <div className="flex flex-wrap gap-1.5" aria-label="Preguntas rápidas">
-                  {['¿Para qué sirve?', '¿Cómo consultar?', '¿Cómo registrar?'].map(pregunta => (
+                  {['¿Para qué sirve?', '¿Cómo lleno estos campos?', '¿Cómo consultar?', 'No me deja guardar'].map(pregunta => (
                     <button key={pregunta} type="button" className="rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
                       onClick={() => preguntarAyuda(pregunta)}>{pregunta}</button>
                   ))}
@@ -462,6 +555,17 @@ export function TestBotAcma() {
                     </button>
                   )}
                 </div>
+                {preguntasRecientes.length > 1 && (
+                  <details className="rounded-xl border border-slate-200 bg-white p-2 text-xs">
+                    <summary className="cursor-pointer text-slate-600">Preguntas anteriores ({preguntasRecientes.length - 1})</summary>
+                    <div className="mt-2 space-y-1">
+                      {preguntasRecientes.slice(0, -1).map((item, i) => (
+                        <button key={i} type="button" className="block w-full rounded-lg px-2 py-1 text-left text-blue-800 hover:bg-slate-50"
+                          onClick={() => preguntarAyuda(item.pregunta)}>{item.pregunta}</button>
+                      ))}
+                    </div>
+                  </details>
+                )}
                 <section aria-label="Guía paso a paso" className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                   <h3 className="text-sm font-bold text-[#92203b]">{guiaVisible.titulo}</h3>
                   <p className="mt-1 text-xs leading-5 text-slate-600">{guiaVisible.introduccion}</p>
@@ -479,7 +583,7 @@ export function TestBotAcma() {
                   <button type="button" className={botonSecundario + ' w-full border-[#a70d2d] text-[#a70d2d]'}
                     onClick={() => navegar(guiaVisible.ruta!)}>Ir al módulo explicado</button>
                 )}
-                <p className="text-[11px] text-slate-500">Esta ayuda muestra instrucciones documentadas en ACMA; no es un chat de IA externa. No lee datos privados del formulario ni realiza cambios.</p>
+                <p className="text-[11px] text-slate-500">Puedes preguntarme por campos, errores, permisos y procedimientos. Solo identifico etiquetas visibles, nunca tus respuestas ni contraseñas. Esta ayuda aún no es un chat generativo con IA externa y no modifica datos.</p>
                 {esSuperadmin && (
                   <details className="rounded-xl border border-slate-200 bg-white p-3 text-xs">
                     <summary className="cursor-pointer font-semibold text-slate-700">Herramientas de diagnóstico (solo Superadmin)</summary>
@@ -683,14 +787,27 @@ export function TestBotAcma() {
         </section>
       )}
       {!abierto && !oculto && sugerencia && (
-        <div className="mb-2 flex max-w-56 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-lg">
-          <span>¿Necesitas ayuda con ACMA?</span>
+        <div style={{ left: Math.max(12, Math.min(window.innerWidth - 236, posBurbuja.x - 140)),
+          top: Math.max(12, posBurbuja.y - 60) }}
+          className="pointer-events-auto fixed flex max-w-56 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-lg">
+          <span>¿Dudas con ACMA? Arrastra la burbuja.</span>
           <button type="button" aria-label="Descartar sugerencia" onClick={() => setSugerencia(false)} className="text-slate-500">×</button>
         </div>
       )}
       <button type="button" aria-label={oculto ? 'Mostrar asistente ACMA' : abierto ? 'Cerrar asistente ACMA' : 'Abrir asistente ACMA'}
-        onClick={() => { setOculto(false); setAbierto((v) => !v) }}
-        className="ml-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white shadow-[0_5px_22px_rgba(0,0,0,.27)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a70d2d]">
+        title="Arrastra la burbuja para mover el asistente. Usa las flechas del teclado para desplazarla."
+        data-testid="acma-asistente-burbuja"
+        onPointerDown={alComenzarArrastre} onPointerMove={alMoverBurbuja}
+        onPointerUp={alTerminarArrastre} onPointerCancel={alTerminarArrastre}
+        onKeyDown={alTecladoBurbuja}
+        style={{ left: posBurbuja.x, top: posBurbuja.y, touchAction: 'none' }}
+        onClick={() => {
+          if (evitarClicRef.current) { evitarClicRef.current = false; return }
+          setOculto(false)
+          setSugerencia(false)
+          setAbierto(v => !v)
+        }}
+        className="pointer-events-auto fixed flex h-14 w-14 cursor-grab items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white shadow-[0_5px_22px_rgba(0,0,0,.27)] active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a70d2d]">
         <img src={mascotaFallida ? '/icono.svg' : '/testbot-acma.webp'} onError={() => setMascotaFallida(true)}
           alt="" className="h-full w-full object-contain" />
       </button>
