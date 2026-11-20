@@ -191,7 +191,7 @@ export function responderConversacionAcma({
           pasos: ['Consulta tus opciones disponibles en el menú.',
             'Si esta tarea te corresponde, pide al administrador revisar tus permisos.',
             'No intentes entrar con la cuenta de otra persona ni usar un enlace directo para omitir las autorizaciones.'],
-          consejo: 'El asistente respeta las mismas restricciones de visibilidad de módulos que tu cuenta.'],
+          consejo: 'El asistente respeta las mismas restricciones de visibilidad de módulos que tu cuenta.' },
         origen: 'sin_permiso', moduloId: null, articuloId: null, relacionadas: [],
       }
     }
