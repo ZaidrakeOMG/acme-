@@ -75,6 +75,7 @@ jobs:
               frontend/src/services/testbotEscriturasDemo.ts|\
               frontend/src/services/testbotReporte.ts|\
               frontend/src/services/testbotGpsDemo.ts|\
+              frontend/src/services/ayudaModulos.ts|\
               frontend/public/testbot-acma.webp)
                 # Se admiten cambios focalizados de sesión, UI y el nuevo asistente
                 # de pruebas DEMO. Los demás módulos permanecen protegidos.

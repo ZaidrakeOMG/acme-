@@ -143,6 +143,20 @@ export function AppShell() {
   const { usuario, cerrarSesion } = useAuth()
   const indicadoresTestBot = useIndicadoresTestBot(usuario?.id ?? '', usuario?.rol === 'superadmin')
   const [menuAbierto, setMenuAbierto] = useState(false)
+  // Fijado: ocupa ancho de pantalla. Desfijado: rail compacto que se despliega
+  // temporalmente encima del contenido al pasar el cursor o enfocar con teclado.
+  const [menuFijado, setMenuFijado] = useState(() => {
+    try { return localStorage.getItem('acma.menu.fijado.v1') !== 'false' } catch { return true }
+  })
+  const [menuDesplegado, setMenuDesplegado] = useState(false)
+  const menuVisibleEscritorio = menuFijado || menuDesplegado
+  function alternarMenuFijado() {
+    setMenuFijado(prev => {
+      const proximo = !prev
+      try { localStorage.setItem('acma.menu.fijado.v1', String(proximo)) } catch { /* almacenamiento opcional */ }
+      return proximo
+    })
+  }
   const [perfilAbierto, setPerfilAbierto] = useState(false)
   const ubicacion = useLocation()
   const [anchoMovil, setAnchoMovil] = useState(() =>
@@ -193,29 +207,54 @@ export function AppShell() {
         <button type="button" aria-label="Cerrar navegación" onClick={() => setMenuAbierto(false)}
           className="fixed inset-0 z-40 bg-[#08162b]/70 backdrop-blur-[3px] lg:hidden" />
       )}
+      <div className={'lg:sticky lg:top-0 lg:h-[100dvh] lg:shrink-0 lg:self-start lg:transition-[width] lg:duration-200 ' +
+        (menuFijado ? 'lg:w-[17.5rem]' : 'lg:w-[4.75rem]')}>
       <aside
+        onMouseEnter={() => { if (!menuFijado && !anchoMovil) setMenuDesplegado(true) }}
+        onMouseLeave={() => { if (!menuFijado && !anchoMovil) setMenuDesplegado(false) }}
+        onFocusCapture={() => { if (!menuFijado && !anchoMovil) setMenuDesplegado(true) }}
+        onBlurCapture={event => {
+          if (!menuFijado && !anchoMovil && !event.currentTarget.contains(event.relatedTarget as Node | null))
+            setMenuDesplegado(false)
+        }}
         id="acma-menu"
         aria-label="Navegación principal"
         aria-hidden={anchoMovil && !menuAbierto}
         inert={anchoMovil && !menuAbierto}
-        className={`acma-sidebar fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(19rem,88vw)] flex-col overflow-hidden px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl transition-transform duration-300 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-[100dvh] lg:w-[17.5rem] lg:shrink-0 lg:translate-x-0 lg:shadow-none ${menuAbierto ? 'translate-x-0' : '-translate-x-full'}`}
+        className={'acma-sidebar fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(19rem,88vw)] flex-col overflow-hidden px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl transition-[transform,width] duration-200 ease-out lg:absolute lg:inset-y-0 lg:left-0 lg:z-40 lg:h-full lg:translate-x-0 ' +
+          (menuVisibleEscritorio ? 'lg:w-[17.5rem] ' : 'lg:w-[4.75rem] ') +
+          (menuFijado ? 'lg:shadow-none ' : 'lg:shadow-xl ') +
+          (menuAbierto ? 'translate-x-0' : '-translate-x-full')}
       >
-        <div className="mb-5 flex shrink-0 items-center justify-between gap-2 px-2">
-          <NavLink to="/" className="flex min-w-0 items-center gap-3" onClick={volverAlInicio}>
+        <div className={'mb-5 flex shrink-0 items-center gap-2 px-2 ' +
+          (menuVisibleEscritorio ? 'justify-between' : 'justify-center')}>
+          <NavLink to="/" className="flex min-w-0 items-center gap-3" aria-label="Inicio ACMA" onClick={volverAlInicio}>
             <div className="acma-logo-caja">
               <img src="/icono.svg" alt="Identidad ACMA" className="h-10 w-10 object-contain" />
             </div>
-            <div className="min-w-0">
-              <strong className="block text-xl font-extrabold tracking-[.13em] text-white">ACMA</strong>
-              <span className="block text-[10px] font-medium tracking-wide text-white/55">PLATAFORMA EMPRESARIAL</span>
-            </div>
+            {(anchoMovil || menuVisibleEscritorio) && (
+              <div className="min-w-0">
+                <strong className="block text-xl font-extrabold tracking-[.13em] text-white">ACMA</strong>
+                <span className="block text-[10px] font-medium tracking-wide text-white/55">PLATAFORMA EMPRESARIAL</span>
+              </div>
+            )}
           </NavLink>
+          {(anchoMovil || menuVisibleEscritorio) && (
+            <button type="button" onClick={alternarMenuFijado}
+              aria-label={menuFijado ? 'Desfijar menú lateral' : 'Fijar menú lateral'}
+              title={menuFijado ? 'Desfijar: desplegar al pasar el cursor' : 'Fijar: mantener el menú abierto'}
+              aria-pressed={menuFijado}
+              className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20 lg:inline-flex">
+              <IconoAcma nombre={menuFijado ? 'desfijar' : 'fijar'} className="h-5 w-5" />
+            </button>
+          )}
           <button type="button" onClick={() => setMenuAbierto(false)}
             aria-label="Cerrar menú" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-white hover:bg-white/10 lg:hidden">
             <IconoAcma nombre="cerrar" />
           </button>
         </div>
 
+        {(anchoMovil || menuVisibleEscritorio) && (
         <div className="acma-sidebar-etiqueta mb-4 flex shrink-0 items-center gap-3 rounded-xl px-3 py-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white"><IconoAcma nombre="cuadrícula" className="h-4 w-4" /></span>
           <span className="min-w-0">
@@ -224,24 +263,44 @@ export function AppShell() {
           </span>
         </div>
 
-        {(!anchoMovil || menuAbierto) && (
+        )}
+        {!anchoMovil && !menuVisibleEscritorio && (
+          <nav aria-label="Menú contraído" className="flex min-h-0 flex-1 flex-col items-center gap-3 pt-2">
+            <button type="button" aria-label="Desplegar menú lateral"
+              title="Desplegar menú lateral"
+              onClick={() => setMenuDesplegado(true)}
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20">
+              <IconoAcma nombre="menu" />
+            </button>
+            <NavLink to="/" aria-label="Inicio" title="Inicio"
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20">
+              <IconoAcma nombre="inicio" />
+            </NavLink>
+          </nav>
+        )}
+        {(menuVisibleEscritorio || anchoMovil && menuAbierto) && (
           <Navegacion modulos={modulos} rutaActual={ubicacion.pathname} alNavegar={volverAlInicio}
             indicadores={indicadoresTestBot} mostrarEstados={usuario.rol === 'superadmin'} />
         )}
         <div className="acma-sidebar-cuenta relative z-10 mt-3 shrink-0 border-t border-white/10 pt-3">
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
             <span className="acma-avatar bg-white/15 text-white">{iniciales || 'AC'}</span>
-            <div className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-white">Mi cuenta</span>
-              <span className="block truncate text-xs text-white/60">{NOMBRE_ROL[usuario.rol]}</span>
-            </div>
+            {(anchoMovil || menuVisibleEscritorio) && (
+              <div className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-white">Mi cuenta</span>
+                <span className="block truncate text-xs text-white/60">{NOMBRE_ROL[usuario.rol]}</span>
+              </div>
+            )}
+            {(anchoMovil || menuVisibleEscritorio) && (
             <button type="button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={() => void cerrarSesion()}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-white/65 hover:bg-white/10 hover:text-white">
               <IconoAcma nombre="salir" className="h-[18px] w-[18px]" />
             </button>
+            )}
           </div>
         </div>
       </aside>
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="acma-header sticky top-0 z-30 flex min-h-[4.5rem] items-center justify-between gap-2 px-3 sm:px-5 lg:px-7 xl:px-9">
