@@ -313,3 +313,38 @@ arreglo principal reside en AppShell.tsx y no exige cambiar permisos nativos.
 Las pruebas automáticas verifican los controles por clic, persistencia y
 comportamiento móvil. La confirmación visual final requiere usar el
 navegador real y la WebView instalada después del despliegue.
+
+
+## Asistente ACMA flotante y ayuda de formularios — 2026-11-20
+
+### Burbuja móvil con mouse, dedo o lápiz
+El icono redondo de **Asistente ACMA** puede arrastrarse a cualquier borde
+seguro de la pantalla en navegador web, teléfono y Flutter WebView. Se
+utilizan eventos pointer con un umbral para distinguir toque de arrastre,
+y la burbuja no se sale del área visible. La posición se guarda en el
+navegador por ID de usuario, se reajusta al cambiar de orientación/tamaño
+y se puede mover mediante flechas del teclado cuando tiene foco.
+Al tocarla sin arrastrar, abre/cierra el panel de ayuda. El panel se
+coloca dentro de la pantalla cerca de la burbuja y mantiene controles
+de cierre/ocultación. El almacenamiento local solo guarda las
+coordenadas del elemento de interfaz, **no la ubicación GPS**.
+
+### Explicaciones paso a paso y preguntas
+Las 34 guías de módulos siguen disponibles por rol. Además, el asistente
+permite **preguntar dudas** y explica cómo llenar los campos cuando el
+usuario tiene abierto un formulario: lee solo sus etiquetas, el tipo de
+control y si el campo está marcado como obligatorio (sin leer los
+valores introducidos, contraseñas, cookies o documentos). Esto permite
+contestar "¿Cómo lleno estos campos?", "¿Qué pongo en Prioridad?",
+"¿Por qué no me deja guardar?" o preguntas sobre permisos y procedimientos.
+
+Las respuestas son **orientación contextual basada en reglas y
+documentación**, no IA generativa. Si no hay campos abiertos, el asistente
+explica cómo abrir Crear/Nuevo/Editar y volver a consultar. Ante preguntas
+no reconocidas pide concretar botón/campo/error y nunca inventa
+permisos o validaciones de servidor. Conserva un breve historial
+de preguntas recientes únicamente durante la sesión de la vista.
+
+El modo TestBot de inserciones ficticias y el diagnóstico TXT permanecen
+bajo Herramientas de diagnóstico, solo para Superadmin. La ayuda
+normal no ejecuta modificaciones en la base de datos.
