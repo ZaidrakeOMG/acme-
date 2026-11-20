@@ -248,7 +248,7 @@ export function AppShell() {
             {(anchoMovil || menuVisibleEscritorio) && (
               <div className="min-w-0">
                 <strong className="block text-xl font-extrabold tracking-[.13em] text-white">ACMA</strong>
-                {menuFijado && <span className="block text-[10px] font-medium tracking-wide text-white/55">PLATAFORMA EMPRESARIAL</span>}
+                {(anchoMovil || menuFijado) && <span className="block text-[10px] font-medium tracking-wide text-white/55">PLATAFORMA EMPRESARIAL</span>}
               </div>
             )}
           </NavLink>
