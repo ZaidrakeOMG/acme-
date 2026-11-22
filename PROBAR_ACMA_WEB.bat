@@ -42,46 +42,28 @@ if not exist "backend\.venv\.dependencias_web_acma_ok" (
   )
   echo ok> "backend\.venv\.dependencias_web_acma_ok"
 )
-if not exist ".env" (
-  echo.
-  echo [3/5] Configurando Supabase y primer administrador...
-  echo Si se cancela el asistente, NO borres ni la BD ni carpetas.
-  "backend\.venv\Scripts\python.exe" scripts\configurar_acma_supabase.py
+rem Credenciales privadas: nunca se descargan del repositorio ni se piden en cada prueba.
+rem .env prevalece. Una plantilla LOCAL .env.prueba.local se usa solo si falta .env.
+if not exist ".env" if exist ".env.prueba.local" (
+  echo [3/5] Preparando .env desde .env.prueba.local...
+  copy /Y ".env.prueba.local" ".env" >nul
   if errorlevel 1 (
-    echo [ERROR 05] Fallo el asistente de Supabase.
-    echo Comprueba que se creo el bucket privado acma y las credenciales.
-    echo Si el archivo .env ya existe, ejecuta CREAR_ADMIN_ACMA.bat.
+    echo [ERROR 05] No se pudo copiar .env.prueba.local a .env.
     goto :error
   )
 )
 if not exist ".env" (
-  echo [ERROR 06] Falta .env en la raiz. No se inicia ACMA.
+  echo [ERROR 06] No existe .env ni .env.prueba.local en la raiz de ACMA.
+  echo Coloca tu configuracion privada en uno de esos archivos.
+  echo No se solicitan claves por consola ni se crea una BD automaticamente.
   goto :error
 )
 echo.
-echo [3/5] Detectando configuracion anterior y esquema PostgreSQL...
-"backend\.venv\Scripts\python.exe" scripts\diagnosticar_env_supabase.py
-set "RESULTADO_ENV=%ERRORLEVEL%"
-if "%RESULTADO_ENV%"=="3" goto :configurar_tras_respaldo
-if not "%RESULTADO_ENV%"=="0" (
-  echo [ERROR 06A] .env requiere ajustes, detallados arriba.
-  echo IMPORTANTE: No borres las tablas ni copies secretos al chat.
-  goto :error
-)
-goto :comprobar_supabase
-
-:configurar_tras_respaldo
-echo.
-echo [3/5] Iniciando asistente para el proyecto NUEVO de Supabase...
-"backend\.venv\Scripts\python.exe" scripts\configurar_acma_supabase.py
+echo [3/5] Revisando configuracion local sin solicitar claves...
+"backend\.venv\Scripts\python.exe" scripts\diagnosticar_env_supabase.py --solo-validar
 if errorlevel 1 (
-  echo [ERROR 06B] El asistente se interrumpio.
-  echo Tu archivo antiguo sigue respaldado en .env.respaldo_anterior.
-  echo NO elimines .env si ya se creo; revisa el error.
-  goto :error
-)
-if not exist ".env" (
-  echo [ERROR 06C] No se pudo crear el .env nuevo.
+  echo [ERROR 06A] La configuracion privada necesita ajustes (ver mensaje anterior).
+  echo Se conservo .env sin moverlo, sobrescribirlo ni pedir contrasenas.
   goto :error
 )
 
