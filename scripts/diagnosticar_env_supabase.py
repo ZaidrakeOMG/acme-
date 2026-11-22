@@ -4,9 +4,8 @@ El iniciador original omitía el asistente Supabase si existía un .env
 heredado del Docker; luego el preflight fallaba con DB_SCHEMA=public.
 Aquí nunca se cambia el host, la contraseña, el bucket ni el rol SQL.
 
-Si el archivo tiene ya una configuración Supabase completa y solo falta
-DB_SCHEMA=acma, se ofrece arreglar únicamente esa línea con confirmación
-explícita, conservando una copia local ignorada por Git.
+En modo --solo-validar (lanzador web), nunca solicita claves, modifica .env ni
+abre el asistente. El modo habitual conserva el comportamiento anterior.
 """
 from __future__ import annotations
 
@@ -108,10 +107,11 @@ def corregir_solo_esquema(original: str, existen: dict[str, str]) -> None:
     print("DB_SCHEMA=acma configurado; .env anterior respaldado en " + copia.name)
 
 
-def main() -> int:
+def main(*, solo_validar: bool = False) -> int:
     if not ENV.is_file():
-        print("No existe .env. El lanzador abrirá el asistente Supabase.")
-        return 0
+        print("ERROR: No existe .env local." if solo_validar else
+              "No existe .env. El lanzador abrirá el asistente Supabase.")
+        return 2 if solo_validar else 0
 
     original = ENV.read_text(encoding="utf-8-sig")
     valores, duplicados = cargar_valores(original)
@@ -158,6 +158,10 @@ def main() -> int:
     print("  No se muestran URLs completas, usuarios, claves ni contraseñas.")
 
     if not (postgres and storage_url and almacenamiento and secret):
+        if solo_validar:
+            print("ERROR: .env incompleto o sin conexión Supabase válida.")
+            print("Corrige las variables locales sin compartir ni subir secretos.")
+            return 2
         print("\nSe encontró un .env antiguo o incompleto para Supabase.")
         print("El sistema conservará el archivo anterior SIN modificar su contenido.")
         print("Se guardará como .env.respaldo_anterior (con sufijo si existe).")
@@ -178,6 +182,9 @@ def main() -> int:
         return 3
 
     if esquema != "acma":
+        if solo_validar:
+            print("ERROR: configura DB_SCHEMA=acma en tu .env local.")
+            return 2
         corregir_solo_esquema(original, valores)
     else:
         print("Configuración básica de Supabase presente. Ejecutando preflight real.")
@@ -186,7 +193,10 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        if any(arg != "--solo-validar" for arg in sys.argv[1:]):
+            print("Uso: python scripts/diagnosticar_env_supabase.py [--solo-validar]", file=sys.stderr)
+            raise SystemExit(2)
+        raise SystemExit(main(solo_validar="--solo-validar" in sys.argv[1:]))
     except (OSError, UnicodeError, KeyboardInterrupt) as exc:
         print("ERROR al leer/guardar .env. " + type(exc).__name__ +
               ". Revisa permisos del archivo.", file=sys.stderr)
