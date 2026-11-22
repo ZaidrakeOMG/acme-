@@ -16,6 +16,38 @@ git pull --ff-only origin main
 
 Si Git detecta cambios locales, revísalos antes de actualizar: no los descartes ni uses `git reset --hard` sobre información que quieras conservar.
 
+
+## Probar la web local sin pedir claves de Supabase
+
+El iniciador `PROBAR_ACMA_WEB.bat` NO pide la Secret API Key ni una cadena PostgreSQL.
+Usa el archivo privado `.env` de la raíz. Si ese archivo no existe, busca
+`.env.prueba.local` en la misma carpeta y lo copia una sola vez a `.env` sin
+sobrescribir configuraciones existentes.
+
+Si no encuentra ninguno de los dos, se detiene con instrucciones, **sin pedir
+contraseñas por consola**. La configuración no se puede recuperar del repositorio:
+las claves reales nunca se suben a GitHub. Puedes copiar `.env.supabase.example`
+a `.env.prueba.local` y llenar tus valores **una sola vez**.
+
+La revisión de `.env` durante el arranque es de solo lectura: no mueve, renombra
+ni reemplaza el archivo ni pide confirmaciones. Si el esquema es incorrecto,
+corrígelo manualmente con `DB_SCHEMA=acma`. El arranque todavía valida de forma
+real PostgreSQL, los permisos del rol y el bucket privado de Supabase: **no evita
+los errores de conexión**.
+
+Para diagnosticar desde CMD sin modificar el archivo:
+
+```bat
+backend\.venv\Scripts\python.exe scripts\diagnosticar_env_supabase.py --solo-validar
+```
+
+Para arrancar:
+
+```bat
+PROBAR_ACMA_WEB.bat
+```
+
+
 ## Web publicada
 
 **Railway:** https://acme-production-ee493e67.up.railway.app/
