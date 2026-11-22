@@ -83,5 +83,52 @@ class TestDiagnosticoEnv(unittest.TestCase):
             self.assertEqual(env.read_text(encoding="utf-8"), "DB_SCHEMA=public\n")
 
 
+    def test_solo_validar_no_pide_claves_ni_mueve_env_incompleto(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            raiz = Path(carpeta)
+            env = raiz / ".env"
+            original = "DB_SCHEMA=public\nDATABASE_URL=postgresql+asyncpg://local\n"
+            env.write_text(original, encoding="utf-8")
+            with patch.object(d, "ENV", env), patch.object(d, "ROOT", raiz):
+                with patch("builtins.input", side_effect=AssertionError("No pedir claves")):
+                    self.assertEqual(d.main(solo_validar=True), 2)
+            self.assertEqual(env.read_text(encoding="utf-8"), original)
+            self.assertFalse((raiz / ".env.respaldo_anterior").exists())
+
+    def test_solo_validar_no_corrige_schema_sin_confirmacion(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            raiz = Path(carpeta)
+            env = raiz / ".env"
+            original = (
+                "DB_SCHEMA=public\n"
+                "DATABASE_URL=postgresql+asyncpg://acma_api.ejemploref:clave@aws-1-us-east-1.pooler.supabase.com:5432/postgres?ssl=require\n"
+                "SUPABASE_URL=https://ejemploref.supabase.co\n"
+                "SUPABASE_SECRET_KEY=clave_local\n"
+                "ALMACENAMIENTO_MODO=supabase\n"
+            )
+            env.write_text(original, encoding="utf-8")
+            with patch.object(d, "ENV", env), patch.object(d, "ROOT", raiz):
+                with patch("builtins.input", side_effect=AssertionError("No pedir confirmacion")):
+                    self.assertEqual(d.main(solo_validar=True), 2)
+            self.assertEqual(env.read_text(encoding="utf-8"), original)
+
+    def test_solo_validar_env_completo_sin_prompts(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            raiz = Path(carpeta)
+            env = raiz / ".env"
+            original = (
+                "DB_SCHEMA=acma\n"
+                "DATABASE_URL=postgresql+asyncpg://acma_api.ejemploref:clave@aws-1-us-east-1.pooler.supabase.com:5432/postgres?ssl=require\n"
+                "SUPABASE_URL=https://ejemploref.supabase.co\n"
+                "SUPABASE_SECRET_KEY=clave_local\n"
+                "ALMACENAMIENTO_MODO=supabase\n"
+            )
+            env.write_text(original, encoding="utf-8")
+            with patch.object(d, "ENV", env), patch.object(d, "ROOT", raiz):
+                with patch("builtins.input", side_effect=AssertionError("No pedir credenciales")):
+                    self.assertEqual(d.main(solo_validar=True), 0)
+            self.assertEqual(env.read_text(encoding="utf-8"), original)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
