@@ -293,7 +293,8 @@ describe('Operaciones en tiempo real (F2-03)', () => {
   })
 
   it('al iniciar sesión como técnico solicita permiso de ubicación y respeta Ahora no', async () => {
-    sessionStorage.removeItem('acma.gps.ofrecido.00000000-0000-0000-0000-000000000001')
+    // Una invitación anterior no debe impedir el aviso en un nuevo login.
+    sessionStorage.setItem('acma.gps.ofrecido.00000000-0000-0000-0000-000000000001', '1')
     const llamadas = await entrar('tecnico', '/campo', {
       'GET /api/folios': () => ({ json: [] }),
       'GET /api/configuracion/mis-permisos': () => ({ json: [] }),

@@ -183,6 +183,17 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
     unawaited(controller.loadRequest(origen));
   }
 
+  /// Acceso nativo al consentimiento GPS, también cuando la sesión
+  /// web antigua conservó caché y no apareció el aviso al iniciar sesión.
+  /// No activa la ubicación sin tocar el botón y aceptar el permiso.
+  Future<void> _abrirMiUbicacion() async {
+    final controlador = _controlador;
+    final servidor = _origen;
+    if (controlador == null || servidor == null) return;
+    final destino = servidor.resolve('/mi-ubicacion');
+    await controlador.loadRequest(destino);
+  }
+
   Future<void> _cambiarServidor() async {
     final direccion = TextEditingController(
       text: _origen?.toString() ?? 'https://groupacma.com',
@@ -364,6 +375,23 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
               )),
             // Siempre disponible: incluso si Railway devuelve una página
             // HTML 404, que WebView no considera un fallo de red.
+            // Botón GPS permanente en Android, independiente del estado
+            // del banner de React; abre el consentimiento del usuario.
+            Positioned(
+              top: 10,
+              right: 64,
+              child: Material(
+                elevation: 2,
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                child: IconButton(
+                  tooltip: 'Activar o detener mi ubicación GPS',
+                  icon: const Icon(Icons.my_location_outlined,
+                      color: Color(0xFF047857)),
+                  onPressed: _abrirMiUbicacion,
+                ),
+              ),
+            ),
             Positioned(
               top: 10,
               right: 10,

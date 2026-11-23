@@ -166,21 +166,21 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
   }
 
   function responderSolicitud(aceptar: boolean) {
-    const id = usuario?.id
-    if (id) {
-      try { sessionStorage.setItem('acma.gps.ofrecido.' + id, '1') }
-      catch { /* El navegador podría bloquear sessionStorage. */ }
-    }
+    // Se respeta "Ahora no" durante la sesión actual, pero no se guarda
+    // una denegación persistente: en el próximo inicio de sesión se ofrecerá
+    // otra vez, también al técnico que ya había usado una APK anterior.
     setSolicitudVisible(false)
     if (aceptar) void iniciar()
   }
 
   useEffect(() => {
-    if (!usuario?.id || activoRef.current) return
-    let yaSeOfrecio = false
-    try { yaSeOfrecio = sessionStorage.getItem('acma.gps.ofrecido.' + usuario.id) === '1' }
-    catch { /* Ofrecer si no se puede leer el almacenamiento. */ }
-    setSolicitudVisible(!yaSeOfrecio)
+    if (!usuario?.id) {
+      setSolicitudVisible(false)
+      return
+    }
+    if (!activoRef.current) setSolicitudVisible(true)
+    // El proveedor se monta de nuevo tras cada login. Mientras sigue
+    // montado, cerrar el aviso no lo reactiva sin consentimiento.
   }, [usuario?.id])
 
   useEffect(() => {
