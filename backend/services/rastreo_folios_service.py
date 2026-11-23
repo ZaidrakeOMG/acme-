@@ -88,11 +88,11 @@ async def ubicaciones_compartidas(db: AsyncSession, actor: Actor) -> list[dict]:
     if actor.rol not in VEN_TABLERO:
         raise prohibido("Solo personal de despacho puede ver el GPS de otros usuarios")
     filas = (await db.execute(text("""
-        SELECT r.folio_id, r.usuario_id, u.nombre, r.lat, r.lng,
+        SELECT r.folio_id, r.usuario_id, COALESCE(u.nombre, 'Usuario compartiendo') AS usuario_nombre, r.lat, r.lng,
                r.precision_m, r.ultima_at
           FROM rastreos_usuario_folio r
           JOIN folios f ON f.id = r.folio_id
-          JOIN usuarios u ON u.id = r.usuario_id
+          LEFT JOIN usuarios u ON u.id = r.usuario_id
          WHERE r.expira_at > now()
            AND r.ultima_at > now() - interval '90 seconds'
            AND r.lat IS NOT NULL AND r.lng IS NOT NULL
