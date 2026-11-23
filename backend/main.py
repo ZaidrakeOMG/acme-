@@ -12,7 +12,7 @@ from routers import (
     alertas, auditoria, auth, biblioteca, capacitacion, catalogos_equipos, catalogos_importar,
     catalogos_tecnicos, chat, configuracion, contratos, criticidad, medidores, mensajeria, operacion, rutas,
     activos, caja_chica, clasificacion, erp, folios, formularios, grupos_un, inventario, minutas, notificaciones, oc_activos, prestadores, presupuestos,
-    preventivos, push, reasignaciones, seguimiento, sla, bi, sync, tenants, trabajos_especiales, unidades_negocio, usuarios, recuperacion_web,
+    preventivos, push, reasignaciones, seguimiento, sla, bi, sync, tenants, trabajos_especiales, unidades_negocio, usuarios, recuperacion_web, mi_ubicacion,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -51,6 +51,7 @@ for modulo in (auth, usuarios, tenants, prestadores, unidades_negocio, grupos_un
 
 # F2-03: el WebSocket del tablero va fuera de `/api` (como el del chat de P05), por el proxy de desarrollo.
 app.include_router(operacion.router_ws)
+app.include_router(mi_ubicacion.router)
 # F2-05: los modos de falla y las mitigaciones viven en sus propias rutas (§6.9.3), no bajo /api/criticidad.
 app.include_router(criticidad.router_modos)
 app.include_router(criticidad.router_mitigaciones)
