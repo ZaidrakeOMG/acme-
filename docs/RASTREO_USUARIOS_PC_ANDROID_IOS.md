@@ -34,7 +34,7 @@ por lo que la migración real no fue aplicada.
 Safari iOS, Chrome Android y WebView Flutter pueden interrumpir GPS cuando
 la pantalla se apaga o la página deja de estar visible. Desde PC la posición
 depende de los servicios de ubicación del sistema y puede ser aproximada.
-No se ha implementado seguimiento nativo en segundo plano.
+ACMA mantiene la compartición al navegar por sus pantallas mientras la\npestaña siga visible, con botón Detener GPS siempre disponible.\nNo se ha implementado seguimiento nativo en segundo plano.
 
 Los registros expirados se excluyen del mapa, aunque permanecen físicamente
 hasta una limpieza operativa posterior; no contienen historial de puntos.
