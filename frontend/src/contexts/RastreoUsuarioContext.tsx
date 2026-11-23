@@ -268,25 +268,71 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     else setAvisoPermisos('En el navegador abre el candado junto a la dirección de ACMA, entra a Configuración del sitio y permite Ubicación y Notificaciones. Después vuelve a intentar.')
   }
 
+  async function reanudarSiRecordado(id: string) {
+    if (!tieneConsentimiento(id) || iniciandoRef.current || activoRef.current) return
+    try {
+      // Sólo consultar permisos previamente aprobados: no abrir diálogos
+      // del SO al recuperar la sesión.
+      if (!await solicitarNotificaciones(true)) {
+        setSolicitudVisible(true)
+        setAvisoPermisos('Las notificaciones ya no están permitidas. Revisa los ajustes del dispositivo.')
+        return
+      }
+      if (document.hidden) return
+      // Evitar que el navegador muestre un nuevo diálogo automático si
+      // su autorización de ubicación caducó o fue revocada.
+      if (navigator.permissions?.query) {
+        try {
+          const gps = await navigator.permissions.query({ name: 'geolocation' })
+          if (gps.state !== 'granted') {
+            setSolicitudVisible(true)
+            setAvisoPermisos('Es necesario volver a permitir ubicación en este dispositivo.')
+            return
+          }
+        } catch { /* Algunos WebView no implementan Permissions API. */ }
+      }
+      await iniciar()
+      if (!activoRef.current) {
+        setSolicitudVisible(true)
+        setAvisoPermisos('Comprueba que el GPS esté activo y vuelve a autorizar desde ACMA.')
+      } else {
+        setSolicitudVisible(false)
+        setAvisoPermisos(null)
+      }
+    } catch {
+      setSolicitudVisible(true)
+      setAvisoPermisos('No se pudieron verificar los permisos guardados. Vuelve a intentarlo.')
+    }
+  }
+
   useEffect(() => {
-    if (!usuario?.id) {
+    const id = usuario?.id
+    if (!id) {
       setSolicitudVisible(false)
       return
     }
-    if (!activoRef.current) setSolicitudVisible(true)
-    // El proveedor se monta de nuevo tras cada login. Mientras sigue
-    // montado, cerrar el aviso no lo reactiva sin consentimiento.
+    if (tieneConsentimiento(id)) {
+      setSolicitudVisible(false)
+      void reanudarSiRecordado(id)
+    } else {
+      setSolicitudVisible(true)
+    }
   }, [usuario?.id])
 
   useEffect(() => {
     let presente = true
-    // Si el navegador se recargó, no recuperar el GPS sin un nuevo clic.
+    // React solo recupera GPS cuando hay consentimiento persistido por usuario.
     void consultarMiUbicacion().then(r => {
       if (presente && r.compartiendo) {
         setMensaje('Hay una activación anterior reciente. Pulsa Activar para iniciar aquí.')
       }
     }).catch(() => undefined)
-    const ocultar = () => { if (document.hidden && activoRef.current) void detener() }
+    const ocultar = () => {
+      if (document.hidden && activoRef.current) void pausar()
+      else if (!document.hidden && usuario?.id && tieneConsentimiento(usuario.id)) {
+        void reanudarSiRecordado(usuario.id)
+      }
+    }
     const salir = () => {
       if (activoRef.current) {
         limpiarSensores()
@@ -294,10 +340,12 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
       }
     }
     document.addEventListener('visibilitychange', ocultar)
+    window.addEventListener('acma:resume', ocultar)
     window.addEventListener('pagehide', salir)
     return () => {
       presente = false
       document.removeEventListener('visibilitychange', ocultar)
+      window.removeEventListener('acma:resume', ocultar)
       window.removeEventListener('pagehide', salir)
       salir()
     }
