@@ -26,3 +26,22 @@ export const detenerMiUbicacion = () =>
   api<EstadoMiUbicacion>('/mi-ubicacion/detener', { metodo: 'POST' })
 export const usuariosCompartiendo = () =>
   api<UsuarioGps[]>('/operacion/usuarios-compartiendo')
+
+
+/** Una cuenta activa se muestra siempre; GPS solo cuando envía ubicación autorizada. */
+export interface UsuarioRastreable {
+  usuario_id: string
+  usuario_nombre: string
+  correo: string
+  rol: string
+  gps_activo: boolean
+  dispositivo: string | null
+  lat: number | null
+  lng: number | null
+  precision_m: number | null
+  ultima_at: string | null
+  ultimo_acceso_at: string | null
+}
+
+export const listarUsuariosRastreo = () =>
+  api<UsuarioRastreable[]>('/operacion/usuarios-rastreo')
