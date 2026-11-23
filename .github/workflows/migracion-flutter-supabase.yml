@@ -69,6 +69,7 @@ jobs:
               frontend/src/services/mapas.ts|\
               frontend/src/services/marcadorFolio.ts|\
               frontend/src/pages/MiUbicacion.tsx|\
+              frontend/src/contexts/RastreoUsuarioContext.tsx|\
               frontend/src/services/rastreoUsuarios.ts|\
               backend/alembic/versions/0020_rastreo_usuarios.py|\
               frontend/src/pages/formularios/Constructor.tsx|\
