@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { modulosDe, NOMBRE_ROL, type GrupoModulo, type Modulo } from '../config/modulos'
 import { useAuth } from '../contexts/AuthContext'
+import { ProveedorMiUbicacion } from '../contexts/RastreoUsuarioContext'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { IndicadorConectividad } from './IndicadorConectividad'
 import { IndicadorEstadoTestBot } from './IndicadorEstadoTestBot'
@@ -385,7 +386,7 @@ export function AppShell() {
           </div>
         </header>
         <main id="contenido-acma" className="acma-contenido mx-auto w-full min-w-0 max-w-[1480px] flex-1 px-3 pb-24 pt-5 sm:px-5 sm:pt-7 lg:px-7 xl:px-9 lg:pb-10">
-          <Outlet />
+          <ProveedorMiUbicacion><Outlet /></ProveedorMiUbicacion>
         </main>
       </div>
 
