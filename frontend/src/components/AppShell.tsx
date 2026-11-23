@@ -14,6 +14,7 @@ const GRUPOS: GrupoModulo[] = ['Operación', 'Seguimiento', 'Administración', '
 function nombreActual(modulos: Modulo[], pathname: string): string {
   if (pathname === '/') return 'Centro de operaciones'
   if (pathname === '/seguridad') return 'Seguridad de la cuenta'
+  if (pathname === '/mi-ubicacion') return 'Compartir mi ubicación'
   const encontrados = modulos.filter(m => {
     const ruta = m.ruta.split('?')[0]
     return pathname === ruta || pathname.startsWith(ruta + '/')
@@ -128,6 +129,10 @@ function Navegacion({ modulos, alNavegar, rutaActual, indicadores, mostrarEstado
           </p>
         )}
         <div className="mt-4 border-t border-white/10 pt-4">
+          <NavLink to="/mi-ubicacion" className={estiloEnlace} onClick={alNavegar}>
+            <span className="acma-nav-icono"><IconoAcma nombre="operaciones" /></span>
+            <span className="min-w-0 flex-1 truncate">Mi ubicación</span>
+          </NavLink>
           <NavLink to="/seguridad" className={estiloEnlace} onClick={alNavegar}>
             <span className="acma-nav-icono"><IconoAcma nombre="seguridad" /></span>
             <span className="min-w-0 flex-1 truncate">Mi seguridad</span>
@@ -364,6 +369,9 @@ export function AppShell() {
                     <p className="truncate text-sm font-semibold text-slate-900">{usuario.nombre}</p>
                     <p className="truncate text-xs text-slate-500">{NOMBRE_ROL[usuario.rol]}</p>
                   </div>
+                  <NavLink to="/mi-ubicacion" className="acma-perfil-opcion" onClick={() => setPerfilAbierto(false)}>
+                    <IconoAcma nombre="operaciones" className="h-[18px] w-[18px]" /> Mi ubicación
+                  </NavLink>
                   <NavLink to="/seguridad" className="acma-perfil-opcion" onClick={() => setPerfilAbierto(false)}>
                     <IconoAcma nombre="seguridad" className="h-[18px] w-[18px]" /> Mi seguridad
                   </NavLink>
