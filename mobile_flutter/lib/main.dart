@@ -185,7 +185,7 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
 
   Future<void> _cambiarServidor() async {
     final direccion = TextEditingController(
-      text: _origen?.toString() ?? 'https://grupoacma.com',
+      text: _origen?.toString() ?? 'https://groupacma.com',
     );
     String? validacion;
     final nuevo = await showDialog<Uri>(
@@ -208,7 +208,7 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
                 enableSuggestions: false,
                 decoration: InputDecoration(
                   labelText: 'Dirección HTTPS',
-                  hintText: 'https://grupoacma.com',
+                  hintText: 'https://groupacma.com',
                   errorText: validacion,
                   border: const OutlineInputBorder(),
                 ),
