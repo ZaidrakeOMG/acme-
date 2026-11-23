@@ -65,9 +65,20 @@ async def usuario_actual(request: Request, db: DB) -> Actor:
     # La restricción de módulos se aplica en API además de ocultar accesos en el frontend.
     ruta = getattr(getattr(request, 'url', None), 'path', '')
     modulo = modulo_de_ruta(ruta)
-    if (usuario.rol != Rol.superadmin and modulo and usuario.modulos_habilitados is not None
-            and modulo not in usuario.modulos_habilitados
-            and not (modulo == 'usuarios' and usuario.rol in (Rol.admin_prestador, Rol.admin_empresa))):
+    # Folios y formularios comparten APIs con el trabajo de campo y los formularios del usuario.
+    # Permitir sus dependencias compartidas sin abrir otras rutas ni saltarse los roles del router.
+    modulo_compartido = {
+        'formularios': ('mis_formularios', 'app_campo'),
+        'folios': ('app_campo',),
+        'biblioteca': ('app_campo',),
+    }
+    seleccion = usuario.modulos_habilitados
+    acceso = (
+        seleccion is None or modulo is None or modulo in seleccion
+        or any(extra in seleccion for extra in modulo_compartido.get(modulo, ()))
+        or (modulo == 'usuarios' and usuario.rol in (Rol.admin_prestador, Rol.admin_empresa))
+    )
+    if usuario.rol != Rol.superadmin and not acceso:
         raise prohibido('No tienes permiso para acceder a este módulo')
     return Actor(
         id=usuario.id, email=usuario.email, nombre=usuario.nombre, rol=usuario.rol, dominio=usuario.dominio,
