@@ -18,7 +18,7 @@ async def _crear_usuario(cliente, auth, rol: str, tenant_id=None, prestador_id=N
 
 async def test_cuentas_distintas_pueden_usar_misma_contrasena(cliente, auth, datos):
     """La unicidad aplica al correo, no a la clave: Argon2 usa sal independiente."""
-    clave = "Acma987654321*"
+    clave = "ClaveCompartidaDePrueba#2026Q"
     correos = [f"gps.usuarios.{uuid.uuid4().hex[:12]}@prueba.dev" for _ in range(2)]
     for indice, email in enumerate(correos):
         r = await cliente.post("/api/usuarios", headers=await auth("superadmin@acma.dev"),
