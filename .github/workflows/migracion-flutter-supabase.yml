@@ -56,6 +56,7 @@ jobs:
               frontend/src/pages/catalogos/Catalogos.tsx|\
               frontend/src/pages/folios/Folios.tsx|\
               frontend/src/pages/admin/Unidades.tsx|\
+              frontend/src/pages/admin/Usuarios.tsx|\
               frontend/src/pages/admin/Contratos.tsx|\
               frontend/src/pages/auth/Marco.tsx|\
               frontend/src/App.tsx|\
