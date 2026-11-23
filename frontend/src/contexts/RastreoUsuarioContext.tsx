@@ -3,7 +3,6 @@
  * No intenta geolocalizar con el móvil bloqueado ni en segundo plano.
  */
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
 import { useAuth } from './AuthContext'
 import { mensajeDeError } from '../services/api'
 import { registrarPush } from '../services/campo'
@@ -33,22 +32,20 @@ function detectarDispositivo(): 'pc' | 'android' | 'iphone' | 'navegador' {
   return 'navegador'
 }
 
-function AvisoActivo() {
-  const { activo, detener } = usarMiUbicacion()
-  if (!activo) return null
-  return (
-    <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-900"
-      data-testid="gps-usuario-activo">
-      <span className="font-semibold">Estás compartiendo tu ubicación con ACMA</span>
-      <div className="flex items-center gap-3">
-        <Link to="/mi-ubicacion" className="font-semibold underline">Mi ubicación</Link>
-        <button type="button" onClick={() => void detener()}
-          className="rounded-lg bg-rose-700 px-3 py-2 font-semibold text-white">
-          Detener GPS
-        </button>
-      </div>
-    </div>
-  )
+// Preferencia revocable por usuario, vinculada al dispositivo y al origen HTTPS.
+export const claveConsentimientoGps = (id: string) =>
+  'acma.gps.consentimiento.v1.' + id
+
+function tieneConsentimiento(id: string) {
+  try { return localStorage.getItem(claveConsentimientoGps(id)) === '1' }
+  catch { return false }
+}
+
+function guardarConsentimiento(id: string, activo: boolean) {
+  try {
+    if (activo) localStorage.setItem(claveConsentimientoGps(id), '1')
+    else localStorage.removeItem(claveConsentimientoGps(id))
+  } catch { /* En dispositivos sin almacenamiento hay que volver a aceptar. */ }
 }
 
 export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
@@ -66,6 +63,7 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
   const ultimoEnvio = useRef(0)
   const activoRef = useRef(false)
   const enviando = useRef(false)
+  const iniciandoRef = useRef(false)
 
   function limpiarSensores() {
     activoRef.current = false
@@ -78,10 +76,20 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     setActivo(false)
   }
 
+  async function pausar() {
+    if (!activoRef.current) return
+    limpiarSensores()
+    setMensaje('Ubicación pausada hasta regresar a ACMA.')
+    try { await detenerMiUbicacion() }
+    catch { /* La ubicación caduca en el servidor después de 90 segundos. */ }
+  }
+
   async function detener() {
+    // Revocación explícita: no volver a compartir hasta nueva autorización.
+    if (usuario?.id) guardarConsentimiento(usuario.id, false)
     limpiarSensores()
     setSolicitudVisible(true)
-    setMensaje('Ubicación detenida. Ya no se enviarán nuevos puntos.')
+    setMensaje('Ubicación detenida. No se enviarán nuevos puntos.')
     try { await detenerMiUbicacion() }
     catch {
       setError('No se pudo confirmar la detención. La última ubicación dejará de mostrarse en 90 segundos.')
@@ -110,16 +118,19 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     } catch (e) {
       if (activoRef.current) {
         setError(mensajeDeError(e))
-        await detener()
+        await pausar()
+        setAvisoPermisos('Error de conexión al enviar ubicación. Se reanudará al volver a abrir ACMA.')
       }
     } finally { enviando.current = false }
   }
 
   async function iniciar() {
-    if (ocupado || activoRef.current) return
+    if (iniciandoRef.current || activoRef.current) return
+    iniciandoRef.current = true
     setError(null)
     if (!window.isSecureContext || !('geolocation' in navigator)) {
       setError('Se requiere HTTPS y servicios de ubicación activos en PC, Android o iPhone.')
+      iniciandoRef.current = false
       return
     }
     setOcupado(true)
@@ -149,13 +160,14 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
           setError(e.code === 1
             ? 'Permiso de ubicación denegado. Autorízalo en el navegador y el sistema.'
             : 'Sin señal de ubicación. Comprueba los servicios de ubicación de este dispositivo.')
-          void detener()
+          void pausar()
+          setSolicitudVisible(true)
         },
         { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
       )
       intervalo.current = setInterval(() => {
         if (ultimaPosicion.current && Date.now() - ultimaPosicion.current.timestamp > 75000) {
-          void detener()
+          void pausar()
         } else void transmitir()
       }, 15000)
     } catch (e) {
@@ -166,10 +178,13 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
         : codigo === 2 || codigo === 3
           ? 'No se pudo obtener tu ubicación. Revisa el GPS y vuelve a intentarlo.'
           : mensajeDeError(e))
-    } finally { setOcupado(false) }
+    } finally {
+      iniciandoRef.current = false
+      setOcupado(false)
+    }
   }
 
-  async function solicitarNotificaciones(): Promise<boolean> {
+  async function solicitarNotificaciones(soloConsultar = false): Promise<boolean> {
     // La APK usa el sistema nativo Android: Notification no existe siempre
     // dentro de Android WebView. Jamás simular un permiso aprobado.
     const puente = (window as Window & {
@@ -190,7 +205,7 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
         }
         window.addEventListener('acma:permiso-notificaciones', recibido)
         const temporizador = setTimeout(() => concluir(false), 15000)
-        try { puente.postMessage('solicitar_notificaciones') }
+        try { puente.postMessage(soloConsultar ? 'consultar_notificaciones' : 'solicitar_notificaciones') }
         catch { concluir(false) }
       })
     }
@@ -210,7 +225,7 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
       throw new Error('Este navegador no admite notificaciones del sistema. Usa Chrome o Edge con HTTPS y autoriza notificaciones en la configuración.')
     }
     if (Notification.permission === 'granted') return true
-    if (Notification.permission === 'denied') return false
+    if (Notification.permission === 'denied' || soloConsultar) return false
     // Debe invocarse directamente desde el toque/clic del usuario.
     return (await Notification.requestPermission()) === 'granted'
   }
@@ -231,6 +246,7 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
       if (activoRef.current) {
         setSolicitudVisible(false)
         setAvisoPermisos(null)
+        if (usuario?.id) guardarConsentimiento(usuario.id, true)
         // Solo tras la aceptación humana registramos Push cuando el
         // navegador lo permita; Android WebView usa permiso nativo.
         void registrarPush().catch(() => undefined)
@@ -252,25 +268,71 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     else setAvisoPermisos('En el navegador abre el candado junto a la dirección de ACMA, entra a Configuración del sitio y permite Ubicación y Notificaciones. Después vuelve a intentar.')
   }
 
+  async function reanudarSiRecordado(id: string) {
+    if (!tieneConsentimiento(id) || iniciandoRef.current || activoRef.current) return
+    try {
+      // Sólo consultar permisos previamente aprobados: no abrir diálogos
+      // del SO al recuperar la sesión.
+      if (!await solicitarNotificaciones(true)) {
+        setSolicitudVisible(true)
+        setAvisoPermisos('Las notificaciones ya no están permitidas. Revisa los ajustes del dispositivo.')
+        return
+      }
+      if (document.hidden) return
+      // Evitar que el navegador muestre un nuevo diálogo automático si
+      // su autorización de ubicación caducó o fue revocada.
+      if (navigator.permissions?.query) {
+        try {
+          const gps = await navigator.permissions.query({ name: 'geolocation' })
+          if (gps.state !== 'granted') {
+            setSolicitudVisible(true)
+            setAvisoPermisos('Es necesario volver a permitir ubicación en este dispositivo.')
+            return
+          }
+        } catch { /* Algunos WebView no implementan Permissions API. */ }
+      }
+      await iniciar()
+      if (!activoRef.current) {
+        setSolicitudVisible(true)
+        setAvisoPermisos('Comprueba que el GPS esté activo y vuelve a autorizar desde ACMA.')
+      } else {
+        setSolicitudVisible(false)
+        setAvisoPermisos(null)
+      }
+    } catch {
+      setSolicitudVisible(true)
+      setAvisoPermisos('No se pudieron verificar los permisos guardados. Vuelve a intentarlo.')
+    }
+  }
+
   useEffect(() => {
-    if (!usuario?.id) {
+    const id = usuario?.id
+    if (!id) {
       setSolicitudVisible(false)
       return
     }
-    if (!activoRef.current) setSolicitudVisible(true)
-    // El proveedor se monta de nuevo tras cada login. Mientras sigue
-    // montado, cerrar el aviso no lo reactiva sin consentimiento.
+    if (tieneConsentimiento(id)) {
+      setSolicitudVisible(false)
+      void reanudarSiRecordado(id)
+    } else {
+      setSolicitudVisible(true)
+    }
   }, [usuario?.id])
 
   useEffect(() => {
     let presente = true
-    // Si el navegador se recargó, no recuperar el GPS sin un nuevo clic.
+    // React solo recupera GPS cuando hay consentimiento persistido por usuario.
     void consultarMiUbicacion().then(r => {
       if (presente && r.compartiendo) {
         setMensaje('Hay una activación anterior reciente. Pulsa Activar para iniciar aquí.')
       }
     }).catch(() => undefined)
-    const ocultar = () => { if (document.hidden && activoRef.current) void detener() }
+    const ocultar = () => {
+      if (document.hidden && activoRef.current) void pausar()
+      else if (!document.hidden && usuario?.id && tieneConsentimiento(usuario.id)) {
+        void reanudarSiRecordado(usuario.id)
+      }
+    }
     const salir = () => {
       if (activoRef.current) {
         limpiarSensores()
@@ -278,10 +340,12 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
       }
     }
     document.addEventListener('visibilitychange', ocultar)
+    window.addEventListener('acma:resume', ocultar)
     window.addEventListener('pagehide', salir)
     return () => {
       presente = false
       document.removeEventListener('visibilitychange', ocultar)
+      window.removeEventListener('acma:resume', ocultar)
       window.removeEventListener('pagehide', salir)
       salir()
     }
@@ -289,7 +353,6 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
 
   return (
     <Contexto.Provider value={{ activo, ocupado, mensaje, error, iniciar, detener }}>
-      <AvisoActivo />
       {children}
       {solicitudVisible && !activo && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center overflow-y-auto bg-slate-950/90 p-4"
@@ -310,7 +373,10 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
             <div className="mt-4 space-y-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
               <p><strong>Ubicación:</strong> el supervisor autorizado de tu organización podrá
                 ver tu posición reciente mientras ACMA esté abierta y visible.
-                Se conserva solamente la última posición, no un historial de recorridos.</p>
+                Se conserva solamente la última posición, no un historial de recorridos.
+                Al habilitar los permisos, ACMA recordará tu elección en este dispositivo
+                y reanudará el GPS mientras esté abierta. Puedes revocarlo desde
+                tu perfil → Mi ubicación.</p>
               <p><strong>Notificaciones:</strong> ACMA solicitará permiso para mostrar avisos
                 relacionados con la operación en este equipo.</p>
             </div>
