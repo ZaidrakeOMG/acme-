@@ -14,6 +14,7 @@ MODULOS_VALIDOS = frozenset({
 # Rutas de API por módulo; /api/auth y rutas personales siempre están disponibles.
 _PREFIJOS = (
     ("/api/usuarios/me/", None),
+    ("/api/mi-ubicacion", None),
     ("/api/usuarios", "usuarios"),
     ("/api/tenants", "tenants"),
     ("/api/prestadores", "prestadores"),
