@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { AppShell } from './components/AppShell'
-import { MODULOS } from './config/modulos'
+import { MODULOS, puedeAccederModulo } from './config/modulos'
 import { useAuth } from './contexts/AuthContext'
 import { Alertas } from './pages/admin/Alertas'
 import { Auditoria } from './pages/admin/Auditoria'
@@ -156,35 +156,36 @@ export function App() {
       </Routes>
     )
   }
+  const acceso = (id: string) => puedeAccederModulo(usuario.rol, id, usuario.modulos_habilitados)
   return (
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<RoleHub />} />
         <Route path="seguridad" element={<Seguridad />} />
         <Route path="l/:codigo" element={<EnlaceCorto />} />
-        <Route path="formularios/plantillas" element={['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Plantillas /> : <SinPermiso />} />
-        <Route path="formularios/constructor/:formularioId?" element={['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Constructor /> : <SinPermiso />} />
-        <Route path="formularios/llenar/:formularioId" element={<Llenar />} />
-        <Route path="folios/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio /> : <SinPermiso />} />
-        <Route path="folios/aprobaciones" element={ROLES_APROBADOR.includes(usuario.rol) ? <Aprobaciones /> : <SinPermiso />} />
-        <Route path="folios/:folioId" element={<FolioDetalle />} />
-        <Route path="sincronizacion" element={<Sincronizacion />} />
-        <Route path="minutas/:minutaId" element={<ResponderMinuta />} />
-        <Route path="activos/:equipoId" element={<FichaEquipo />} />
-        <Route path="bi/reportes" element={<Reportes />} />
-        <Route path="preventivos/planes" element={ROLES_PLANES.includes(usuario.rol) || ['admin_empresa', 'admin_un', 'mesa_control'].includes(usuario.rol) ? <Planes /> : <SinPermiso />} />
-        <Route path="preventivos/autorizaciones" element={ROLES_CALENDARIO.includes(usuario.rol) ? <Autorizaciones /> : <SinPermiso />} />
-        <Route path="campo/manuales" element={usuario.rol === 'tecnico' ? <MisManuales /> : <SinPermiso />} />
+        <Route path="formularios/plantillas" element={acceso('formularios') ? (['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Plantillas /> : <SinPermiso />) : <SinPermiso />} />
+        <Route path="formularios/constructor/:formularioId?" element={acceso('formularios') ? (['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Constructor /> : <SinPermiso />) : <SinPermiso />} />
+        <Route path="formularios/llenar/:formularioId" element={acceso('mis_formularios') ? (<Llenar />) : <SinPermiso />} />
+        <Route path="folios/nuevo" element={acceso('folios') ? (ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio /> : <SinPermiso />) : <SinPermiso />} />
+        <Route path="folios/aprobaciones" element={acceso('folios') ? (ROLES_APROBADOR.includes(usuario.rol) ? <Aprobaciones /> : <SinPermiso />) : <SinPermiso />} />
+        <Route path="folios/:folioId" element={acceso('folios') ? (<FolioDetalle />) : <SinPermiso />} />
+        <Route path="sincronizacion" element={acceso('app_campo') ? (<Sincronizacion />) : <SinPermiso />} />
+        <Route path="minutas/:minutaId" element={acceso('minuta') ? (<ResponderMinuta />) : <SinPermiso />} />
+        <Route path="activos/:equipoId" element={acceso('activos') ? (<FichaEquipo />) : <SinPermiso />} />
+        <Route path="bi/reportes" element={acceso('bi') ? (<Reportes />) : <SinPermiso />} />
+        <Route path="preventivos/planes" element={acceso('preventivos') ? (ROLES_PLANES.includes(usuario.rol) || ['admin_empresa', 'admin_un', 'mesa_control'].includes(usuario.rol) ? <Planes /> : <SinPermiso />) : <SinPermiso />} />
+        <Route path="preventivos/autorizaciones" element={acceso('preventivos') ? (ROLES_CALENDARIO.includes(usuario.rol) ? <Autorizaciones /> : <SinPermiso />) : <SinPermiso />} />
+        <Route path="campo/manuales" element={acceso('biblioteca') ? (usuario.rol === 'tecnico' ? <MisManuales /> : <SinPermiso />) : <SinPermiso />} />
         {/* F2-04 (§6.9.2): «Registrar lectura» del operador y del Admin UN de la unidad. */}
-        <Route path="campo/lectura" element={['operador', 'admin_un', 'supervisor_operadores', 'superadmin'].includes(usuario.rol) ? <RegistrarLectura /> : <SinPermiso />} />
-        <Route path="campo/nuevo" element={ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio modoCampo /> : <SinPermiso />} />
-        <Route path="campo/folio/:folioId/cierre" element={['operador', 'admin_un', 'superadmin'].includes(usuario.rol) ? <CierreOperador /> : <SinPermiso />} />
-        <Route path="campo/folio/:folioId" element={usuario.rol === 'tecnico' ? <AtencionTecnico /> : <DetalleOperador />} />
+        <Route path="campo/lectura" element={acceso('app_campo') ? (['operador', 'admin_un', 'supervisor_operadores', 'superadmin'].includes(usuario.rol) ? <RegistrarLectura /> : <SinPermiso />) : <SinPermiso />} />
+        <Route path="campo/nuevo" element={acceso('app_campo') ? (ROLES_CAPTURA.includes(usuario.rol) ? <CapturaFolio modoCampo /> : <SinPermiso />) : <SinPermiso />} />
+        <Route path="campo/folio/:folioId/cierre" element={acceso('app_campo') ? (['operador', 'admin_un', 'superadmin'].includes(usuario.rol) ? <CierreOperador /> : <SinPermiso />) : <SinPermiso />} />
+        <Route path="campo/folio/:folioId" element={acceso('app_campo') ? (usuario.rol === 'tecnico' ? <AtencionTecnico /> : <DetalleOperador />) : <SinPermiso />} />
         {MODULOS.map((m) => (
           <Route
             key={m.id}
             path={m.ruta.slice(1)}
-            element={usuario.rol === 'superadmin' || m.roles.includes(usuario.rol) ? PAGINAS[m.id] : <SinPermiso />}
+            element={acceso(m.id) ? PAGINAS[m.id] : <SinPermiso />}
           />
         ))}
         <Route path="*" element={<Navigate to="/" replace />} />

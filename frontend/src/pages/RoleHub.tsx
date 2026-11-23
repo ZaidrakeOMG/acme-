@@ -13,7 +13,7 @@ export function RoleHub() {
   const { usuario } = useAuth()
   const [buscar, setBuscar] = useState('')
   const [area, setArea] = useState<'Todos' | GrupoModulo>('Todos')
-  const modulos = useMemo(() => usuario ? modulosDe(usuario.rol) : [], [usuario?.rol])
+  const modulos = useMemo(() => usuario ? modulosDe(usuario.rol, usuario.modulos_habilitados) : [], [usuario?.rol, usuario?.modulos_habilitados])
   const consulta = buscar.trim().toLocaleLowerCase('es-MX')
   const visibles = modulos.filter(m => (area === 'Todos' || m.grupo === area) &&
     (!consulta || `${m.nombre} ${m.descripcion} ${m.grupo}`.toLocaleLowerCase('es-MX').includes(consulta)))

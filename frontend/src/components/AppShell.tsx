@@ -212,7 +212,7 @@ export function AppShell() {
     }
   }, [menuAbierto, anchoMovil])
 
-  const modulos = useMemo(() => usuario ? modulosDe(usuario.rol).filter(m => m.ruta) : [], [usuario?.rol])
+  const modulos = useMemo(() => usuario ? modulosDe(usuario.rol, usuario.modulos_habilitados).filter(m => m.ruta) : [], [usuario?.rol, usuario?.modulos_habilitados])
   if (!usuario) return null
   const titulo = nombreActual(modulos, ubicacion.pathname)
   const iniciales = usuario.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase()).join('')

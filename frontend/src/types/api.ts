@@ -31,6 +31,7 @@ export interface Tokens {
 }
 
 export interface Perfil {
+  modulos_habilitados: string[] | null
   id: string
   email: string
   nombre: string
@@ -83,6 +84,7 @@ interface ConVersion {
 }
 
 export interface Usuario extends ConVersion {
+  modulos_habilitados: string[] | null
   email: string
   nombre: string
   telefono: string | null

@@ -102,8 +102,15 @@ export const MODULOS: Modulo[] = [
     roles: ['superadmin', 'admin_prestador', 'mesa_control', 'despachador', 'admin_empresa', 'admin_un', 'supervisor_operadores', ...LECTURA_EJECUTIVA] },
 ]
 
-export function modulosDe(rol: Rol): Modulo[] {
-  return rol === 'superadmin' ? MODULOS : MODULOS.filter((m) => m.roles.includes(rol))
+export function modulosDe(rol: Rol, habilitados?: string[] | null): Modulo[] {
+  const porRol = rol === 'superadmin' ? MODULOS : MODULOS.filter(m => m.roles.includes(rol))
+  if (rol === 'superadmin' || habilitados == null) return porRol
+  // Usuarios permanece accesible para admin empresa y admin prestador.
+  return porRol.filter(m => (m.id === 'usuarios' && ['admin_empresa', 'admin_prestador'].includes(rol)) || habilitados.includes(m.id))
+}
+
+export function puedeAccederModulo(rol: Rol, id: string, habilitados?: string[] | null): boolean {
+  return modulosDe(rol, habilitados).some(m => m.id === id)
 }
 
 export const NOMBRE_ROL: Record<Rol, string> = {
