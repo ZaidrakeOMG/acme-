@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS acma.rastreo_usuarios (
     ((lat IS NULL AND lng IS NULL) OR
       (lat BETWEEN -90 AND 90 AND lng BETWEEN -180 AND 180 AND NOT (lat=0 AND lng=0))),
   CONSTRAINT ck_rastreo_usuarios_precision CHECK
-    (precision_m IS NULL OR precision_m BETWEEN 0 AND 10000)
+    (precision_m IS NULL OR precision_m BETWEEN 0 AND 1000000)
 );
 CREATE INDEX IF NOT EXISTS ix_rastreo_usuarios_vigencia
   ON acma.rastreo_usuarios (expira_at);
