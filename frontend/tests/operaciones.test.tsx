@@ -292,6 +292,16 @@ describe('Operaciones en tiempo real (F2-03)', () => {
     expect(intervaloMs(parametros, false, null)).toBe(30000)
   })
 
+  it.each(['superadmin', 'admin_prestador', 'admin_empresa', 'mesa_control', 'despachador', 'supervisor_prestador'] as const)(
+    '%s puede entrar a sus formularios sin obligar a compartir su GPS',
+    async (rol) => {
+      const llamadas = await entrar(rol, '/mis-formularios')
+      await screen.findByRole('button', { name: 'Cerrar sesión' })
+      expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument()
+      expect(llamadas.some(l => l.clave === 'POST /api/mi-ubicacion/iniciar')).toBe(false)
+    },
+  )
+
   it('permiso de GPS y notificaciones es necesario: no se puede omitir y el rechazo bloquea la entrada', async () => {
     // Aunque el usuario recibió un aviso en una versión anterior,
     // la puerta de autorización no puede omitirse.
