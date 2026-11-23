@@ -59,7 +59,7 @@ CREATE POLICY rastreos_usuario_folio_eliminacion ON acma.rastreos_usuario_folio 
 
 REVOKE ALL ON acma.rastreos_usuario_folio FROM PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON acma.rastreos_usuario_folio TO acma_api;
-""")
+""".replace("acma.", ""))
 
 
 def downgrade() -> None:
