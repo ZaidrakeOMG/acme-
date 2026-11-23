@@ -4,17 +4,26 @@ Este módulo **no rastrea folios**. Un usuario autenticado puede activar
 voluntariamente el envío de su última ubicación desde cualquier navegador
 con geolocalización disponible en Windows/macOS, Android o iPhone.
 
-- Menú o perfil de ACMA → **Mi ubicación** → **Activar mi ubicación**.
-- Los perfiles de Operaciones autorizados ven **Rastrear usuarios en tiempo real**
-  y eligen a una persona por nombre, independientemente de sus folios.
-- El mapa dibuja marcadores verdes para los usuarios que consienten compartir.
-  Se consulta cada 10 segundos; los dispositivos envían lectura aprox. cada 15 s.
-- **Dejar de compartir** elimina la ubicación actual de la sesión activa.
-- Si no llega un punto válido, deja de ser visible a los 90 segundos.
-- Se guarda solo la última ubicación por usuario, NO el historial del recorrido.
-- Seguridad: el servidor toma la identidad del JWT del usuario, nunca un
-  usuario_id suministrado por el cliente. RLS permite lectura al propio
-  usuario y a administradores autorizados dentro de su organización.
+- Al iniciar sesión en ACMA, una ventana pide **Activar mi ubicación**
+  o **Ahora no**. El navegador solicita permiso GPS únicamente si acepta;
+  nunca se activa a distancia. También puede hacerlo después desde
+  menú / perfil → **Mi ubicación**.
+- **Operaciones → Rastreo de usuarios en tiempo real** es una pantalla
+  exclusiva de personas: no contiene seguimiento de folios, técnicos por
+  jornada, indicadores SLA ni alertas de órdenes.
+- La lista `GET /api/operacion/usuarios-rastreo` incluye **todas las
+  cuentas habilitadas de la organización visible al administrador**,
+  aunque no compartan GPS; es distinta de "conectado ahora".
+- Cada fila tiene botón **Rastrear usuario**. Si el GPS está activo,
+  el marcador verde sigue la última coordenada; de lo contrario muestra
+  **Sin GPS** y explica que el usuario debe aceptar desde su dispositivo.
+- El administrador ve los usuarios de su propio prestador y el superadmin
+  todas las cuentas; no puede iniciar la cámara ni el GPS de terceros.
+- La consulta se actualiza aproximadamente cada 10 segundos; los equipos
+  envían GPS cada 12–15 segundos mientras ACMA está visible.
+- La posición deja de ser visible tras 90 segundos sin nueva lectura.
+- Solo se conserva el último punto de cada usuario: no se almacena un
+  historial de recorrido.
 
 ## Base de datos
 
