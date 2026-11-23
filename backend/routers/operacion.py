@@ -15,13 +15,16 @@ from core.errors import ErrorAPI, prohibido
 from core.middleware import contexto_desde_claims
 from core.security import TIPO_ACCESO, decodificar_jwt
 from models.base import Rol
+from schemas.rastreo_folio import UsuarioUbicacionFolio
 from models.operaciones import CerradaPorJornada
 from schemas.comun import RESPUESTAS_ERROR, Mensaje
 from schemas.operaciones import (
     AlertaDelTecnico, JornadaEntrada, LotePosiciones, MiJornadaSalida, PausaEntrada, PosicionesSalida,
     RecorridoSalida, RespuestaAlertaEntrada, TableroSalida,
+
 )
 from services import operacion_service as svc
+from services import rastreo_folios_service as rastreo
 from services.ws_manager import gestor
 
 log = logging.getLogger("acma.operacion")
@@ -122,6 +125,12 @@ async def recorrido(tecnico_id: UUID, request: Request, db: DB, actor: ActorActu
     salida = await svc.recorrido(db, actor, tecnico_id, horas=horas, request=request)
     await db.commit()
     return salida
+
+
+# Solo despacho ve ubicaciones expresamente compartidas y vigentes del mismo prestador.
+@router.get("/usuarios-compartiendo", response_model=list[UsuarioUbicacionFolio])
+async def usuarios_compartiendo(db: DB, actor: Actor = Depends(DESPACHO)):
+    return await rastreo.ubicaciones_compartidas(db, actor)
 
 
 # ------------------------------------------------------------------ tablero
