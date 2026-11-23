@@ -21,6 +21,8 @@ class Usuario(ConVersion, Base):
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"))
     prestador_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("prestadores.id"))
     estado: Mapped[EstadoRegistro] = mapped_column(pg_enum(EstadoRegistro, "estado_registro"), default=EstadoRegistro.activo)
+    # NULL = accesos del rol; [] = sin módulos asignados.
+    modulos_habilitados: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     mfa_secreto_cifrado: Mapped[str | None] = mapped_column(Text)
     mfa_habilitado: Mapped[bool] = mapped_column(Boolean, default=False)
     mfa_codigos_recuperacion: Mapped[list[str]] = mapped_column(JSONB, default=list)

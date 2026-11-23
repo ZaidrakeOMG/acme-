@@ -554,6 +554,7 @@ def perfil(usuario: Usuario) -> dict:
         "id": usuario.id, "email": usuario.email, "nombre": usuario.nombre, "telefono": usuario.telefono,
         "rol": usuario.rol, "dominio": usuario.dominio, "tenant_id": usuario.tenant_id,
         "prestador_id": usuario.prestador_id, "mfa_habilitado": usuario.mfa_habilitado,
+        "modulos_habilitados": usuario.modulos_habilitados,
         "mfa_obligatorio": config.mfa_obligatorio and usuario.rol in ROLES_MFA_OBLIGATORIO,
         # §6.9.5: /auth/yo sigue respondiendo con la contraseña vencida (es una de las rutas permitidas), y de ahí
         # la app sabe que debe mostrar el cambio obligatorio aunque la sesión se haya restaurado al recargar. P11a.

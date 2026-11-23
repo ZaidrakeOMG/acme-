@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db import obtener_db
 from core.errors import ErrorAPI, no_autenticado, prohibido
+from core.modulos import modulo_de_ruta
 from models.base import Dominio, EstadoRegistro, Rol
 from models.usuarios import Sesion, Usuario
 
@@ -61,6 +62,13 @@ async def usuario_actual(request: Request, db: DB) -> Actor:
         if contrasena_vencida(usuario):
             raise ErrorAPI(403, "CONTRASENA_VENCIDA",
                            "Tu contraseña venció; cámbiala para seguir usando ACMA (§6.9.5)")
+    # La restricción de módulos se aplica en API además de ocultar accesos en el frontend.
+    ruta = getattr(getattr(request, 'url', None), 'path', '')
+    modulo = modulo_de_ruta(ruta)
+    if (usuario.rol != Rol.superadmin and modulo and usuario.modulos_habilitados is not None
+            and modulo not in usuario.modulos_habilitados
+            and not (modulo == 'usuarios' and usuario.rol in (Rol.admin_prestador, Rol.admin_empresa))):
+        raise prohibido('No tienes permiso para acceder a este módulo')
     return Actor(
         id=usuario.id, email=usuario.email, nombre=usuario.nombre, rol=usuario.rol, dominio=usuario.dominio,
         tenant_id=usuario.tenant_id, prestador_id=usuario.prestador_id, sesion_id=sesion_id,

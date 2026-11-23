@@ -22,6 +22,7 @@ class Tokens(BaseModel):
 
 
 class Perfil(BaseModel):
+    modulos_habilitados: list[str] | None = None
     id: UUID
     email: str
     nombre: str

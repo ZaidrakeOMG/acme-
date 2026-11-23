@@ -6,6 +6,7 @@ from sqlalchemy import func, select, text, update
 
 from core.dependencias import DB, Actor, ActorActual, requiere_rol
 from core.errors import ErrorAPI, no_encontrado, prohibido
+from core.modulos import validar_modulos
 from core.security import errores_politica_contrasena, hashear_contrasena_async
 from models.base import ROLES_PRESTADOR, ROLES_TENANT, Dominio, EstadoRegistro, Rol, dominio_de_rol
 from models.usuarios import Sesion, Usuario
@@ -101,7 +102,9 @@ async def crear(datos: UsuarioEntrada, request: Request, db: DB, actor: Actor = 
     if existe:
         raise ErrorAPI(409, "EMAIL_DUPLICADO", "Ya existe un usuario con ese correo")
 
+    validar_modulos(datos.modulos_habilitados)
     usuario = Usuario(
+        modulos_habilitados=(None if datos.rol == Rol.superadmin else datos.modulos_habilitados),
         email=datos.email.lower(), nombre=datos.nombre, telefono=datos.telefono, rol=datos.rol, dominio=dominio,
         tenant_id=tenant_id, prestador_id=prestador_id, password_hash=await hashear_contrasena_async(datos.contrasena),
     )
@@ -222,13 +225,20 @@ async def modificar(usuario_id: UUID, datos: UsuarioCambios, request: Request, d
             raise prohibido("No puedes cambiar tu propio rol")
         if nuevo not in _roles_asignables(actor) or dominio_de_rol(nuevo) != usuario.dominio:
             raise prohibido(f"No puedes asignar el rol {nuevo.value} a este usuario")
+    if 'modulos_habilitados' in cambios:
+        validar_modulos(cambios['modulos_habilitados'])
+        if usuario.rol == Rol.superadmin:
+            raise prohibido('No se pueden limitar los módulos del superadmin')
     if cambios.get("estado") and cambios["estado"] != EstadoRegistro.activo and usuario.id == actor.id:
         raise prohibido("No puedes desactivarte a ti mismo")
 
     for campo, valor in cambios.items():
-        if valor is not None:
+        if valor is not None or campo == 'modulos_habilitados':
             setattr(usuario, campo, valor)
-    if "rol" in cambios or (cambios.get("estado") and cambios["estado"] != EstadoRegistro.activo):
+    # Cambiar de rol restaura sus accesos por rol, salvo que se especifiquen nuevos módulos.
+    if 'rol' in cambios and 'modulos_habilitados' not in cambios:
+        usuario.modulos_habilitados = None
+    if "rol" in cambios or 'modulos_habilitados' in cambios or (cambios.get("estado") and cambios["estado"] != EstadoRegistro.activo):
         await db.execute(update(Sesion).where(Sesion.usuario_id == usuario.id, Sesion.revocada_at.is_(None))
                          .values(revocada_at=func.now(), motivo_revocacion="cambio_perfil"))
     await db.flush()
@@ -238,3 +248,20 @@ async def modificar(usuario_id: UUID, datos: UsuarioCambios, request: Request, d
     await db.commit()
     await db.refresh(usuario)
     return usuario
+
+
+@router.delete('/{usuario_id}', status_code=204, summary='Dar de baja el acceso de un usuario')
+async def eliminar(usuario_id: UUID, request: Request, db: DB, actor: Actor = Depends(ADMINS)):
+    # Baja lógica: los folios, auditorías y referencias a este usuario se conservan.
+    usuario = await _obtener(db, actor, usuario_id)
+    if usuario.id == actor.id:
+        raise prohibido('No puedes eliminar tu propia cuenta')
+    antes = auditoria.instantanea(usuario)
+    usuario.estado = EstadoRegistro.inactivo
+    await db.execute(update(Sesion).where(Sesion.usuario_id == usuario.id, Sesion.revocada_at.is_(None))
+                     .values(revocada_at=func.now(), motivo_revocacion='baja_usuario'))
+    await db.flush()
+    await auditoria.registrar_actor(db, actor, 'usuarios.baja', request, tenant_id=usuario.tenant_id,
+                                    prestador_id=usuario.prestador_id, recurso_tipo='usuario',
+                                    recurso_id=usuario.id, antes=antes, despues=auditoria.instantanea(usuario))
+    await db.commit()

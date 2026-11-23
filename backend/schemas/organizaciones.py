@@ -113,9 +113,11 @@ class UsuarioEntrada(BaseModel):
     contrasena: str = Field(min_length=10, max_length=200)
     tenant_id: UUID | None = Field(default=None, description="Obligatorio para roles del dominio tenant (solo superadmin lo elige)")
     prestador_id: UUID | None = Field(default=None, description="Obligatorio para roles del dominio prestador (solo superadmin lo elige)")
+    modulos_habilitados: list[str] | None = Field(default=None, max_length=50)
 
 
 class UsuarioCambios(BaseModel):
+    modulos_habilitados: list[str] | None = Field(default=None, max_length=50)
     nombre: str | None = Field(default=None, min_length=2, max_length=160)
     telefono: str | None = Field(default=None, max_length=30)
     rol: Rol | None = None
@@ -123,6 +125,7 @@ class UsuarioCambios(BaseModel):
 
 
 class UsuarioSalida(ConVersionSalida):
+    modulos_habilitados: list[str] | None = None
     email: str
     nombre: str
     telefono: str | None
