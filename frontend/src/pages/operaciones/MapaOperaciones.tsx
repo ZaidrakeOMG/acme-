@@ -15,7 +15,7 @@ interface Props {
   usuariosGps: UsuarioGps[]
   usuarioDestacadoId: string | null
   alElegirUsuario: (usuarioId: string) => void
-  folioDestacado?: { numero: string; lat: number; lng: number; origen: 'tecnico' | 'servicio' | 'usuario' } | null
+  folioDestacado?: { numero: string; lat: number; lng: number; origen: 'tecnico' | 'servicio' } | null
   gpsPersonal?: PuntoGpsDemo | null
   rutaGpsPersonal?: Array<{ lat: number; lng: number }>
   seleccionado: string | null
