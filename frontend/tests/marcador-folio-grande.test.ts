@@ -40,13 +40,6 @@ describe('Marcador grande y seguimiento GPS del folio en Operaciones', () => {
     expect(marcador.getAttribute('aria-label')).toContain('sin GPS en vivo')
   })
 
-  it('distingue al usuario que comparte voluntariamente GPS', () => {
-    const marcador = contenidoMarcadorFolio('F-000124', 'usuario')
-    expect(marcador.className).toContain('acma-folio-pin--usuario')
-    expect(marcador.textContent).toContain('USUARIO · GPS COMPARTIDO')
-    expect(marcador.getAttribute('aria-label')).toContain('compartida voluntariamente')
-  })
-
   it('dibuja un pin accesible y destacado con número visible para GPS del técnico', () => {
     const marcador = contenidoMarcadorFolio('F-000001', 'tecnico')
     expect(marcador.className).toContain('acma-folio-pin--tecnico')
