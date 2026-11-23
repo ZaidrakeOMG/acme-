@@ -108,6 +108,20 @@ async function entrar(rol: Rol, ruta: string, rutas: Parameters<typeof simularAp
     'GET /api/notificaciones/no-leidas': () => ({ json: { no_leidas: 0 } }),
     'GET /api/operacion/tablero': () => ({ json: tableroDemo }),
     'GET /api/operacion/usuarios-compartiendo': () => ({ json: [] }),
+    'GET /api/operacion/usuarios-rastreo': () => ({ json: [
+      {
+        usuario_id: 'u-pc', usuario_nombre: 'Juan Pérez', correo: 'juan@acma.dev',
+        rol: 'operador', gps_activo: true, dispositivo: 'android',
+        lat: 25.54, lng: -103.42, precision_m: 12,
+        ultima_at: '2026-11-23T17:00:00Z', ultimo_acceso_at: null,
+      },
+      {
+        usuario_id: 'u-tec', usuario_nombre: 'Técnico Prueba', correo: 'tecnico@acma.dev',
+        rol: 'tecnico', gps_activo: false, dispositivo: null,
+        lat: null, lng: null, precision_m: null, ultima_at: null,
+        ultimo_acceso_at: '2026-11-23T15:00:00Z',
+      },
+    ] }),
     [`GET /api/operacion/tecnicos/${TEC}/recorrido`]: () => ({ json: recorrido }),
     [`GET /api/operacion/tecnicos/${TEC2}/recorrido`]: () => ({ json: { ...recorrido, tecnico_id: TEC2 } }),
     'GET /api/operacion/mi-jornada': () => ({ json: sinJornada }),
@@ -139,83 +153,39 @@ beforeEach(() => {
 })
 
 describe('Operaciones en tiempo real (F2-03)', () => {
-  it('el tablero muestra técnicos con su estatus en texto, folios con SLA y el feed de alertas', async () => {
+  it('Operaciones muestra TODAS las cuentas activas; no tiene panel de folios', async () => {
     await entrar('despachador', '/operaciones')
-    await screen.findAllByText('Tomás Técnico')  // el tablero ya respondió (el nombre sale también en «Centrar»)
-    const panel = screen.getByTestId('panel-tecnicos')
-    expect(within(panel).getByText('Tomás Técnico')).toBeInTheDocument()
-    // El estatus va en texto, no solo en color (§6.8.4, accesibilidad).
-    expect(within(panel).getByText('En servicio')).toBeInTheDocument()
-    expect(within(panel).getByText('Sin señal')).toBeInTheDocument()
-    expect(within(panel).getByText(/Técnico detenido/)).toBeInTheDocument()
-    // El tiempo en el estatus se lee en horas y minutos, no en «219 min».
-    expect(within(panel).getByText(/35 min en este estatus/)).toBeInTheDocument()
-
-    const folios = screen.getByTestId('panel-folios')
-    expect(within(folios).getByText('CD-000120')).toBeInTheDocument()
-    expect(within(folios).getByText(/18 min/)).toBeInTheDocument()
-    expect(within(folios).getByText('incumplido')).toBeInTheDocument()
-
-    const alertas = screen.getByTestId('panel-alertas')
-    expect(within(alertas).getByText('Folio autorizado sin técnico')).toBeInTheDocument()
-    expect(within(alertas).getAllByText('Abrir el folio').length).toBeGreaterThan(0)
-
-    const indicadores = screen.getByTestId('indicadores-jornada')
-    expect(within(indicadores).getByText('Técnicos en jornada')).toBeInTheDocument()
-    // Tres técnicos en jornada y tres con folio activo: el valor sale dos veces, una por celda.
-    expect(within(indicadores).getAllByText('3')).toHaveLength(2)
-    expect(within(indicadores).getByText('Folios del día')).toBeInTheDocument()
-    expect(within(indicadores).getByText('9')).toBeInTheDocument()
+    const panel = await screen.findByTestId('panel-rastreo-usuarios')
+    expect(within(panel).getByText('Juan Pérez')).toBeInTheDocument()
+    expect(within(panel).getByText('Técnico Prueba')).toBeInTheDocument()
+    expect(within(panel).getByText('GPS compartido')).toBeInTheDocument()
+    expect(within(panel).getByText('Sin GPS')).toBeInTheDocument()
+    expect(screen.getByText('Rastreo de usuarios en tiempo real')).toBeInTheDocument()
+    expect(screen.queryByTestId('panel-folios')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('operaciones-folio-rastreado')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('panel-tecnicos')).not.toBeInTheDocument()
   })
 
-  it('muestra al usuario de PC y lo sigue en el mapa sin necesitar un folio', async () => {
-    await entrar('despachador', '/operaciones', {
-      'GET /api/operacion/usuarios-compartiendo': () => ({
-        json: [{
-          usuario_id: 'u-pc', usuario_nombre: 'Usuario de Windows',
-          dispositivo: 'pc', lat: 25.54, lng: -103.42, precision_m: 14,
-          ultima_at: '2026-11-23T17:00:00Z',
-        }],
-      }),
-    })
+  it('se puede pulsar Rastrear usuario y seguir su GPS actualizado', async () => {
+    await entrar('despachador', '/operaciones')
     const panel = await screen.findByTestId('panel-rastreo-usuarios')
     const user = userEvent.setup()
-    await user.click(await within(panel).findByText('Ver usuario en el mapa'))
-    const rastreado = await screen.findByTestId('usuario-rastreado')
-    expect(within(rastreado).getByText('Siguiendo a Usuario de Windows')).toBeInTheDocument()
-    expect(within(rastreado).getByRole('button', { name: 'Centrar en el usuario' })).toBeInTheDocument()
+    const juan = within(panel).getByText('Juan Pérez').closest('article')!
+    await user.click(within(juan).getByRole('button', { name: 'Rastrear usuario' }))
+    const detalle = await screen.findByTestId('usuario-rastreado')
+    expect(within(detalle).getByText('Juan Pérez')).toBeInTheDocument()
+    expect(within(detalle).getByText('Ubicación compartida en tiempo real')).toBeInTheDocument()
   })
 
-  it('al rastrear un folio sin técnico muestra la sucursal como referencia y no inventa GPS', async () => {
-    const unidades = [...tableroDemo.unidades, {
-      un_id: 'un3', codigo: 'SUC-003', nombre: 'Sucursal Coyoacán',
-      lat: 19.346, lng: -99.16, folios_activos: 0,
-    }]
-    await entrar('despachador', '/operaciones', {
-      'GET /api/operacion/tablero': () => ({ json: { ...tableroDemo, unidades } }),
-    })
-    const fila = (await screen.findByText('CD-000122')).closest('tr')
-    expect(fila).not.toBeNull()
+  it('muestra la cuenta sin GPS y NO inventa coordenadas al rastrearla', async () => {
+    await entrar('despachador', '/operaciones')
+    const panel = await screen.findByTestId('panel-rastreo-usuarios')
     const user = userEvent.setup()
-    await user.click(within(fila!).getByRole('button', { name: 'Ver ubicación' }))
-    const panel = await screen.findByTestId('operaciones-folio-rastreado')
-    expect(within(panel).getByText(/Marcador ámbar: ubicación registrada de la sucursal/)).toBeInTheDocument()
-    expect(within(panel).getByRole('button', { name: 'Ver sucursal en el mapa' })).toBeInTheDocument()
-    expect(screen.getByText(/NO un GPS en tiempo real/)).toBeInTheDocument()
-  })
-
-  it('al elegir un técnico pide su recorrido y lo muestra en su detalle', async () => {
-    const llamadas = await entrar('despachador', '/operaciones')
-    await screen.findAllByText('Tomás Técnico')
-    const panel = screen.getByTestId('panel-tecnicos')
-    const user = userEvent.setup()
-    await user.click(within(panel).getByText('Tomás Técnico'))
-    const detalle = await screen.findByTestId('detalle-tecnico')
-    expect(within(detalle).getByText(/2 punto\(s\) en las últimas horas/)).toBeInTheDocument()
-    expect(within(detalle).getByText('CD-000120')).toBeInTheDocument()
-    expect(within(detalle).getByRole('link', { name: 'Llamar' })).toHaveAttribute('href', 'tel:+528711234567')
-    await waitFor(() => expect(llamadas.some((l) =>
-      l.clave === `GET /api/operacion/tecnicos/${TEC}/recorrido`)).toBe(true))
+    const tecnico = within(panel).getByText('Técnico Prueba').closest('article')!
+    await user.click(within(tecnico).getByRole('button', { name: 'Rastrear usuario' }))
+    const detalle = await screen.findByTestId('usuario-rastreado')
+    expect(within(detalle).getByText(/GPS sin autorizar o sin señal reciente/)).toBeInTheDocument()
+    expect(screen.getByText(/todavía no comparte su GPS/)).toBeInTheDocument()
   })
 
   it('un evento de posición mueve solo al técnico que cambió', () => {
