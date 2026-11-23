@@ -645,18 +645,23 @@ def _contador_sla(sla, folio: Folio, ahora: datetime, umbral_pct: int) -> dict[s
 
 
 async def panel_unidades(db: AsyncSession, actor: Actor) -> list[dict[str, Any]]:
-    """Las UN con folios activos, para los marcadores del mapa."""
+    """Ubicaciones de UN con folios visibles; contador separado de folios activos.
+
+    Incluye pendientes de asignación para mostrar la sucursal registrada,
+    nunca como si fuera una posición GPS del técnico.
+    """
     folios = await panel_folios(db, actor)
+    ids_visibles = {f["un_id"] for f in folios}
     activos: dict[UUID, int] = {}
     for f in folios:
         if f["estado"] in {e.value for e in ESTADOS_ACTIVOS}:
             activos[f["un_id"]] = activos.get(f["un_id"], 0) + 1
-    if not activos:
+    if not ids_visibles:
         return []
     filas = (await db.execute(text(
         "SELECT id::text, codigo, nombre, ST_Y(ubicacion::geometry), ST_X(ubicacion::geometry) "
         "FROM unidades_negocio WHERE id = ANY(:ids) AND ubicacion IS NOT NULL"),
-        {"ids": [str(i) for i in activos]})).all()
+        {"ids": [str(i) for i in ids_visibles]})).all()
     return [{"un_id": f[0], "codigo": f[1], "nombre": f[2], "lat": f[3], "lng": f[4],
              "folios_activos": activos.get(UUID(f[0]), 0)} for f in filas]
 

@@ -167,6 +167,24 @@ describe('Operaciones en tiempo real (F2-03)', () => {
     expect(within(indicadores).getByText('9')).toBeInTheDocument()
   })
 
+  it('al rastrear un folio sin técnico muestra la sucursal como referencia y no inventa GPS', async () => {
+    const unidades = [...tableroDemo.unidades, {
+      un_id: 'un3', codigo: 'SUC-003', nombre: 'Sucursal Coyoacán',
+      lat: 19.346, lng: -99.16, folios_activos: 0,
+    }]
+    await entrar('despachador', '/operaciones', {
+      'GET /api/operacion/tablero': () => ({ json: { ...tableroDemo, unidades } }),
+    })
+    const fila = (await screen.findByText('CD-000122')).closest('tr')
+    expect(fila).not.toBeNull()
+    const user = userEvent.setup()
+    await user.click(within(fila!).getByRole('button', { name: 'Rastrear' }))
+    const panel = await screen.findByTestId('operaciones-folio-rastreado')
+    expect(within(panel).getByText(/Marcador ámbar: ubicación registrada de la sucursal/)).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Ver sucursal en el mapa' })).toBeInTheDocument()
+    expect(screen.getByText(/NO un GPS en tiempo real/)).toBeInTheDocument()
+  })
+
   it('al elegir un técnico pide su recorrido y lo muestra en su detalle', async () => {
     const llamadas = await entrar('despachador', '/operaciones')
     await screen.findAllByText('Tomás Técnico')
