@@ -53,6 +53,38 @@ async def test_usuario_activa_desde_pc_ve_su_estado_y_lo_detiene(cliente, auth, 
                for u in vista_final.json())
 
 
+async def test_operaciones_lista_todas_las_cuentas_activas_aunque_no_tengan_gps(cliente, auth, datos):
+    import uuid
+    correo = f"gps.sin.permiso.{uuid.uuid4().hex[:12]}@prueba.dev"
+    h_admin = await auth(SA)
+    creado = await cliente.post("/api/usuarios", headers=h_admin, json={
+        "nombre": "Tecnico Rastreo Demo", "email": correo,
+        "rol": "tecnico", "prestador_id": str(datos["prestador"]),
+        "contrasena": "Prueba#Segura2026",
+    })
+    assert creado.status_code == 201, creado.text
+    uid = creado.json()["id"]
+
+    listado = await cliente.get("/api/operacion/usuarios-rastreo", headers=h_admin)
+    assert listado.status_code == 200, listado.text
+    registro = next(u for u in listado.json() if u["usuario_id"] == uid)
+    assert registro["usuario_nombre"] == "Tecnico Rastreo Demo"
+    assert registro["gps_activo"] is False
+    assert registro["lat"] is None and registro["lng"] is None
+
+    # Operador normal no recibe el listado global ni activa GPS a distancia.
+    negado = await cliente.get("/api/operacion/usuarios-rastreo", headers=await auth(OP))
+    assert negado.status_code == 403
+
+    # Una baja lógica deja de figurar: "activo" es estado de la cuenta.
+    baja = await cliente.patch(f"/api/usuarios/{uid}", headers=h_admin,
+                              json={"estado": "inactivo"})
+    assert baja.status_code == 200, baja.text
+    despues = await cliente.get("/api/operacion/usuarios-rastreo", headers=h_admin)
+    assert despues.status_code == 200
+    assert not any(u["usuario_id"] == uid for u in despues.json())
+
+
 async def test_despachador_no_puede_activar_gps_de_otro_usuario(cliente, auth, datos):
     # No existe endpoint de activar ubicación de un ID ajeno: la ruta es personal.
     # Aunque despachador esté autorizado a VER el mapa de su prestador, nunca
