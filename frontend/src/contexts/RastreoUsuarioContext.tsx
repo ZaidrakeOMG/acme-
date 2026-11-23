@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { Link } from 'react-router'
 import { useAuth } from './AuthContext'
 import { mensajeDeError } from '../services/api'
+import { registrarPush } from '../services/campo'
 import { consultarMiUbicacion, detenerMiUbicacion, enviarMiUbicacion, iniciarMiUbicacion } from '../services/rastreoUsuarios'
 
 type Estado = {
@@ -53,6 +54,8 @@ function AvisoActivo() {
 export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
   const { usuario } = useAuth()
   const [solicitudVisible, setSolicitudVisible] = useState(false)
+  const [solicitandoPermisos, setSolicitandoPermisos] = useState(false)
+  const [avisoPermisos, setAvisoPermisos] = useState<string | null>(null)
   const [activo, setActivo] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [mensaje, setMensaje] = useState('No estás compartiendo tu ubicación.')
@@ -77,6 +80,7 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
 
   async function detener() {
     limpiarSensores()
+    setSolicitudVisible(true)
     setMensaje('Ubicación detenida. Ya no se enviarán nuevos puntos.')
     try { await detenerMiUbicacion() }
     catch {
@@ -158,19 +162,82 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
       limpiarSensores()
       const codigo = (e as { code?: number })?.code
       setError(codigo === 1
-        ? 'Rechazaste el acceso a tu ubicación. Puedes activarlo después desde Mi ubicación.'
+        ? 'Permiso de ubicación rechazado. ACMA requiere habilitarlo para continuar. Revisa los ajustes del dispositivo y reintenta.'
         : codigo === 2 || codigo === 3
           ? 'No se pudo obtener tu ubicación. Revisa el GPS y vuelve a intentarlo.'
           : mensajeDeError(e))
     } finally { setOcupado(false) }
   }
 
-  function responderSolicitud(aceptar: boolean) {
-    // Se respeta "Ahora no" durante la sesión actual, pero no se guarda
-    // una denegación persistente: en el próximo inicio de sesión se ofrecerá
-    // otra vez, también al técnico que ya había usado una APK anterior.
-    setSolicitudVisible(false)
-    if (aceptar) void iniciar()
+  async function solicitarNotificaciones(): Promise<boolean> {
+    // La APK usa el sistema nativo Android: Notification no existe siempre
+    // dentro de Android WebView. Jamás simular un permiso aprobado.
+    const puente = (window as Window & {
+      AcmaPermisos?: { postMessage: (mensaje: string) => void }
+    }).AcmaPermisos
+    if (puente) {
+      return new Promise<boolean>(resolve => {
+        let resuelto = false
+        const concluir = (aceptado: boolean) => {
+          if (resuelto) return
+          resuelto = true
+          clearTimeout(temporizador)
+          window.removeEventListener('acma:permiso-notificaciones', recibido)
+          resolve(aceptado)
+        }
+        const recibido = (evento: Event) => {
+          concluir((evento as CustomEvent<{ autorizado?: boolean }>).detail?.autorizado === true)
+        }
+        window.addEventListener('acma:permiso-notificaciones', recibido)
+        const temporizador = setTimeout(() => concluir(false), 15000)
+        try { puente.postMessage('solicitar_notificaciones') }
+        catch { concluir(false) }
+      })
+    }
+    if (!('Notification' in window) || !window.isSecureContext) {
+      throw new Error('Este navegador no admite notificaciones del sistema. Abre ACMA en Chrome o Edge para PC, o en la APK Android compatible.')
+    }
+    if (Notification.permission === 'granted') return true
+    if (Notification.permission === 'denied') return false
+    // Debe invocarse directamente desde el toque/clic del usuario.
+    return (await Notification.requestPermission()) === 'granted'
+  }
+
+  async function autorizarPermisosIniciales() {
+    if (solicitandoPermisos) return
+    setSolicitandoPermisos(true)
+    setAvisoPermisos(null)
+    try {
+      // PRIMERO notificaciones: en Chrome y Edge requieren gesto humano.
+      const notificaciones = await solicitarNotificaciones()
+      if (!notificaciones) {
+        setAvisoPermisos('Notificaciones rechazadas. Habilítalas en los ajustes del teléfono o navegador para continuar.')
+        return
+      }
+      // Después se abre el diálogo de ubicación del propio sistema.
+      if (!activoRef.current) await iniciar()
+      if (activoRef.current) {
+        setSolicitudVisible(false)
+        setAvisoPermisos(null)
+        // Solo tras la aceptación humana registramos Push cuando el
+        // navegador lo permita; Android WebView usa permiso nativo.
+        void registrarPush().catch(() => undefined)
+      } else {
+        setAvisoPermisos('No se ha podido activar la ubicación. Autoriza el GPS y vuelve a pulsar Habilitar permisos.')
+      }
+    } catch (e) {
+      setAvisoPermisos(e instanceof Error ? e.message : 'No se pudieron solicitar los permisos.')
+    } finally {
+      setSolicitandoPermisos(false)
+    }
+  }
+
+  function abrirAjustes() {
+    const puente = (window as Window & {
+      AcmaPermisos?: { postMessage: (mensaje: string) => void }
+    }).AcmaPermisos
+    if (puente) puente.postMessage('abrir_ajustes')
+    else setAvisoPermisos('En el navegador abre el candado junto a la dirección de ACMA, entra a Configuración del sitio y permite Ubicación y Notificaciones. Después vuelve a intentar.')
   }
 
   useEffect(() => {
@@ -213,34 +280,47 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
       <AvisoActivo />
       {children}
       {solicitudVisible && !activo && (
-        <div className="pointer-events-none fixed bottom-4 right-4 z-[1100] w-[min(28rem,calc(100vw-2rem))]"
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center overflow-y-auto bg-slate-950/90 p-4"
           data-testid="solicitud-ubicacion-inicio">
-          <section role="region" aria-labelledby="gps-solicitud-titulo"
-            className="pointer-events-auto w-full rounded-3xl border border-emerald-200 bg-white p-5 shadow-2xl">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100">
-              <span className="text-2xl text-emerald-800" aria-hidden="true">⌖</span>
+          <section role="region" aria-labelledby="acma-permisos-titulo"
+            className="w-full max-w-lg rounded-3xl border border-emerald-200 bg-white p-5 shadow-2xl sm:p-8">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100">
+              <span className="text-3xl font-bold text-emerald-800" aria-hidden="true">+</span>
             </div>
-            <h2 id="gps-solicitud-titulo" className="text-xl font-extrabold text-slate-900">
-              ¿Compartir tu ubicación con ACMA?
+            <h2 id="acma-permisos-titulo" className="text-xl font-extrabold text-slate-900 sm:text-2xl">
+              Permisos necesarios para usar ACMA
             </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              {usuario?.nombre}, puedes compartir tu ubicación en tiempo real desde PC,
-              Android o iPhone. Los administradores autorizados podrán seleccionarte
-              por tu nombre en el mapa. Se guarda únicamente la última posición.
-              Se actualizará mientras ACMA permanezca visible y puedes detenerla cuando quieras.
+            <p className="mt-3 text-sm leading-6 text-slate-700">
+              {usuario?.nombre}, ACMA requiere que habilites la ubicación y las notificaciones
+              de este dispositivo para acceder a la plataforma. No hay una opción
+              para omitir esta configuración.
             </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Al pulsar Activar se solicitará permiso de ubicación al dispositivo.
-              Si eliges Ahora no, no se consultará tu GPS.
+            <div className="mt-4 space-y-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+              <p><strong>Ubicación:</strong> el supervisor autorizado de tu organización podrá
+                ver tu posición reciente mientras ACMA esté abierta y visible.
+                Se conserva solamente la última posición, no un historial de recorridos.</p>
+              <p><strong>Notificaciones:</strong> ACMA solicitará permiso para mostrar avisos
+                relacionados con la operación en este equipo.</p>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              El sistema Android, Windows, macOS o el navegador controla la autorización.
+              Si rechazas un permiso, deberás habilitarlo desde sus ajustes.
+              ACMA no utiliza el GPS cuando la aplicación está cerrada o en segundo plano.
             </p>
-            <div className="mt-6 grid gap-2 sm:grid-cols-2">
-              <button type="button" onClick={() => responderSolicitud(false)}
-                className="min-h-12 rounded-xl border border-slate-300 px-4 py-3 font-semibold text-slate-700">
-                Ahora no
+            {(avisoPermisos || error) && (
+              <p role="alert" className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                {avisoPermisos ?? error}
+              </p>
+            )}
+            <div className="mt-6 flex flex-col gap-3">
+              <button type="button" disabled={solicitandoPermisos || ocupado}
+                onClick={() => void autorizarPermisosIniciales()}
+                className="min-h-12 w-full rounded-xl bg-emerald-800 px-4 py-3 font-bold text-white disabled:opacity-60">
+                {solicitandoPermisos || ocupado ? 'Solicitando permisos…' : 'Habilitar ubicación y notificaciones'}
               </button>
-              <button type="button" onClick={() => responderSolicitud(true)}
-                className="min-h-12 rounded-xl bg-emerald-800 px-4 py-3 font-semibold text-white">
-                Activar mi ubicación
+              <button type="button" onClick={abrirAjustes}
+                className="min-h-11 w-full rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
+                Revisar permisos en configuración
               </button>
             </div>
           </section>

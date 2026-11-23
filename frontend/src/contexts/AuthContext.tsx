@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, ErrorAPI, refrescar, sesion } from '../services/api'
-import { registrarPush } from '../services/campo'
 import { syncEngine } from '../services/syncEngine'
 import type { PerfilConTema, Tema, Tokens } from '../types/api'
 
@@ -39,7 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (ROLES_CAMPO.has(perfil.rol)) {
       // P05: paquete de catálogos en segundo plano y suscripción push (sin bloquear el inicio de sesión).
       void syncEngine.refrescarCatalogos().catch(() => undefined)
-      void registrarPush()
+      // El permiso Push no se solicita durante restauración de sesión.
+      // Se registra después de la aprobación explícita en pantalla.
     }
   }, [])
 

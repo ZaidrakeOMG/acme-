@@ -4,10 +4,21 @@ Este módulo **no rastrea folios**. Un usuario autenticado puede activar
 voluntariamente el envío de su última ubicación desde cualquier navegador
 con geolocalización disponible en Windows/macOS, Android o iPhone.
 
-- Al iniciar sesión en ACMA, una ventana pide **Activar mi ubicación**
-  o **Ahora no**. El navegador solicita permiso GPS únicamente si acepta;
-  nunca se activa a distancia. También puede hacerlo después desde
-  menú / perfil → **Mi ubicación**.
+- Al iniciar sesión, ACMA presenta una **pantalla de permisos necesarios**
+  que solicita al usuario habilitar **notificaciones y ubicación**.
+  No hay botón **Ahora no** ni acceso a módulos sin completar los permisos:
+  el sistema operativo puede rechazarlos y el usuario puede corregirlo
+  en ajustes. No se falsifica un consentimiento ni se fuerza el diálogo de OS.
+- En PC, Chrome/Edge solicitan los permisos del navegador. En la APK Android,
+  un canal seguro al dominio HTTPS pide **POST_NOTIFICATIONS** de forma nativa
+  (Android 13+) y el permiso de ubicación del sistema a petición del usuario.
+  Safari iOS y entornos que no admiten notificaciones web pueden requerir
+  instalación como PWA u otro navegador compatible.
+- La pantalla describe quién puede consultar el GPS, la frecuencia y que
+  **no rastrea en segundo plano**. La ubicación se comparte solo después
+  del permiso explícito del usuario, no a distancia.
+- Android muestra un acceso permanente a **Mi ubicación** como recuperación
+  si no se abre el cuadro de permisos.
 - **Operaciones → Rastreo de usuarios en tiempo real** es una pantalla
   exclusiva de personas: no contiene seguimiento de folios, técnicos por
   jornada, indicadores SLA ni alertas de órdenes.

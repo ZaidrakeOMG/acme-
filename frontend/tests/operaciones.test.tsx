@@ -292,22 +292,58 @@ describe('Operaciones en tiempo real (F2-03)', () => {
     expect(intervaloMs(parametros, false, null)).toBe(30000)
   })
 
-  it('al iniciar sesión como técnico solicita permiso de ubicación y respeta Ahora no', async () => {
-    // Una invitación anterior no debe impedir el aviso en un nuevo login.
+  it('permiso de GPS y notificaciones es necesario: no se puede omitir y el rechazo bloquea la entrada', async () => {
+    // Aunque el usuario recibió un aviso en una versión anterior,
+    // la puerta de autorización no puede omitirse.
     sessionStorage.setItem('acma.gps.ofrecido.00000000-0000-0000-0000-000000000001', '1')
-    const llamadas = await entrar('tecnico', '/campo', {
-      'GET /api/folios': () => ({ json: [] }),
-      'GET /api/configuracion/mis-permisos': () => ({ json: [] }),
-      'GET /api/operacion/mi-jornada': () => ({ json: sinJornada }),
-      'GET /api/operacion/mis-alertas': () => ({ json: [] }),
+    vi.stubGlobal('Notification', {
+      permission: 'default',
+      requestPermission: vi.fn().mockResolvedValue('denied'),
     })
-    const dialogo = await screen.findByTestId('solicitud-ubicacion-inicio')
-    expect(within(dialogo).getByText('¿Compartir tu ubicación con ACMA?')).toBeInTheDocument()
-    expect(within(dialogo).getByRole('button', { name: 'Activar mi ubicación' })).toBeInTheDocument()
-    const user = userEvent.setup()
-    await user.click(within(dialogo).getByRole('button', { name: 'Ahora no' }))
-    expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument()
-    expect(llamadas.some(l => l.clave === 'POST /api/mi-ubicacion/iniciar')).toBe(false)
+    Object.defineProperty(window, 'isSecureContext', { configurable: true, value: true })
+    try {
+      const llamadas = await entrar('tecnico', '/campo', {
+        'GET /api/folios': () => ({ json: [] }),
+        'GET /api/configuracion/mis-permisos': () => ({ json: [] }),
+        'GET /api/operacion/mi-jornada': () => ({ json: sinJornada }),
+        'GET /api/operacion/mis-alertas': () => ({ json: [] }),
+      })
+      const puerta = await screen.findByTestId('solicitud-ubicacion-inicio')
+      expect(within(puerta).getByRole('heading', { name: 'Permisos necesarios para usar ACMA' })).toBeInTheDocument()
+      expect(within(puerta).queryByRole('button', { name: 'Ahora no' })).not.toBeInTheDocument()
+      expect(within(puerta).getByText(/No hay una opción/)).toBeInTheDocument()
+      const usuario = userEvent.setup()
+      await usuario.click(within(puerta).getByRole('button', { name: 'Habilitar ubicación y notificaciones' }))
+      expect(await within(puerta).findByText(/Notificaciones rechazadas/)).toBeInTheDocument()
+      expect(screen.getByTestId('solicitud-ubicacion-inicio')).toBeInTheDocument()
+      expect(llamadas.some(l => l.clave === 'POST /api/mi-ubicacion/iniciar')).toBe(false)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('en Android solicita permiso de notificaciones mediante canal nativo, no una aceptación simulada', async () => {
+    const postMessage = vi.fn()
+    Object.defineProperty(window, 'AcmaPermisos', { configurable: true, value: { postMessage } })
+    try {
+      await entrar('tecnico', '/campo', {
+        'GET /api/folios': () => ({ json: [] }),
+        'GET /api/configuracion/mis-permisos': () => ({ json: [] }),
+        'GET /api/operacion/mi-jornada': () => ({ json: sinJornada }),
+        'GET /api/operacion/mis-alertas': () => ({ json: [] }),
+      })
+      const puerta = await screen.findByTestId('solicitud-ubicacion-inicio')
+      const usuario = userEvent.setup()
+      await usuario.click(within(puerta).getByRole('button', { name: 'Habilitar ubicación y notificaciones' }))
+      expect(postMessage).toHaveBeenCalledWith('solicitar_notificaciones')
+      window.dispatchEvent(new CustomEvent('acma:permiso-notificaciones', { detail: { autorizado: false } }))
+      expect(await within(puerta).findByText(/Notificaciones rechazadas/)).toBeInTheDocument()
+      expect(screen.getByTestId('solicitud-ubicacion-inicio')).toBeInTheDocument()
+      await usuario.click(within(puerta).getByRole('button', { name: 'Revisar permisos en configuración' }))
+      expect(postMessage).toHaveBeenCalledWith('abrir_ajustes')
+    } finally {
+      Reflect.deleteProperty(window, 'AcmaPermisos')
+    }
   })
 
   it('el cliente no entra a la pantalla de operaciones', async () => {

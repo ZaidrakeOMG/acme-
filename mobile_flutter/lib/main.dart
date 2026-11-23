@@ -125,6 +125,42 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
           onNavigationRequest: _navegar,
         ),
       );
+    // JavaScriptChannel para el permiso NATIVO de notificaciones Android.
+    // El navegador WebView normalmente no expone Notification.requestPermission.
+    // Nunca responder a sitios o marcos ajenos al dominio HTTPS de ACMA.
+    final puentePermisos = controller.addJavaScriptChannel(
+      'AcmaPermisos',
+      onMessageReceived: (mensaje) {
+        unawaited(() async {
+          final actual = Uri.tryParse(await controller.currentUrl() ?? '');
+          if (actual == null ||
+              !ConfiguracionAcma.mismoOrigen(origen, actual)) {
+            return;
+          }
+          if (mensaje.message == 'abrir_ajustes') {
+            await openAppSettings();
+            return;
+          }
+          if (mensaje.message != 'solicitar_notificaciones') return;
+          bool autorizado = false;
+          try {
+            final estado = await Permission.notification.request();
+            autorizado = estado.isGranted;
+          } catch (_) {
+            // El usuario puede reintentar desde ajustes del dispositivo.
+          }
+          final resultado = autorizado ? 'true' : 'false';
+          try {
+            await controller.runJavaScript(
+              "window.dispatchEvent(new CustomEvent('acma:permiso-notificaciones', "
+              "{detail:{autorizado:$resultado}}));",
+            );
+          } catch (_) {
+            // La WebView pudo cambiar de página mientras abría los ajustes.
+          }
+        }());
+      },
+    );
     // Adjunta el selector nativo de archivos para evidencias y documentos.
     if (controller.platform is AndroidWebViewController) {
       final android = controller.platform as AndroidWebViewController;
@@ -180,7 +216,8 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
       _fallo = false;
       _progreso = 0;
     });
-    unawaited(controller.loadRequest(origen));
+    // El puente tiene que estar listo ANTES de cargar la página de login.
+    unawaited(puentePermisos.then((_) => controller.loadRequest(origen)));
   }
 
   /// Acceso nativo al consentimiento GPS, también cuando la sesión
