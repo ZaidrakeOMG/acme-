@@ -49,6 +49,8 @@ class ApkIonOS(unittest.TestCase):
                 for elemento in raiz.findall("uses-permission")
             ]
             self.assertEqual(set(permisos), set(m.PERMISOS))
+            self.assertIn('android.permission.POST_NOTIFICATIONS', permisos)
+            self.assertIn('android.permission.ACCESS_FINE_LOCATION', permisos)
             app = raiz.find("application")
             self.assertIsNotNone(app)
             self.assertNotEqual(app.get(m.ANDROID + "usesCleartextTraffic"), "true")
