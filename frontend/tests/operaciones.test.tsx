@@ -156,8 +156,8 @@ describe('Operaciones en tiempo real (F2-03)', () => {
   it('Operaciones muestra TODAS las cuentas activas; no tiene panel de folios', async () => {
     await entrar('despachador', '/operaciones')
     const panel = await screen.findByTestId('panel-rastreo-usuarios')
-    expect(within(panel).getByText('Juan Pérez')).toBeInTheDocument()
-    expect(within(panel).getByText('Técnico Prueba')).toBeInTheDocument()
+    expect(await within(panel).findByText('Juan Pérez')).toBeInTheDocument()
+    expect(await within(panel).findByText('Técnico Prueba')).toBeInTheDocument()
     expect(within(panel).getByText('GPS compartido')).toBeInTheDocument()
     expect(within(panel).getAllByText('Sin GPS').length).toBeGreaterThan(0)
     expect(screen.getByRole('heading', { name: 'Rastreo de usuarios en tiempo real' })).toBeInTheDocument()
@@ -170,7 +170,7 @@ describe('Operaciones en tiempo real (F2-03)', () => {
     await entrar('despachador', '/operaciones')
     const panel = await screen.findByTestId('panel-rastreo-usuarios')
     const user = userEvent.setup()
-    const juan = within(panel).getByText('Juan Pérez').closest('article')!
+    const juan = (await within(panel).findByText('Juan Pérez')).closest('article')!
     await user.click(within(juan).getByRole('button', { name: 'Rastrear usuario' }))
     const detalle = await screen.findByTestId('usuario-rastreado')
     expect(within(detalle).getByText('Juan Pérez')).toBeInTheDocument()
@@ -181,7 +181,7 @@ describe('Operaciones en tiempo real (F2-03)', () => {
     await entrar('despachador', '/operaciones')
     const panel = await screen.findByTestId('panel-rastreo-usuarios')
     const user = userEvent.setup()
-    const tecnico = within(panel).getByText('Técnico Prueba').closest('article')!
+    const tecnico = (await within(panel).findByText('Técnico Prueba')).closest('article')!
     await user.click(within(tecnico).getByRole('button', { name: 'Rastrear usuario' }))
     const detalle = await screen.findByTestId('usuario-rastreado')
     expect(within(detalle).getByText(/GPS sin autorizar o sin señal reciente/)).toBeInTheDocument()
