@@ -10,10 +10,8 @@ echo  No modifica Supabase, no publica secretos, no usa ADB.
 echo.
 set "ACMA_URL=%~1"
 if not defined ACMA_URL (
-  echo.
-  echo Pega la direccion HTTPS que Railway te entrego.
-  echo Ejemplo: https://acma-web.up.railway.app
-  set /p "ACMA_URL=Direccion HTTPS de ACMA: "
+  set "ACMA_URL=https://groupacma.com"
+  echo [INFO] Usando el dominio oficial: https://groupacma.com
 )
 if not defined ACMA_URL (
   echo [ERROR] La URL no puede estar vacia.

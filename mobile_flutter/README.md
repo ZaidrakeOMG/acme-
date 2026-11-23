@@ -18,7 +18,7 @@ git pull --ff-only origin main
 2. Desde el Explorador de Windows, entra a la carpeta **raiz del repositorio ACMA**.
 3. Haz doble clic en **PROBAR_ACMA_FLUTTER_ANDROID.bat**.
 
-El lanzador utiliza el emulador encendido, prepara Flutter y abre la WebView conectada a **Railway**. No hace falta abrir PROBAR_ACMA_WEB.bat.
+El lanzador utiliza el emulador encendido, prepara Flutter y abre la WebView conectada al dominio HTTPS configurado de **ACMA**. No hace falta abrir PROBAR_ACMA_WEB.bat.
 
 Para desarrollo con servidor **local**, abre PROBAR_ACMA_WEB.bat y ejecuta:
 
@@ -29,7 +29,7 @@ PROBAR_ACMA_FLUTTER_ANDROID.bat --local
 Si deseas usar el boton **Run** de Android Studio, abre la carpeta `mobile_flutter`, elige el emulador y configura los argumentos de Flutter:
 
 ```text
---dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app
+--dart-define=ACMA_BASE_URL=https://groupacma.com
 ```
 
 ## 3. Probar con el servidor local (opcional)
@@ -41,10 +41,12 @@ Primero inicia `PROBAR_ACMA_WEB.bat` desde la raíz y confirma `http://127.0.0.1
 Desde la raíz en Windows:
 
 ```bat
-GENERAR_APK_ACMA_RAILWAY.bat https://acme-production-ee493e67.up.railway.app
+GENERAR_APK_ACMA_RAILWAY.bat https://groupacma.com
 ```
 
 Resultado: `mobile_flutter/build/app/outputs/flutter-apk/app-release.apk`.
+
+La app muestra un botón de **servidor** (arriba a la derecha). Si Railway cambia la URL, usa ese botón y escribe el dominio HTTPS de ACMA; la elección se guarda en el dispositivo. Esto evita tener que recompilar el APK por cada cambio de dominio.
 
 Para Google Play, configura primero la llave privada de firma de tu cuenta. Después utiliza `GENERAR_AAB_ACMA_PLAYSTORE.bat`. El artefacto de CI es **solo de prueba**, no incluye la llave definitiva de la tienda.
 

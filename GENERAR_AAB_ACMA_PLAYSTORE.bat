@@ -10,7 +10,7 @@ echo  Compila Android para Google Play, no crea cuentas ni firma por ti.
 echo  NO modifica Supabase ni coloca contrasenas dentro de la app.
 echo.
 set "ACMA_URL=%~1"
-if not defined ACMA_URL set "ACMA_URL=https://acme-production-ee493e67.up.railway.app"
+if not defined ACMA_URL set "ACMA_URL=https://groupacma.com"
 set "ACMA_APPLICATION_ID=%~2"
 if not defined ACMA_APPLICATION_ID set "ACMA_APPLICATION_ID=com.zaidrakeomg.acma"
 echo Dominio: %ACMA_URL%

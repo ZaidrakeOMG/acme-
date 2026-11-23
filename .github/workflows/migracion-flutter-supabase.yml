@@ -56,18 +56,26 @@ jobs:
               frontend/src/pages/catalogos/Catalogos.tsx|\
               frontend/src/pages/folios/Folios.tsx|\
               frontend/src/pages/admin/Unidades.tsx|\
+              frontend/src/pages/admin/Usuarios.tsx|\
               frontend/src/pages/admin/Contratos.tsx|\
               frontend/src/pages/auth/Marco.tsx|\
               frontend/src/App.tsx|\
+              frontend/src/config/modulos.ts|\
               frontend/src/contexts/AuthContext.tsx|\
               frontend/src/services/api.ts|\
               frontend/src/components/TestBotAcma.tsx|\
               frontend/src/components/IndicadorEstadoTestBot.tsx|\
               frontend/src/services/testbotEstadoVisual.ts|\
               frontend/src/pages/operaciones/Operaciones.tsx|\
+              frontend/src/pages/operaciones/RastreoUsuariosOperaciones.tsx|\
+              frontend/src/pages/operaciones/MapaRastreoUsuarios.tsx|\
               frontend/src/pages/operaciones/MapaOperaciones.tsx|\
               frontend/src/services/mapas.ts|\
               frontend/src/services/marcadorFolio.ts|\
+              frontend/src/pages/MiUbicacion.tsx|\
+              frontend/src/contexts/RastreoUsuarioContext.tsx|\
+              frontend/src/services/rastreoUsuarios.ts|\
+              backend/alembic/versions/0020_rastreo_usuarios.py|\
               frontend/src/pages/formularios/Constructor.tsx|\
               frontend/src/services/testbotAcma.ts|\
               frontend/src/services/testbotFlujoDemo.ts|\
@@ -82,7 +90,8 @@ jobs:
               frontend/src/services/ayudaConversacionalAcma.ts|\
               frontend/public/testbot-acma.webp)
                 # Se admiten cambios focalizados de sesión, UI y el nuevo asistente
-                # de pruebas DEMO. Los demás módulos permanecen protegidos.
+                # de pruebas DEMO, y el rastreo voluntario de usuarios desde PC, Android o iOS.
+                # Los demás módulos y migraciones permanecen protegidos.
                 echo "Cambio visual y responsivo permitido: $archivo"
                 ;;
               *)

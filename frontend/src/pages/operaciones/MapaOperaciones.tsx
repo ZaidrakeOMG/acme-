@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { CENTRO_POR_DEFECTO, ZOOM_POR_DEFECTO, proveedorActual } from '../../services/mapas'
 import { contenidoMarcadorFolio } from '../../services/marcadorFolio'
 import type { PuntoGpsDemo } from '../../services/testbotGpsDemo'
+import type { UsuarioGps } from '../../services/rastreoUsuarios'
 import type { PuntoRecorrido, TecnicoEnTablero, UnidadEnTablero } from '../../types/operaciones'
 import { MARCADOR_ESTATUS, NOMBRE_ESTATUS } from '../../types/operaciones'
 
@@ -11,6 +12,9 @@ interface Props {
   tecnicos: TecnicoEnTablero[]
   unidades: UnidadEnTablero[]
   recorrido: PuntoRecorrido[]
+  usuariosGps: UsuarioGps[]
+  usuarioDestacadoId: string | null
+  alElegirUsuario: (usuarioId: string) => void
   folioDestacado?: { numero: string; lat: number; lng: number; origen: 'tecnico' | 'servicio' } | null
   gpsPersonal?: PuntoGpsDemo | null
   rutaGpsPersonal?: Array<{ lat: number; lng: number }>
@@ -27,12 +31,13 @@ interface Props {
  * todo haría parpadear la pantalla de la oficina.
  */
 export default function MapaOperaciones({ tecnicos, unidades, recorrido, folioDestacado, gpsPersonal, rutaGpsPersonal,
-                                          seleccionado, centrarEn,
-                                          alElegirTecnico }: Props) {
+                                          usuariosGps, usuarioDestacadoId, alElegirUsuario,
+                                          seleccionado, centrarEn, alElegirTecnico }: Props) {
   const contenedor = useRef<HTMLDivElement | null>(null)
   const mapa = useRef<L.Map | null>(null)
   const marcadores = useRef<Map<string, L.CircleMarker>>(new Map())
   const marcadoresUn = useRef<Map<string, L.Marker>>(new Map())
+  const marcadoresUsuario = useRef<Map<string, L.CircleMarker>>(new Map())
   const linea = useRef<L.Polyline | null>(null)
   const marcadorGpsDemo = useRef<L.Marker | null>(null)
   const marcadorFolio = useRef<L.Marker | null>(null)
@@ -57,6 +62,7 @@ export default function MapaOperaciones({ tecnicos, unidades, recorrido, folioDe
       mapa.current = null
       marcadores.current.clear()
       marcadoresUn.current.clear()
+      marcadoresUsuario.current.clear()
       linea.current = null
       marcadorGpsDemo.current = null
       marcadorFolio.current = null
@@ -98,6 +104,42 @@ export default function MapaOperaciones({ tecnicos, unidades, recorrido, folioDe
       }
     }
   }, [tecnicos, seleccionado, alElegirTecnico])
+
+  // GPS de usuarios que han dado permiso explícito (independiente de sus folios).
+  // La lista de backend excluye posiciones caducadas. Los nombres se insertan como texto seguro.
+  useEffect(() => {
+    const m = mapa.current
+    if (!m) return
+    const vistos = new Set<string>()
+    for (const usuario of usuariosGps) {
+      vistos.add(usuario.usuario_id)
+      const posicion: [number, number] = [usuario.lat, usuario.lng]
+      const etiqueta = document.createElement('span')
+      etiqueta.textContent = `${usuario.usuario_nombre} · ${usuario.dispositivo} · GPS compartido`
+      const actual = marcadoresUsuario.current.get(usuario.usuario_id)
+      if (actual) {
+        actual.setLatLng(posicion)
+        actual.setTooltipContent(etiqueta)
+        actual.setStyle({ radius: usuario.usuario_id === usuarioDestacadoId ? 14 : 10,
+                          weight: usuario.usuario_id === usuarioDestacadoId ? 4 : 2 })
+      } else {
+        const marcador = L.circleMarker(posicion, {
+          radius: usuario.usuario_id === usuarioDestacadoId ? 14 : 10,
+          color: '#047857', fillColor: '#10b981', fillOpacity: 0.9,
+          weight: usuario.usuario_id === usuarioDestacadoId ? 4 : 2,
+        })
+        marcador.bindTooltip(etiqueta, { direction: 'top' })
+        marcador.on('click', () => alElegirUsuario(usuario.usuario_id))
+        marcador.addTo(m)
+        marcadoresUsuario.current.set(usuario.usuario_id, marcador)
+      }
+    }
+    for (const [id, marcador] of marcadoresUsuario.current) {
+      if (!vistos.has(id)) { marcador.remove(); marcadoresUsuario.current.delete(id) }
+    }
+    const destacado = usuariosGps.find(u => u.usuario_id === usuarioDestacadoId)
+    if (destacado) m.panTo([destacado.lat, destacado.lng], { animate: true, duration: 0.35 })
+  }, [usuariosGps, usuarioDestacadoId, alElegirUsuario])
 
   // Unidades con folios activos.
   useEffect(() => {
@@ -221,5 +263,5 @@ export default function MapaOperaciones({ tecnicos, unidades, recorrido, folioDe
   }, [centrarEn])
 
   return <div ref={contenedor} className="h-[60vh] min-h-80 w-full rounded-xl border border-slate-200"
-              data-testid="mapa-operaciones" role="application" aria-label="Mapa de técnicos en jornada" />
+              data-testid="mapa-operaciones" role="application" aria-label="Mapa de usuarios compartiendo GPS y técnicos en jornada" />
 }

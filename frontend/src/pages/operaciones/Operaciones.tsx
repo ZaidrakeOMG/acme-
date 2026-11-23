@@ -5,6 +5,7 @@ import { Aviso, Boton, Encabezado, Insignia, Tarjeta } from '../../components/ui
 import { useAuth } from '../../contexts/AuthContext'
 import { mensajeDeError } from '../../services/api'
 import { posicionServicioDelFolio, posicionTecnicoDelFolio } from '../../services/marcadorFolio'
+import { usuariosCompartiendo, type UsuarioGps } from '../../services/rastreoUsuarios'
 import { abrirCanalGpsDemo, validarPuntoGpsDemo, type EventoGpsDemo, type PuntoGpsDemo } from '../../services/testbotGpsDemo'
 import { atenderAlerta, cerrarJornadaDe, recorridoDe, suscribirOperacion, tablero } from '../../services/operacion'
 import { aceptarPropuesta, propuestasPendientes, rechazarPropuesta } from '../../services/rutas'
@@ -67,6 +68,8 @@ class SiFallaElMapa extends Component<{ children: ReactNode }, { fallo: boolean 
 export function Operaciones() {
   const { usuario } = useAuth()
   const [datos, setDatos] = useState<Tablero | null>(null)
+  const [usuariosGps, setUsuariosGps] = useState<UsuarioGps[]>([])
+  const [usuarioRastreadoId, setUsuarioRastreadoId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [conexion, setConexion] = useState<'conectando' | 'en_vivo' | 'reconectando'>('conectando')
@@ -96,6 +99,19 @@ export function Operaciones() {
     const refresco = setInterval(() => void cargar(), 20000)
     return () => { vivo.current = false; clearInterval(refresco) }
   }, [cargar])
+
+  // GPS consentido por folio: se consulta solo como despachador y caduca en el backend.
+  useEffect(() => {
+    let vigente = true
+    const refrescar = () => {
+      void usuariosCompartiendo()
+        .then(r => { if (vigente) setUsuariosGps(r) })
+        .catch(() => { if (vigente) setUsuariosGps([]) })
+    }
+    refrescar()
+    const intervalo = setInterval(refrescar, 10000)
+    return () => { vigente = false; clearInterval(intervalo) }
+  }, [])
 
   // Eventos en vivo: se aplican sobre el estado que ya está, sin volver a pedir el tablero completo.
   useEffect(() => {
@@ -143,6 +159,8 @@ export function Operaciones() {
     setAviso(null)
     setError(null)
     setFolioRastreadoId(f.folio_id)
+    setUsuarioRastreadoId(null)
+    setCentrarEn(null)
     setSeleccionado(null)
     setRecorrido([]) // Nunca dejar el recorrido del técnico del folio anterior.
     const servicio = posicionServicioDelFolio(f, datos?.unidades ?? [])
@@ -219,7 +237,8 @@ export function Operaciones() {
   const folioEnRastreo = datos?.folios.find(f => f.folio_id === folioRastreadoId) ?? null
   const folioDestacado = useMemo(() => {
     const folio = datos?.folios.find(f => f.folio_id === folioRastreadoId)
-    if (!folio || gpsPersonal?.folioId === folio.folio_id) return null
+    if (!folio) return null
+    if (gpsPersonal?.folioId === folio.folio_id) return null
     const posicion = posicionTecnicoDelFolio(folio, datos?.tecnicos ?? [])
     if (posicion) return { numero: folio.numero_folio, lat: posicion.lat, lng: posicion.lng,
                            origen: 'tecnico' as const }
@@ -227,6 +246,7 @@ export function Operaciones() {
     return servicio ? { numero: folio.numero_folio, lat: servicio.lat, lng: servicio.lng,
                        origen: 'servicio' as const } : null
   }, [datos?.folios, datos?.tecnicos, datos?.unidades, folioRastreadoId, gpsPersonal?.folioId])
+  const usuarioRastreado = usuariosGps.find(u => u.usuario_id === usuarioRastreadoId) ?? null
   const elegido = tecnicos.find((t) => t.tecnico_id === seleccionado) ?? null
   const enJornada = tecnicos.filter((t) => t.en_jornada)
 
@@ -252,6 +272,66 @@ export function Operaciones() {
       )}
 
       <Indicadores datos={datos} enJornada={enJornada.length} ultimoEvento={ultimoEvento} />
+
+      <section className="my-4 rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm"
+        data-testid="panel-rastreo-usuarios">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Rastrear usuarios en tiempo real</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Ubicaciones compartidas voluntariamente desde PC, Android o iPhone.
+              No es necesario tener folios ni iniciar jornada.
+            </p>
+          </div>
+          <Link to="/mi-ubicacion" className="rounded-xl border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-800">
+            Activar mi ubicación
+          </Link>
+        </div>
+        {usuariosGps.length === 0
+          ? <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+              Ningún usuario está compartiendo una ubicación reciente. Cada usuario debe activar
+              «Mi ubicación» y permitir el acceso desde su propio dispositivo.
+            </p>
+          : <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {usuariosGps.map(u => (
+                <li key={u.usuario_id}>
+                  <button type="button" onClick={() => {
+                    setUsuarioRastreadoId(u.usuario_id)
+                    setFolioRastreadoId(null)
+                    setSeleccionado(null)
+                    setRecorrido([])
+                    setAviso(null)
+                    setCentrarEn({ lat: u.lat, lng: u.lng, zoom: 17 })
+                  }} className={"w-full rounded-xl border p-3 text-left hover:bg-emerald-50 " +
+                    (usuarioRastreadoId === u.usuario_id ? "border-emerald-600 bg-emerald-50" : "border-slate-200")}>
+                    <span className="block font-semibold text-slate-900">{u.usuario_nombre}</span>
+                    <span className="block text-xs text-slate-600">
+                      {u.dispositivo === 'pc' ? 'Computadora' : u.dispositivo === 'iphone' ? 'iPhone'
+                        : u.dispositivo === 'android' ? 'Android' : 'Navegador'}
+                      {' · Actualizado ' + new Date(u.ultima_at).toLocaleTimeString()}
+                    </span>
+                    <span className="mt-1 block text-sm font-semibold text-emerald-700">Ver usuario en el mapa</span>
+                  </button>
+                </li>
+              ))}
+            </ul>}
+        {usuarioRastreadoId && (
+          <div className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm" data-testid="usuario-rastreado">
+            {usuarioRastreado
+              ? <>
+                  <strong>Siguiendo a {usuarioRastreado.usuario_nombre}</strong>
+                  <p>Última ubicación: {new Date(usuarioRastreado.ultima_at).toLocaleString()}
+                    {usuarioRastreado.precision_m != null && ' · precisión aproximada ' +
+                      Math.round(usuarioRastreado.precision_m) + ' m'}</p>
+                  <button type="button" className="mt-2 rounded-lg bg-emerald-700 px-3 py-2 text-white"
+                    onClick={() => setCentrarEn({ lat: usuarioRastreado.lat, lng: usuarioRastreado.lng, zoom: 17 })}>
+                    Centrar en el usuario
+                  </button>
+                </>
+              : <p>Este usuario dejó de compartir su ubicación o perdió señal.</p>}
+          </div>
+        )}
+      </section>
       {folioEnRastreo && (
         <div className="my-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm"
           data-testid="operaciones-folio-rastreado">
@@ -289,9 +369,8 @@ export function Operaciones() {
       )}
       {datos && enJornada.length === 0 && (
         <p className="my-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-          No hay técnicos con jornada abierta en el tablero. El GPS en tiempo real no aparecerá
-          hasta que un Técnico inicie su jornada y permita la ubicación desde su dispositivo.
-          Los folios y sus estados pueden consultarse independientemente.
+          No hay técnicos con jornada abierta. El rastreo voluntario de usuarios funciona
+          independientemente de las jornadas y de los folios, desde PC, Android o iPhone.
         </p>
       )}
 
@@ -300,6 +379,15 @@ export function Operaciones() {
           <SiFallaElMapa>
             <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-slate-100" />}>
               <Mapa tecnicos={enJornada} unidades={datos?.unidades ?? []} recorrido={recorrido}
+                    usuariosGps={usuariosGps} usuarioDestacadoId={usuarioRastreadoId}
+                    alElegirUsuario={(id) => {
+                      const u = usuariosGps.find(x => x.usuario_id === id)
+                      if (!u) return
+                      setUsuarioRastreadoId(id)
+                      setFolioRastreadoId(null)
+                      setSeleccionado(null)
+                      setCentrarEn({ lat: u.lat, lng: u.lng, zoom: 17 })
+                    }}
                     folioDestacado={folioDestacado}
                      gpsPersonal={gpsPersonal} rutaGpsPersonal={rutaGpsPersonal}
                     seleccionado={seleccionado} centrarEn={centrarEn}
@@ -664,7 +752,7 @@ function PanelFolios({ folios, alRastrear, folioRastreadoId }: {
                     title={'Ver ubicación del técnico o de la sucursal del folio ' + f.numero_folio}
                     className={'rounded border px-2 py-1 font-semibold ' + (folioRastreadoId === f.folio_id
                       ? 'border-blue-800 bg-blue-800 text-white' : 'border-slate-300 text-primario')}>
-                    {folioRastreadoId === f.folio_id ? 'Seleccionado' : 'Rastrear'}
+                    {folioRastreadoId === f.folio_id ? 'Seleccionado' : 'Ver ubicación'}
                   </button>
                 </td>
               </tr>

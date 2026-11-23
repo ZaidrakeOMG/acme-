@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MOBILE = ROOT / "mobile_flutter"
 SALUD = "http://127.0.0.1:8000/api/salud"
 BASE_ANDROID = "http://localhost:8000"
-RAILWAY_ANDROID = "https://acme-production-ee493e67.up.railway.app"
+RAILWAY_ANDROID = "https://groupacma.com"
 # Flutter 3.50.0 solicita este NDK para compilar la app Android en Windows.
 NDK_VERSION = "28.2.13676358"
 # compileSdk del proyecto Android generado por Flutter/Android_file_picker.
