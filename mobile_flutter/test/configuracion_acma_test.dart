@@ -2,6 +2,11 @@ import 'package:acma_mobile/configuracion_acma.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('APK usa por defecto el dominio real de ACMA', () {
+    expect(ConfiguracionAcma.url?.host, 'groupacma.com');
+    expect(ConfiguracionAcma.url?.scheme, 'https');
+  });
+
   test('requiere URL https y no permite credenciales', () {
     expect(ConfiguracionAcma.validarUrl('https://acma.example.com'), isNotNull);
     expect(ConfiguracionAcma.validarUrl('http://acma.example.com'), isNull);
