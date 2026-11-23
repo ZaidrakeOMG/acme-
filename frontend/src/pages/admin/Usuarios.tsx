@@ -210,7 +210,7 @@ function FormularioEditar({ usuario, rolActor, esPropio, alGuardar }: {
   const [telefono, setTelefono] = useState(usuario.telefono ?? '')
   const [rol, setRol] = useState<Rol>(usuario.rol)
   const [estado, setEstado] = useState(usuario.estado)
-  const [modulos, setModulos] = useState<string[] | null>(usuario.modulos_habilitados)
+  const [modulos, setModulos] = useState<string[] | null>(usuario.modulos_habilitados ?? null)
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
