@@ -45,6 +45,7 @@ import { Iso55000 } from './pages/criticidad/Iso55000'
 import { PlanDelDia } from './pages/rutas/PlanDelDia'
 import { Mensajeria } from './pages/mensajeria/Mensajeria'
 import { Operaciones } from './pages/operaciones/Operaciones'
+import { MiUbicacion } from './pages/MiUbicacion'
 import { Activos } from './pages/activos/Activos'
 import { Dashboard } from './pages/bi/Dashboard'
 import { Reportes } from './pages/bi/Reportes'
@@ -162,6 +163,7 @@ export function App() {
       <Route element={<AppShell />}>
         <Route index element={<RoleHub />} />
         <Route path="seguridad" element={<Seguridad />} />
+        <Route path="mi-ubicacion" element={<MiUbicacion />} />
         <Route path="l/:codigo" element={<EnlaceCorto />} />
         <Route path="formularios/plantillas" element={acceso('formularios') ? (['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Plantillas /> : <SinPermiso />) : <SinPermiso />} />
         <Route path="formularios/constructor/:formularioId?" element={acceso('formularios') ? (['superadmin', 'admin_prestador', 'mesa_control'].includes(usuario.rol) ? <Constructor /> : <SinPermiso />) : <SinPermiso />} />
