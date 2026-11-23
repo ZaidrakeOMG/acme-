@@ -138,7 +138,7 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
       final estado = await Permission.notification.status;
       await controlador.runJavaScript(
         'window.__acmaNotificacionesAutorizadas = ${estado.isGranted};'
-        'window.__acmaAppVersion = "0.1.6";',
+        'window.__acmaAppVersion = "0.1.7";',
       );
     } catch (_) {
       // La pantalla continúa operativa: el canal nativo es la primera opción.
@@ -193,10 +193,15 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
             await openAppSettings();
             return;
           }
-          if (mensaje.message != 'solicitar_notificaciones') return;
+          final consultar = mensaje.message == 'consultar_notificaciones';
+          if (!consultar && mensaje.message != 'solicitar_notificaciones') {
+            return;
+          }
           bool autorizado = false;
           try {
-            final estado = await Permission.notification.request();
+            final estado = consultar
+                ? await Permission.notification.status
+                : await Permission.notification.request();
             autorizado = estado.isGranted;
           } catch (_) {
             // El usuario puede reintentar desde ajustes del dispositivo.
