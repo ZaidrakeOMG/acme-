@@ -64,6 +64,8 @@ describe('Catálogos', () => {
     expect(await screen.findByText('Selecciona un prestador')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Nuevo técnico' })).not.toBeInTheDocument()
     expect(llamadas.some(l => l.clave === 'GET /api/catalogos/tecnicos')).toBe(false)
+    // El selector se llena asincrónicamente; esperar la opción evita una carrera en CI.
+    await screen.findByRole('option', { name: 'Prestador de ejemplo' })
     await userEvent.selectOptions(screen.getByLabelText('Prestador'), P)
     expect(await screen.findByRole('button', { name: 'Nuevo técnico' })).toBeInTheDocument()
     await waitFor(() => {
