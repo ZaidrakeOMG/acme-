@@ -24,8 +24,10 @@ from schemas.folios import (
     SeveridadOverrideEntrada, TarjetaDuplicado, TransicionEntrada, TransicionTabla, VinculoFormularioSalida,
 )
 from schemas.sync import EncuestaEntrada, EncuestaSalida
+from schemas.rastreo_folio import ConsentimientoUbicacion, PuntoUbicacionUsuario, MiRastreoFolio
 from services import aprobacion_service, auditoria, folio_cierre_service, folio_estados
 from services import folios_captura_service as svc
+from services import rastreo_folios_service as rastreo
 
 router = APIRouter(prefix="/api/folios", tags=["Folios"], responses=RESPUESTAS_ERROR)
 
@@ -48,6 +50,38 @@ def _politicas_salida(p) -> PoliticasSalida:
 def _tenant_configuracion(actor: Actor, tenant_id: UUID | None) -> UUID:
     """Configuración del flujo: el tenant del Admin empresa; superadmin indica ?tenant_id=."""
     return tenant_de(actor, tenant_id)
+
+
+
+# Compartir solamente el GPS del usuario autenticado: exige opt-in desde su dispositivo.
+# No acepta identificadores de otros usuarios ni permite activarlo remotamente.
+@router.get("/{folio_id}/mi-rastreo", response_model=MiRastreoFolio)
+async def mi_rastreo(folio_id: UUID, db: DB, actor: ActorActual):
+    return await rastreo.mi_estado(db, actor, folio_id)
+
+
+@router.post("/{folio_id}/compartir-ubicacion", response_model=MiRastreoFolio)
+async def iniciar_rastreo(folio_id: UUID, datos: ConsentimientoUbicacion, db: DB, actor: ActorActual):
+    if datos.acepto is not True:
+        raise ErrorAPI(422, "CONSENTIMIENTO_REQUERIDO",
+                       "Debes aceptar compartir TU posicion mientras el folio esta abierto")
+    salida = await rastreo.empezar(db, actor, folio_id)
+    await db.commit()
+    return salida
+
+
+@router.put("/{folio_id}/compartir-ubicacion", response_model=MiRastreoFolio)
+async def actualizar_rastreo(folio_id: UUID, datos: PuntoUbicacionUsuario, db: DB, actor: ActorActual):
+    salida = await rastreo.actualizar(db, actor, folio_id, datos.lat, datos.lng, datos.precision_m)
+    await db.commit()
+    return salida
+
+
+@router.post("/{folio_id}/detener-ubicacion", response_model=MiRastreoFolio)
+async def detener_rastreo(folio_id: UUID, db: DB, actor: ActorActual):
+    salida = await rastreo.detener(db, actor, folio_id)
+    await db.commit()
+    return salida
 
 
 # --------------------------------------------------------------- catálogo
