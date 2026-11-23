@@ -213,10 +213,10 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
       <AvisoActivo />
       {children}
       {solicitudVisible && !activo && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-slate-950/65 p-4"
+        <div className="pointer-events-none fixed bottom-4 right-4 z-[1100] w-[min(28rem,calc(100vw-2rem))]"
           data-testid="solicitud-ubicacion-inicio">
-          <section role="dialog" aria-modal="true" aria-labelledby="gps-solicitud-titulo"
-            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <section role="region" aria-labelledby="gps-solicitud-titulo"
+            className="pointer-events-auto w-full rounded-3xl border border-emerald-200 bg-white p-5 shadow-2xl">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100">
               <span className="text-2xl text-emerald-800" aria-hidden="true">⌖</span>
             </div>
