@@ -134,7 +134,9 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
         unawaited(() async {
           final actual = Uri.tryParse(await controller.currentUrl() ?? '');
           if (actual == null ||
-              !ConfiguracionAcma.mismoOrigen(origen, actual)) return;
+              !ConfiguracionAcma.mismoOrigen(origen, actual)) {
+            return;
+          }
           if (mensaje.message == 'abrir_ajustes') {
             await openAppSettings();
             return;
