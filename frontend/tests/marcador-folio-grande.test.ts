@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contenidoMarcadorFolio, posicionTecnicoDelFolio } from '../src/services/marcadorFolio'
+import { contenidoMarcadorFolio, posicionServicioDelFolio, posicionTecnicoDelFolio } from '../src/services/marcadorFolio'
 
 const tecnico = {
   tecnico_id: 't-001',
@@ -22,6 +22,22 @@ describe('Marcador grande y seguimiento GPS del folio en Operaciones', () => {
     expect(posicionTecnicoDelFolio({ tecnico_id: 'u-001' }, [{ ...tecnico, lat: null }])).toBeNull()
     expect(posicionTecnicoDelFolio({ tecnico_id: 'u-001' }, [{ ...tecnico, lng: 181 }])).toBeNull()
     expect(posicionTecnicoDelFolio({ tecnico_id: 'u-001' }, [{ ...tecnico, lat: Infinity }])).toBeNull()
+  })
+
+  it('muestra las coordenadas registradas de la sucursal sin atribuirlas al técnico', () => {
+    const unidad = { un_id: 'un-001', lat: 25.54, lng: -103.42 }
+    expect(posicionServicioDelFolio({ un_id: 'un-001' }, [unidad]))
+      .toEqual({ lat: 25.54, lng: -103.42 })
+    expect(posicionServicioDelFolio({ un_id: 'otra' }, [unidad])).toBeNull()
+    expect(posicionServicioDelFolio({ un_id: 'un-001' }, [{ ...unidad, lat: 0, lng: 0 }])).toBeNull()
+    expect(posicionServicioDelFolio({ un_id: 'un-001' }, [{ ...unidad, lat: Infinity }])).toBeNull()
+  })
+
+  it('distingue visiblemente la sucursal del GPS en vivo', () => {
+    const marcador = contenidoMarcadorFolio('F-000123', 'servicio')
+    expect(marcador.className).toContain('acma-folio-pin--servicio')
+    expect(marcador.textContent).toContain('SUCURSAL · SIN GPS EN VIVO')
+    expect(marcador.getAttribute('aria-label')).toContain('sin GPS en vivo')
   })
 
   it('dibuja un pin accesible y destacado con número visible para GPS del técnico', () => {
