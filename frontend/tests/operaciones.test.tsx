@@ -292,6 +292,23 @@ describe('Operaciones en tiempo real (F2-03)', () => {
     expect(intervaloMs(parametros, false, null)).toBe(30000)
   })
 
+  it('al iniciar sesión como técnico solicita permiso de ubicación y respeta Ahora no', async () => {
+    sessionStorage.removeItem('acma.gps.ofrecido.00000000-0000-0000-0000-000000000001')
+    const llamadas = await entrar('tecnico', '/campo', {
+      'GET /api/folios': () => ({ json: [] }),
+      'GET /api/configuracion/mis-permisos': () => ({ json: [] }),
+      'GET /api/operacion/mi-jornada': () => ({ json: sinJornada }),
+      'GET /api/operacion/mis-alertas': () => ({ json: [] }),
+    })
+    const dialogo = await screen.findByTestId('solicitud-ubicacion-inicio')
+    expect(within(dialogo).getByText('¿Compartir tu ubicación con ACMA?')).toBeInTheDocument()
+    expect(within(dialogo).getByRole('button', { name: 'Activar mi ubicación' })).toBeInTheDocument()
+    const user = userEvent.setup()
+    await user.click(within(dialogo).getByRole('button', { name: 'Ahora no' }))
+    expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument()
+    expect(llamadas.some(l => l.clave === 'POST /api/mi-ubicacion/iniciar')).toBe(false)
+  })
+
   it('el cliente no entra a la pantalla de operaciones', async () => {
     await entrar('admin_un', '/operaciones')
     expect(await screen.findByText('Sin acceso')).toBeInTheDocument()
