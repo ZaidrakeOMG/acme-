@@ -95,3 +95,41 @@ async def usuarios_activos(db: AsyncSession, actor: Actor) -> list[dict]:
            "tenant_ok": actor.rol == Rol.admin_empresa,
            "tenant": actor.tenant_id})).mappings().all()
     return [dict(f) for f in filas]
+
+
+async def listar_usuarios_rastreables(db: AsyncSession, actor: Actor) -> list[dict]:
+    """Todas las cuentas ACTIVAS visibles para el supervisor, incluso sin GPS.
+
+    El estado activo es de la cuenta; NO afirma que esté conectado ahora.
+    Las coordenadas solo se muestran con consentimiento reciente y dentro
+    de la organización del supervisor (además de RLS en ambas tablas).
+    """
+    if actor.rol not in ROLES_VISUALIZAN:
+        raise prohibido("No puedes consultar usuarios de otras cuentas")
+    filas = (await db.execute(text("""
+        SELECT u.id AS usuario_id, u.nombre AS usuario_nombre,
+               u.rol::text AS rol, u.email AS correo,
+               u.ultimo_acceso_at,
+               CASE WHEN r.usuario_id IS NOT NULL THEN r.dispositivo ELSE NULL END AS dispositivo,
+               (r.usuario_id IS NOT NULL) AS gps_activo,
+               r.lat, r.lng, r.precision_m, r.ultima_at
+          FROM usuarios u
+          LEFT JOIN rastreo_usuarios r ON r.usuario_id = u.id
+             AND r.expira_at > now()
+             AND r.ultima_at > now() - interval '90 seconds'
+             AND r.lat IS NOT NULL AND r.lng IS NOT NULL
+         WHERE u.estado = 'activo'
+           AND (:plataforma
+             OR (:prestador_ok AND u.prestador_id = :prestador)
+             OR (:tenant_ok AND u.tenant_id = :tenant))
+         ORDER BY (r.usuario_id IS NOT NULL) DESC, lower(u.nombre), u.id
+    """), {
+        "plataforma": actor.es_superadmin,
+        "prestador_ok": actor.rol in {
+            Rol.admin_prestador, Rol.mesa_control, Rol.despachador
+        },
+        "prestador": actor.prestador_id,
+        "tenant_ok": actor.rol == Rol.admin_empresa,
+        "tenant": actor.tenant_id,
+    })).mappings().all()
+    return [dict(fila) for fila in filas]
