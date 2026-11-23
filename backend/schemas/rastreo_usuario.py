@@ -13,7 +13,7 @@ class ConsentimientoUsuario(BaseModel):
 class PuntoUsuario(BaseModel):
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
-    precision_m: float | None = Field(default=None, ge=0, le=10000)
+    precision_m: float | None = Field(default=None, ge=0, le=1000000)
 
 
 class MiRastreo(BaseModel):
