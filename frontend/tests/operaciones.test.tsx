@@ -107,6 +107,7 @@ async function entrar(rol: Rol, ruta: string, rutas: Parameters<typeof simularAp
     'GET /api/auth/yo': () => ({ json: perfil(rol, { prestador_id: 'p1', ...extra }) }),
     'GET /api/notificaciones/no-leidas': () => ({ json: { no_leidas: 0 } }),
     'GET /api/operacion/tablero': () => ({ json: tableroDemo }),
+    'GET /api/operacion/usuarios-compartiendo': () => ({ json: [] }),
     [`GET /api/operacion/tecnicos/${TEC}/recorrido`]: () => ({ json: recorrido }),
     [`GET /api/operacion/tecnicos/${TEC2}/recorrido`]: () => ({ json: { ...recorrido, tecnico_id: TEC2 } }),
     'GET /api/operacion/mi-jornada': () => ({ json: sinJornada }),
@@ -165,6 +166,25 @@ describe('Operaciones en tiempo real (F2-03)', () => {
     expect(within(indicadores).getAllByText('3')).toHaveLength(2)
     expect(within(indicadores).getByText('Folios del día')).toBeInTheDocument()
     expect(within(indicadores).getByText('9')).toBeInTheDocument()
+  })
+
+  it('al seleccionar folio rastrea al usuario que comparte GPS y no confunde su ubicación con la sucursal', async () => {
+    await entrar('despachador', '/operaciones', {
+      'GET /api/operacion/usuarios-compartiendo': () => ({
+        json: [{
+          folio_id: 'f3', usuario_id: 'u-operador', usuario_nombre: 'Usuario de Android',
+          lat: 25.54, lng: -103.42, precision_m: 14,
+          ultima_at: '2026-11-23T17:00:00Z',
+        }],
+      }),
+    })
+    const fila = (await screen.findByText('CD-000122')).closest('tr')
+    expect(fila).not.toBeNull()
+    const user = userEvent.setup()
+    await user.click(within(fila!).getByRole('button', { name: 'Rastrear' }))
+    const panel = await screen.findByTestId('operaciones-folio-rastreado')
+    expect(await within(panel).findByText(/Marcador verde: ubicación compartida voluntariamente/)).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Centrar en el usuario' })).toBeInTheDocument()
   })
 
   it('al rastrear un folio sin técnico muestra la sucursal como referencia y no inventa GPS', async () => {
