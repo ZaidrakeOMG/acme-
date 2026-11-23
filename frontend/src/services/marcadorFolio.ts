@@ -3,7 +3,7 @@
  */
 import type { FolioEnTablero, TecnicoEnTablero, UnidadEnTablero } from '../types/operaciones'
 
-export type OrigenMarcadorFolio = 'tecnico' | 'demo' | 'servicio'
+export type OrigenMarcadorFolio = 'tecnico' | 'demo' | 'servicio' | 'usuario'
 
 export function posicionTecnicoDelFolio(
   folio: Pick<FolioEnTablero, 'tecnico_id'> | null,
@@ -39,7 +39,9 @@ export function contenidoMarcadorFolio(numero: string, origen: OrigenMarcadorFol
     ? 'GPS personal de prueba, folio ' + numero
     : origen === 'servicio'
       ? 'Ubicación registrada de la sucursal del folio ' + numero + ', sin GPS en vivo del técnico'
-      : 'Última ubicación del técnico asignado al folio ' + numero)
+      : origen === 'usuario'
+        ? 'Ubicación compartida voluntariamente por usuario del folio ' + numero
+        : 'Última ubicación del técnico asignado al folio ' + numero)
 
   const pulso = document.createElement('div')
   pulso.className = 'acma-folio-pin__pulso'
@@ -71,7 +73,8 @@ export function contenidoMarcadorFolio(numero: string, origen: OrigenMarcadorFol
   titulo.textContent = numero
   const origenTexto = document.createElement('span')
   origenTexto.textContent = origen === 'demo' ? 'GPS PERSONAL · DEMO'
-    : origen === 'servicio' ? 'SUCURSAL · SIN GPS EN VIVO' : 'UBICACIÓN DEL TÉCNICO'
+    : origen === 'servicio' ? 'SUCURSAL · SIN GPS EN VIVO'
+      : origen === 'usuario' ? 'USUARIO · GPS COMPARTIDO' : 'UBICACIÓN DEL TÉCNICO'
   etiqueta.append(titulo, origenTexto)
 
   raiz.append(pulso, cuerpo, etiqueta)
