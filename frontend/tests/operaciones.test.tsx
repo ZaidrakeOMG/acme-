@@ -168,23 +168,22 @@ describe('Operaciones en tiempo real (F2-03)', () => {
     expect(within(indicadores).getByText('9')).toBeInTheDocument()
   })
 
-  it('al seleccionar folio rastrea al usuario que comparte GPS y no confunde su ubicación con la sucursal', async () => {
+  it('muestra al usuario de PC y lo sigue en el mapa sin necesitar un folio', async () => {
     await entrar('despachador', '/operaciones', {
       'GET /api/operacion/usuarios-compartiendo': () => ({
         json: [{
-          folio_id: 'f3', usuario_id: 'u-operador', usuario_nombre: 'Usuario de Android',
-          lat: 25.54, lng: -103.42, precision_m: 14,
+          usuario_id: 'u-pc', usuario_nombre: 'Usuario de Windows',
+          dispositivo: 'pc', lat: 25.54, lng: -103.42, precision_m: 14,
           ultima_at: '2026-11-23T17:00:00Z',
         }],
       }),
     })
-    const fila = (await screen.findByText('CD-000122')).closest('tr')
-    expect(fila).not.toBeNull()
+    const panel = await screen.findByTestId('panel-rastreo-usuarios')
     const user = userEvent.setup()
-    await user.click(within(fila!).getByRole('button', { name: 'Rastrear' }))
-    const panel = await screen.findByTestId('operaciones-folio-rastreado')
-    expect(await within(panel).findByText(/Marcador verde: ubicación compartida voluntariamente/)).toBeInTheDocument()
-    expect(within(panel).getByRole('button', { name: 'Centrar en el usuario' })).toBeInTheDocument()
+    await user.click(await within(panel).findByText('Ver usuario en el mapa'))
+    const rastreado = await screen.findByTestId('usuario-rastreado')
+    expect(within(rastreado).getByText('Siguiendo a Usuario de Windows')).toBeInTheDocument()
+    expect(within(rastreado).getByRole('button', { name: 'Centrar en el usuario' })).toBeInTheDocument()
   })
 
   it('al rastrear un folio sin técnico muestra la sucursal como referencia y no inventa GPS', async () => {
