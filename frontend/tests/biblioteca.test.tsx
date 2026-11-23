@@ -124,7 +124,7 @@ describe('Biblioteca en la app del técnico (F2-01)', () => {
     vista.unmount()
     render(<MemoryRouter><MisManuales /></MemoryRouter>)
     const lista = await screen.findByTestId('manuales-offline')
-    expect(within(lista).getByText('Hay versión nueva')).toBeInTheDocument()
+    expect(await within(lista).findByText('Hay versión nueva')).toBeInTheDocument()
     await user.click(within(lista).getByRole('button', { name: 'Borrar' }))
     await waitFor(async () => expect(await baseLocal.biblioteca_offline.count()).toBe(0))
     expect((await espacio()).usadoBytes).toBe(0)
