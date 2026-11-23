@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import type { PerfilConTema, Rol } from '../src/types/api'
 import type { FolioDetalle, FolioResumen } from '../src/types/folios'
-import type { Parametros, Tablero, TecnicoEnTablero } from '../src/types/operaciones'
+import type { Parametros } from '../src/types/operaciones'
 import type {
   ConfiguracionRutas, Eta, Mercado, MiRuta, PlanDetalle, Propuesta, Simulacion, TiempoServicio, TrazoRuta,
 } from '../src/types/rutas'
@@ -121,24 +121,6 @@ const parametros: Parametros = {
   aviso_geolocalizacion: 'Mientras tu jornada esté iniciada, ACMA registra la ubicación de tu teléfono.',
   max_lote: 60, precision_maxima_m: 500, horas_recorrido: 2,
   desvio_ruta: 'El desvío se marca cuando el técnico se sale del corredor de su ruta',
-}
-
-const tecnicos: TecnicoEnTablero[] = [
-  { tecnico_id: TEC1, usuario_id: 'u1', nombre: 'Tomás Técnico', numero_empleado: 'EMP-001',
-    estatus: 'en_ruta', estatus_texto: 'En ruta', en_jornada: true, jornada_desde: '2026-11-13T14:00:00Z',
-    minutos_en_estatus: 22, folios_pendientes: 2, lat: 19.4326, lng: -99.1332,
-    ultima_posicion_at: '2026-11-13T15:30:00Z', precision_m: '12.0', bateria_pct: 80,
-    vehiculo_placas: 'ACM-001', telefono: null,
-    alerta: { tipo: 'TECNICO_DESVIO_RUTA', desde: '2026-11-13T15:20:00Z', escalada: false },
-    respuesta_tecnico: null },
-]
-
-const tablero: Tablero = {
-  generado_at: '2026-11-13T15:30:00Z', tecnicos, folios: [], unidades: [], alertas: [],
-  indicadores: { completados: 2, total_dia: 6, tecnicos_activos: 1, alertas_abiertas: 1,
-                 tiempo_promedio_atencion_horas: '2.10',
-                 aviso_fase_2: 'El desvío de ruta y el ETA ya operan con distancias estimadas' },
-  parametros, solo_lectura: false,
 }
 
 const eta: Eta = {
