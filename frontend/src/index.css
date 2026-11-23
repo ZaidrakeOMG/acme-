@@ -329,7 +329,7 @@ body { background: #f7f7fa; color: var(--acma-ink); }
 
 
 /* Ubicación destacada al rastrear un folio: el marcador y el texto tienen alto contraste.
-   Azul = técnico con GPS real; ámbar = sucursal registrada, sin GPS; rojo = GPS personal TESTBOT DEMO. */
+   Azul = técnico con GPS real; verde = usuario voluntario; ámbar = sucursal; rojo = TESTBOT DEMO. */
 .acma-folio-destacado.leaflet-div-icon {
   background: transparent;
   border: 0;
@@ -348,6 +348,10 @@ body { background: #f7f7fa; color: var(--acma-ink); }
 .acma-folio-pin--servicio {
   --acma-pin-color: #b45309;
   --acma-pin-borde: #fef3c7;
+}
+.acma-folio-pin--usuario {
+  --acma-pin-color: #047857;
+  --acma-pin-borde: #d1fae5;
 }
 .acma-folio-pin__pulso {
   position: absolute;
