@@ -4,6 +4,7 @@
  */
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import { useAuth } from './AuthContext'
 import { mensajeDeError } from '../services/api'
 import { consultarMiUbicacion, detenerMiUbicacion, enviarMiUbicacion, iniciarMiUbicacion } from '../services/rastreoUsuarios'
 
@@ -50,6 +51,8 @@ function AvisoActivo() {
 }
 
 export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
+  const { usuario } = useAuth()
+  const [solicitudVisible, setSolicitudVisible] = useState(false)
   const [activo, setActivo] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [mensaje, setMensaje] = useState('No estás compartiendo tu ubicación.')
@@ -117,11 +120,20 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     }
     setOcupado(true)
     try {
-      // Se activa exclusivamente desde el botón del dueño de la sesión.
+      // Primero solicitar permiso desde el clic REAL: iOS Safari pierde
+      // activación del usuario si esperamos una llamada HTTP antes del prompt.
+      const primera = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true, maximumAge: 5000, timeout: 20000,
+        })
+      })
+      // Solo después del permiso se registra el consentimiento en el servidor.
       await iniciarMiUbicacion(detectarDispositivo())
       activoRef.current = true
       setActivo(true)
-      setMensaje('Esperando permiso y primera ubicación del dispositivo…')
+      ultimaPosicion.current = primera
+      setMensaje('Ubicación autorizada. Compartiendo posición reciente…')
+      void transmitir()
       vigilando.current = navigator.geolocation.watchPosition(
         p => {
           if (!activoRef.current) return
@@ -144,9 +156,32 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
       }, 15000)
     } catch (e) {
       limpiarSensores()
-      setError(mensajeDeError(e))
+      const codigo = (e as { code?: number })?.code
+      setError(codigo === 1
+        ? 'Rechazaste el acceso a tu ubicación. Puedes activarlo después desde Mi ubicación.'
+        : codigo === 2 || codigo === 3
+          ? 'No se pudo obtener tu ubicación. Revisa el GPS y vuelve a intentarlo.'
+          : mensajeDeError(e))
     } finally { setOcupado(false) }
   }
+
+  function responderSolicitud(aceptar: boolean) {
+    const id = usuario?.id
+    if (id) {
+      try { sessionStorage.setItem('acma.gps.ofrecido.' + id, '1') }
+      catch { /* El navegador podría bloquear sessionStorage. */ }
+    }
+    setSolicitudVisible(false)
+    if (aceptar) void iniciar()
+  }
+
+  useEffect(() => {
+    if (!usuario?.id || activoRef.current) return
+    let yaSeOfrecio = false
+    try { yaSeOfrecio = sessionStorage.getItem('acma.gps.ofrecido.' + usuario.id) === '1' }
+    catch { /* Ofrecer si no se puede leer el almacenamiento. */ }
+    setSolicitudVisible(!yaSeOfrecio)
+  }, [usuario?.id])
 
   useEffect(() => {
     let presente = true
@@ -177,6 +212,40 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     <Contexto.Provider value={{ activo, ocupado, mensaje, error, iniciar, detener }}>
       <AvisoActivo />
       {children}
+      {solicitudVisible && !activo && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-slate-950/65 p-4"
+          data-testid="solicitud-ubicacion-inicio">
+          <section role="dialog" aria-modal="true" aria-labelledby="gps-solicitud-titulo"
+            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100">
+              <span className="text-2xl text-emerald-800" aria-hidden="true">⌖</span>
+            </div>
+            <h2 id="gps-solicitud-titulo" className="text-xl font-extrabold text-slate-900">
+              ¿Compartir tu ubicación con ACMA?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              {usuario?.nombre}, puedes compartir tu ubicación en tiempo real desde PC,
+              Android o iPhone. Los administradores autorizados podrán seleccionarte
+              por tu nombre en el mapa. Se guarda únicamente la última posición.
+              Se actualizará mientras ACMA permanezca visible y puedes detenerla cuando quieras.
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Al pulsar Activar se solicitará permiso de ubicación al dispositivo.
+              Si eliges Ahora no, no se consultará tu GPS.
+            </p>
+            <div className="mt-6 grid gap-2 sm:grid-cols-2">
+              <button type="button" onClick={() => responderSolicitud(false)}
+                className="min-h-12 rounded-xl border border-slate-300 px-4 py-3 font-semibold text-slate-700">
+                Ahora no
+              </button>
+              <button type="button" onClick={() => responderSolicitud(true)}
+                className="min-h-12 rounded-xl bg-emerald-800 px-4 py-3 font-semibold text-white">
+                Activar mi ubicación
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </Contexto.Provider>
   )
 }
