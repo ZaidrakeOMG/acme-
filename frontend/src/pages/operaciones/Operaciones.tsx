@@ -5,7 +5,7 @@ import { Aviso, Boton, Encabezado, Insignia, Tarjeta } from '../../components/ui
 import { useAuth } from '../../contexts/AuthContext'
 import { mensajeDeError } from '../../services/api'
 import { posicionServicioDelFolio, posicionTecnicoDelFolio } from '../../services/marcadorFolio'
-import { usuariosCompartiendoFolios, type UsuarioCompartiendoFolio } from '../../services/rastreoUsuarioFolio'
+import { usuariosCompartiendo, type UsuarioGps } from '../../services/rastreoUsuarios'
 import { abrirCanalGpsDemo, validarPuntoGpsDemo, type EventoGpsDemo, type PuntoGpsDemo } from '../../services/testbotGpsDemo'
 import { atenderAlerta, cerrarJornadaDe, recorridoDe, suscribirOperacion, tablero } from '../../services/operacion'
 import { aceptarPropuesta, propuestasPendientes, rechazarPropuesta } from '../../services/rutas'
@@ -68,7 +68,8 @@ class SiFallaElMapa extends Component<{ children: ReactNode }, { fallo: boolean 
 export function Operaciones() {
   const { usuario } = useAuth()
   const [datos, setDatos] = useState<Tablero | null>(null)
-  const [usuariosGps, setUsuariosGps] = useState<UsuarioCompartiendoFolio[]>([])
+  const [usuariosGps, setUsuariosGps] = useState<UsuarioGps[]>([])
+  const [usuarioRastreadoId, setUsuarioRastreadoId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [conexion, setConexion] = useState<'conectando' | 'en_vivo' | 'reconectando'>('conectando')
@@ -103,7 +104,7 @@ export function Operaciones() {
   useEffect(() => {
     let vigente = true
     const refrescar = () => {
-      void usuariosCompartiendoFolios()
+      void usuariosCompartiendo()
         .then(r => { if (vigente) setUsuariosGps(r) })
         .catch(() => { if (vigente) setUsuariosGps([]) })
     }
@@ -158,17 +159,11 @@ export function Operaciones() {
     setAviso(null)
     setError(null)
     setFolioRastreadoId(f.folio_id)
+    setUsuarioRastreadoId(null)
     setCentrarEn(null)
     setSeleccionado(null)
     setRecorrido([]) // Nunca dejar el recorrido del técnico del folio anterior.
     const servicio = posicionServicioDelFolio(f, datos?.unidades ?? [])
-    const compartiendo = usuariosGps.find(p => p.folio_id === f.folio_id)
-    if (compartiendo) {
-      setCentrarEn({ lat: compartiendo.lat, lng: compartiendo.lng, zoom: 17 })
-      setAviso('Rastreando la ubicación que comparte ' + compartiendo.usuario_nombre +
-        ' para el folio ' + f.numero_folio + '. Se actualiza mientras su teléfono mantenga la página activa.')
-      return
-    }
     // Esta ubicación es una prueba personal, no una ubicación de Técnico.
     if (gpsPersonal?.folioId === f.folio_id) {
       setCentrarEn({ lat: gpsPersonal.lat, lng: gpsPersonal.lng, zoom: 17 })
@@ -243,9 +238,6 @@ export function Operaciones() {
   const folioDestacado = useMemo(() => {
     const folio = datos?.folios.find(f => f.folio_id === folioRastreadoId)
     if (!folio) return null
-    const compartiendo = usuariosGps.find(p => p.folio_id === folio.folio_id)
-    if (compartiendo) return { numero: folio.numero_folio, lat: compartiendo.lat, lng: compartiendo.lng,
-                               origen: 'usuario' as const }
     if (gpsPersonal?.folioId === folio.folio_id) return null
     const posicion = posicionTecnicoDelFolio(folio, datos?.tecnicos ?? [])
     if (posicion) return { numero: folio.numero_folio, lat: posicion.lat, lng: posicion.lng,
@@ -253,7 +245,8 @@ export function Operaciones() {
     const servicio = posicionServicioDelFolio(folio, datos?.unidades ?? [])
     return servicio ? { numero: folio.numero_folio, lat: servicio.lat, lng: servicio.lng,
                        origen: 'servicio' as const } : null
-  }, [datos?.folios, datos?.tecnicos, datos?.unidades, folioRastreadoId, gpsPersonal?.folioId, usuariosGps])
+  }, [datos?.folios, datos?.tecnicos, datos?.unidades, folioRastreadoId, gpsPersonal?.folioId])
+  const usuarioRastreado = usuariosGps.find(u => u.usuario_id === usuarioRastreadoId) ?? null
   const elegido = tecnicos.find((t) => t.tecnico_id === seleccionado) ?? null
   const enJornada = tecnicos.filter((t) => t.en_jornada)
 
@@ -279,16 +272,72 @@ export function Operaciones() {
       )}
 
       <Indicadores datos={datos} enJornada={enJornada.length} ultimoEvento={ultimoEvento} />
+
+      <section className="my-4 rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm"
+        data-testid="panel-rastreo-usuarios">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Rastrear usuarios en tiempo real</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Ubicaciones compartidas voluntariamente desde PC, Android o iPhone.
+              No es necesario tener folios ni iniciar jornada.
+            </p>
+          </div>
+          <Link to="/mi-ubicacion" className="rounded-xl border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-800">
+            Activar mi ubicación
+          </Link>
+        </div>
+        {usuariosGps.length === 0
+          ? <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+              Ningún usuario está compartiendo una ubicación reciente. Cada usuario debe activar
+              «Mi ubicación» y permitir el acceso desde su propio dispositivo.
+            </p>
+          : <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {usuariosGps.map(u => (
+                <li key={u.usuario_id}>
+                  <button type="button" onClick={() => {
+                    setUsuarioRastreadoId(u.usuario_id)
+                    setFolioRastreadoId(null)
+                    setSeleccionado(null)
+                    setRecorrido([])
+                    setAviso(null)
+                    setCentrarEn({ lat: u.lat, lng: u.lng, zoom: 17 })
+                  }} className={"w-full rounded-xl border p-3 text-left hover:bg-emerald-50 " +
+                    (usuarioRastreadoId === u.usuario_id ? "border-emerald-600 bg-emerald-50" : "border-slate-200")}>
+                    <span className="block font-semibold text-slate-900">{u.usuario_nombre}</span>
+                    <span className="block text-xs text-slate-600">
+                      {u.dispositivo === 'pc' ? 'Computadora' : u.dispositivo === 'iphone' ? 'iPhone'
+                        : u.dispositivo === 'android' ? 'Android' : 'Navegador'}
+                      {' · Actualizado ' + new Date(u.ultima_at).toLocaleTimeString()}
+                    </span>
+                    <span className="mt-1 block text-sm font-semibold text-emerald-700">Ver usuario en el mapa</span>
+                  </button>
+                </li>
+              ))}
+            </ul>}
+        {usuarioRastreadoId && (
+          <div className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm" data-testid="usuario-rastreado">
+            {usuarioRastreado
+              ? <>
+                  <strong>Siguiendo a {usuarioRastreado.usuario_nombre}</strong>
+                  <p>Última ubicación: {new Date(usuarioRastreado.ultima_at).toLocaleString()}
+                    {usuarioRastreado.precision_m != null && ' · precisión aproximada ' +
+                      Math.round(usuarioRastreado.precision_m) + ' m'}</p>
+                  <button type="button" className="mt-2 rounded-lg bg-emerald-700 px-3 py-2 text-white"
+                    onClick={() => setCentrarEn({ lat: usuarioRastreado.lat, lng: usuarioRastreado.lng, zoom: 17 })}>
+                    Centrar en el usuario
+                  </button>
+                </>
+              : <p>Este usuario dejó de compartir su ubicación o perdió señal.</p>}
+          </div>
+        )}
+      </section>
       {folioEnRastreo && (
         <div className="my-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm"
           data-testid="operaciones-folio-rastreado">
           <strong className="text-blue-950">Seguimiento de {folioEnRastreo.numero_folio}</strong>
           <p className="mt-1 text-slate-700">
-            {folioDestacado?.origen === 'usuario'
-              ? 'Marcador verde: ubicación compartida voluntariamente por ' +
-                (usuariosGps.find(p => p.folio_id === folioEnRastreo.folio_id)?.usuario_nombre ?? 'usuario') +
-                '. Se actualiza aproximadamente cada 10–15 segundos.'
-              : folioDestacado?.origen === 'tecnico'
+            {folioDestacado?.origen === 'tecnico'
               ? 'Marcador azul grande: última posición GPS del técnico asignado. Se actualiza al recibir coordenadas.'
               : folioDestacado?.origen === 'servicio'
                 ? 'Marcador ámbar: ubicación registrada de la sucursal. No representa la ubicación en vivo del técnico.'
@@ -299,8 +348,7 @@ export function Operaciones() {
           {folioDestacado && (
             <button type="button" className="mt-2 rounded-lg bg-blue-800 px-3 py-1.5 font-semibold text-white"
               onClick={() => setCentrarEn({ lat: folioDestacado.lat, lng: folioDestacado.lng, zoom: 17 })}>
-              {folioDestacado.origen === 'usuario' ? 'Centrar en el usuario'
-                : folioDestacado.origen === 'tecnico' ? 'Centrar en el técnico' : 'Ver sucursal en el mapa'}
+              {folioDestacado.origen === 'tecnico' ? 'Centrar en el técnico' : 'Ver sucursal en el mapa'}
             </button>
           )}
         </div>
@@ -321,9 +369,8 @@ export function Operaciones() {
       )}
       {datos && enJornada.length === 0 && (
         <p className="my-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-          No hay técnicos con jornada abierta. También puedes rastrear el GPS del usuario
-          si comparte voluntariamente su ubicación desde el folio en Android o iPhone.
-          Sin consentimiento no aparece su posición.
+          No hay técnicos con jornada abierta. El rastreo voluntario de usuarios funciona
+          independientemente de las jornadas y de los folios, desde PC, Android o iPhone.
         </p>
       )}
 
@@ -332,6 +379,15 @@ export function Operaciones() {
           <SiFallaElMapa>
             <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-slate-100" />}>
               <Mapa tecnicos={enJornada} unidades={datos?.unidades ?? []} recorrido={recorrido}
+                    usuariosGps={usuariosGps} usuarioDestacadoId={usuarioRastreadoId}
+                    alElegirUsuario={(id) => {
+                      const u = usuariosGps.find(x => x.usuario_id === id)
+                      if (!u) return
+                      setUsuarioRastreadoId(id)
+                      setFolioRastreadoId(null)
+                      setSeleccionado(null)
+                      setCentrarEn({ lat: u.lat, lng: u.lng, zoom: 17 })
+                    }}
                     folioDestacado={folioDestacado}
                      gpsPersonal={gpsPersonal} rutaGpsPersonal={rutaGpsPersonal}
                     seleccionado={seleccionado} centrarEn={centrarEn}
