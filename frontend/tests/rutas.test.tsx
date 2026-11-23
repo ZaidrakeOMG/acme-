@@ -282,29 +282,25 @@ describe('Rutas y reasignación automática (F2-06)', () => {
       .toMatchObject({ tecnico_destino_id: TEC2, orden: null }))
   })
 
-  it('la propuesta de desvío se acepta desde el tablero y hasta entonces nada cambia', async () => {
+  it('la pantalla de Operaciones ya no muestra propuestas, solo usuarios activos', async () => {
     const llamadas = await entrar('despachador', '/operaciones', {
-      'GET /api/operacion/tablero': () => ({ json: tablero }),
-      'GET /api/operacion/mi-jornada': () => ({ estado: 403,
-        json: { codigo: 'PROHIBIDO', mensaje: 'Solo técnicos', detalles: [] } }),
-      'GET /api/operacion/mis-alertas': () => ({ json: [] }),
+      'GET /api/operacion/usuarios-rastreo': () => ({
+        json: [{
+          usuario_id: 'u1', usuario_nombre: 'Tomás Técnico',
+          correo: 'tomas@prueba.dev', rol: 'tecnico',
+          gps_activo: false, dispositivo: null, lat: null, lng: null,
+          precision_m: null, ultima_at: null, ultimo_acceso_at: null,
+        }],
+      }),
       'GET /api/rutas/propuestas/pendientes': () => ({ json: [propuesta] }),
-      [`POST /api/rutas/propuestas/${PROP}/aceptar`]: () => ({
-        json: { recalculo_id: PROP, aplicados: 1, omitidos: [] } }),
     })
-    // §6.8.4: el desvío se ve en la fila del técnico, con su nombre en texto y no solo por el color.
-    const tecnicosPanel = await screen.findByTestId('panel-tecnicos')
-    expect(await within(tecnicosPanel).findByText('Desvío de ruta')).toBeInTheDocument()
-    const panel = await screen.findByTestId('panel-propuestas')
-    expect(within(panel).getByText('Desvío de ruta')).toBeInTheDocument()
-    expect(within(panel).getByText(/se salió del corredor de su ruta 820 m durante 12 min/)).toBeInTheDocument()
-    expect(within(panel).getByText(/RT-000003 → llega/)).toBeInTheDocument()
-    expect(screen.getByText('Nada cambia hasta que aceptas.')).toBeInTheDocument()
-    expect(llamadas.some((l) => l.clave.includes('/aceptar'))).toBe(false)
-    const user = userEvent.setup()
-    await user.click(within(panel).getByRole('button', { name: 'Aceptar' }))
-    await waitFor(() => expect(llamadas.some((l) => l.clave === `POST /api/rutas/propuestas/${PROP}/aceptar`))
-      .toBe(true))
+    const rastreo = await screen.findByTestId('panel-rastreo-usuarios')
+    expect(await within(rastreo).findByText('Tomás Técnico')).toBeInTheDocument()
+    expect(within(rastreo).getByRole('button', { name: 'Rastrear usuario' })).toBeInTheDocument()
+    expect(screen.queryByTestId('panel-propuestas')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('panel-tecnicos')).not.toBeInTheDocument()
+    expect(llamadas.some(l => l.clave === 'GET /api/rutas/propuestas/pendientes')).toBe(false)
+    expect(llamadas.some(l => l.clave.includes('/aceptar'))).toBe(false)
   })
 
   it('el operador ve la hora estimada de llegada, no la posición del técnico', async () => {
