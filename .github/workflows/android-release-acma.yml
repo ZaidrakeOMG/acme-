@@ -51,7 +51,7 @@ jobs:
         working-directory: mobile_flutter
         run: flutter create --platforms=android --project-name acma_mobile .
       - name: Configurar Android y URL HTTPS
-        run: python scripts/preparar_flutter_release_acma.py https://grupoacma.com
+        run: python scripts/preparar_flutter_release_acma.py https://groupacma.com
       - name: Instalar dependencias Flutter
         working-directory: mobile_flutter
         run: flutter pub get
@@ -60,7 +60,7 @@ jobs:
         run: dart run flutter_launcher_icons
       - name: Compilar APK release para prueba en dispositivos
         working-directory: mobile_flutter
-        run: flutter build apk --release --dart-define=ACMA_BASE_URL=https://grupoacma.com
+        run: flutter build apk --release --dart-define=ACMA_BASE_URL=https://groupacma.com
       - name: Comprobar salida APK
         run: test -s mobile_flutter/build/app/outputs/flutter-apk/app-release.apk
       - name: Crear firma TEMPORAL solo para prueba CI de App Bundle
@@ -71,7 +71,7 @@ jobs:
         run: python scripts/preparar_android_play.py --application-id com.zaidrakeomg.acma --verificar-firma
       - name: Compilar AAB firmado con certificado EFÍMERO (NO APTO PARA PUBLICAR)
         working-directory: mobile_flutter
-        run: flutter build appbundle --release --dart-define=ACMA_BASE_URL=https://grupoacma.com
+        run: flutter build appbundle --release --dart-define=ACMA_BASE_URL=https://groupacma.com
       - name: Verificar AAB de prueba y borrar llave de CI
         run: |
           test -s mobile_flutter/build/app/outputs/bundle/release/app-release.aab
