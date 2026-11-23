@@ -15,7 +15,7 @@ from core.errors import ErrorAPI, prohibido
 from core.middleware import contexto_desde_claims
 from core.security import TIPO_ACCESO, decodificar_jwt
 from models.base import Rol
-from schemas.rastreo_usuario import UsuarioEnMapa
+from schemas.rastreo_usuario import UsuarioEnMapa, UsuarioRastreable
 from models.operaciones import CerradaPorJornada
 from schemas.comun import RESPUESTAS_ERROR, Mensaje
 from schemas.operaciones import (
@@ -131,6 +131,13 @@ async def recorrido(tecnico_id: UUID, request: Request, db: DB, actor: ActorActu
 @router.get("/usuarios-compartiendo", response_model=list[UsuarioEnMapa])
 async def usuarios_compartiendo(db: DB, actor: Actor = Depends(DESPACHO)):
     return await rastreo.usuarios_activos(db, actor)
+
+
+@router.get("/usuarios-rastreo", response_model=list[UsuarioRastreable],
+            summary="Cuentas activas de la organización y estado de GPS autorizado")
+async def usuarios_rastreo(db: DB, actor: Actor = Depends(DESPACHO)):
+    # Nunca permite iniciar GPS a distancia; solo muestra permiso y última posición vigente.
+    return await rastreo.listar_usuarios_rastreables(db, actor)
 
 
 # ------------------------------------------------------------------ tablero
