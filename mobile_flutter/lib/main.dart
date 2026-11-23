@@ -134,7 +134,7 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
           final urlActual = await controller.currentUrl();
           final paginaActual = Uri.tryParse(urlActual ?? '');
           final paginaPermitida = paginaActual != null && _origen != null &&
-              ConfiguracionAcma.mismoOrigen(_origen, paginaActual);
+              ConfiguracionAcma.mismoOrigen(_origen!, paginaActual);
           final soloCamara = solicitud.types.isNotEmpty &&
               solicitud.types.every((tipo) => tipo == WebViewPermissionResourceType.camera);
           if (!paginaPermitida || !soloCamara) {
@@ -153,7 +153,7 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
         onShowPrompt: (solicitud) async {
           final origenSolicitud = Uri.tryParse(solicitud.origin);
           if (origenSolicitud == null || _origen == null ||
-              !ConfiguracionAcma.mismoOrigen(_origen, origenSolicitud)) {
+              !ConfiguracionAcma.mismoOrigen(_origen!, origenSolicitud)) {
             return const GeolocationPermissionsResponse(allow: false, retain: false);
           }
           final permiso = await Permission.locationWhenInUse.request();
@@ -271,7 +271,7 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
     if (destino.scheme == 'about' || destino.scheme == 'blob') {
       return NavigationDecision.navigate;
     }
-    if (_origen != null && ConfiguracionAcma.mismoOrigen(_origen, destino)) {
+    if (_origen != null && ConfiguracionAcma.mismoOrigen(_origen!, destino)) {
       return NavigationDecision.navigate;
     }
     if (const {'https', 'http', 'mailto', 'tel', 'sms', 'geo'}.contains(destino.scheme)) {
