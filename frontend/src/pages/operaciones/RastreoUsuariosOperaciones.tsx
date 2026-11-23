@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Encabezado } from '../../components/ui'
 import { NOMBRE_ROL } from '../../config/modulos'
@@ -8,6 +8,20 @@ import type { Rol } from '../../types/api'
 
 const MapaUsuarios = lazy(() => import('./MapaRastreoUsuarios'))
 const CADA_MS = 10000
+
+/** Si el proveedor de mapas falla, el listado de usuarios debe seguir funcionando. */
+class ProteccionMapa extends Component<{ children: ReactNode }, { error: boolean }> {
+  state = { error: false }
+  static getDerivedStateFromError() { return { error: true } }
+  render() {
+    if (this.state.error) return (
+      <p role="status" className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
+        El mapa no está disponible. Puedes seguir consultando usuarios y estados GPS en la lista.
+      </p>
+    )
+    return this.props.children
+  }
+}
 
 /** Operaciones: SOLAMENTE rastreo de personas, independientemente de otros módulos. */
 export function RastreoUsuariosOperaciones() {
@@ -162,10 +176,12 @@ export function RastreoUsuariosOperaciones() {
                 {actualizado ? 'Actualizado: ' + actualizado.toLocaleTimeString() : 'Sin actualizar'}
               </span>
             </div>
-            <Suspense fallback={<div className="h-[380px] animate-pulse rounded-xl bg-slate-100" role="status">Cargando mapa…</div>}>
-              <MapaUsuarios usuarios={usuarios} seleccionadoId={seleccionado}
-                alSeleccionar={rastrear} />
-            </Suspense>
+            <ProteccionMapa>
+              <Suspense fallback={<div className="h-[380px] animate-pulse rounded-xl bg-slate-100" role="status">Cargando mapa…</div>}>
+                <MapaUsuarios usuarios={usuarios} seleccionadoId={seleccionado}
+                  alSeleccionar={rastrear} />
+              </Suspense>
+            </ProteccionMapa>
           </div>
           {elegido && (
             <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm"
