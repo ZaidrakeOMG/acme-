@@ -71,12 +71,78 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
   int _progreso = 0;
   bool _fallo = false;
   String _detalle = 'No se pudo conectar con ACMA';
+  // En Android se solicitan al abrir la APK, antes de mostrar la WebView.
+  // Nunca supone autorización: el SO puede denegar ambos permisos.
+  bool? _permisosAndroidOk;
+  bool _revisandoPermisos = false;
+  String? _errorPermisosAndroid;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_restaurarServidor());
+    if (Platform.isAndroid) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_comprobarPermisosAndroid(solicitar: true));
+      });
+    }
+  }
+
+  Future<void> _comprobarPermisosAndroid({bool solicitar = false}) async {
+    if (!Platform.isAndroid || !mounted || _revisandoPermisos) return;
+    setState(() {
+      _revisandoPermisos = true;
+      _errorPermisosAndroid = null;
+    });
+    try {
+      var notificaciones = await Permission.notification.status;
+      if (solicitar && !notificaciones.isGranted) {
+        notificaciones = await Permission.notification.request();
+      }
+      var ubicacion = await Permission.locationWhenInUse.status;
+      if (solicitar && !ubicacion.isGranted) {
+        ubicacion = await Permission.locationWhenInUse.request();
+      }
+      if (!mounted) return;
+      setState(() {
+        _permisosAndroidOk = notificaciones.isGranted && ubicacion.isGranted;
+        if (_permisosAndroidOk != true) {
+          _errorPermisosAndroid =
+              'ACMA necesita el permiso de notificaciones y de ubicación. '
+              'Autorízalos desde Android o abre Ajustes para concederlos.';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _permisosAndroidOk = false;
+        _errorPermisosAndroid =
+            'No fue posible comprobar los permisos. Revísalos desde '
+            'Ajustes de Android y vuelve a intentarlo.';
+      });
+    } finally {
+      if (mounted) setState(() => _revisandoPermisos = false);
+    }
+  }
+
+  /// Estado Android verificado por el sistema, no por el navegador WebView.
+  /// Permite recuperar el login si una versión anterior no expuso el canal JS.
+  Future<void> _publicarNotificacionesEnWeb() async {
+    final controlador = _controlador;
+    final base = _origen;
+    if (controlador == null || base == null || !Platform.isAndroid) return;
+    try {
+      final uri = Uri.tryParse(await controlador.currentUrl() ?? '');
+      if (uri == null || !ConfiguracionAcma.mismoOrigen(base, uri)) return;
+      final estado = await Permission.notification.status;
+      await controlador.runJavaScript(
+        'window.__acmaNotificacionesAutorizadas = ${estado.isGranted};'
+        'window.__acmaAppVersion = "0.1.6";',
+      );
+    } catch (_) {
+      // La pantalla continúa operativa: el canal nativo es la primera opción.
+    }
   }
 
   Future<void> _restaurarServidor() async {
@@ -113,6 +179,7 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
           },
           onPageFinished: (_) {
             if (mounted) setState(() => _progreso = 100);
+            unawaited(_publicarNotificacionesEnWeb());
           },
           onWebResourceError: (error) {
             if (error.isForMainFrame == true && mounted) {
@@ -298,6 +365,9 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state != AppLifecycleState.resumed) return;
+    if (Platform.isAndroid) {
+      unawaited(_comprobarPermisosAndroid());
+    }
     final controlador = _controlador;
     if (controlador == null) return;
     // No recargamos la WebView: se perderían formularios sin guardar.
@@ -344,6 +414,75 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (Platform.isAndroid && _permisosAndroidOk != true) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.verified_user_outlined,
+                        color: Color(0xFF047857), size: 64),
+                    const SizedBox(height: 20),
+                    const Text('Permisos necesarios para ACMA',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Al iniciar ACMA debes autorizar las notificaciones y '
+                      'la ubicación del teléfono. Son necesarias para '
+                      'utilizar esta aplicación. No se puede omitir este paso.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'La ubicación se comparte con supervisores autorizados '
+                      'solo después de iniciar sesión y activar el rastreo. '
+                      'No se obtiene ubicación con la app cerrada.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: Color(0xFF62748E)),
+                    ),
+                    if (_errorPermisosAndroid != null) ...[
+                      const SizedBox(height: 18),
+                      Text(_errorPermisosAndroid!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Color(0xFF9C4219))),
+                    ],
+                    const SizedBox(height: 24),
+                    if (_revisandoPermisos)
+                      const CircularProgressIndicator()
+                    else ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          icon: const Icon(Icons.shield_outlined),
+                          onPressed: () => unawaited(
+                              _comprobarPermisosAndroid(solicitar: true)),
+                          label: const Text('Autorizar ubicación y notificaciones'),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.settings_outlined),
+                          onPressed: () => unawaited(openAppSettings()),
+                          label: const Text('Abrir ajustes de permisos'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     if (_controlador == null) {
       return Scaffold(
         body: SafeArea(child: Center(child: Padding(
