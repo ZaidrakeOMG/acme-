@@ -18,6 +18,12 @@ type Estado = {
 }
 const Contexto = createContext<Estado | null>(null)
 
+// Solo las cuentas que realizan trabajo de campo deben completar el alta de GPS.
+// Superadmin, administradores y supervisores consultan a su personal desde PC:
+// no se les debe bloquear el portal ni pedir su propia ubicación.
+export const requierePermisosDeCampo = (rol: string): boolean =>
+  ['tecnico', 'operador', 'admin_un'].includes(rol)
+
 export function usarMiUbicacion(): Estado {
   const actual = useContext(Contexto)
   if (!actual) throw new Error('Usar ubicación requiere ProveedorMiUbicacion')
@@ -307,8 +313,11 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const id = usuario?.id
-    if (!id) {
+    if (!id || !requierePermisosDeCampo(usuario.rol)) {
+      // Las cuentas de administración no deben quedar atrapadas en un
+      // diálogo de GPS al entrar a formularios, usuarios o reportes.
       setSolicitudVisible(false)
+      setAvisoPermisos(null)
       return
     }
     if (tieneConsentimiento(id)) {
@@ -317,7 +326,7 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     } else {
       setSolicitudVisible(true)
     }
-  }, [usuario?.id])
+  }, [usuario?.id, usuario?.rol])
 
   useEffect(() => {
     let presente = true
@@ -329,7 +338,8 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     }).catch(() => undefined)
     const ocultar = () => {
       if (document.hidden && activoRef.current) void pausar()
-      else if (!document.hidden && usuario?.id && tieneConsentimiento(usuario.id)) {
+      else if (!document.hidden && usuario?.id &&
+        requierePermisosDeCampo(usuario.rol) && tieneConsentimiento(usuario.id)) {
         void reanudarSiRecordado(usuario.id)
       }
     }
@@ -358,7 +368,8 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-[1100] flex items-center justify-center overflow-y-auto bg-slate-950/90 p-4"
           data-testid="solicitud-ubicacion-inicio">
           <section role="region" aria-labelledby="acma-permisos-titulo"
-            className="w-full max-w-lg rounded-3xl border border-emerald-200 bg-white p-5 shadow-2xl sm:p-8">
+            style={{ width: 'min(100%, 32rem)', maxHeight: 'calc(100vh - 2rem)', overflowY: 'auto' }}
+            className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-2xl sm:p-8">
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100">
               <span className="text-3xl font-bold text-emerald-800" aria-hidden="true">+</span>
             </div>
