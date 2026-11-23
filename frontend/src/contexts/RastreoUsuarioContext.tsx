@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { Link } from 'react-router'
 import { useAuth } from './AuthContext'
 import { mensajeDeError } from '../services/api'
+import { registrarPush } from '../services/campo'
 import { consultarMiUbicacion, detenerMiUbicacion, enviarMiUbicacion, iniciarMiUbicacion } from '../services/rastreoUsuarios'
 
 type Estado = {
@@ -218,6 +219,9 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
       if (activoRef.current) {
         setSolicitudVisible(false)
         setAvisoPermisos(null)
+        // Solo tras la aceptación humana registramos Push cuando el
+        // navegador lo permita; Android WebView usa permiso nativo.
+        void registrarPush().catch(() => undefined)
       } else {
         setAvisoPermisos('No se ha podido activar la ubicación. Autoriza el GPS y vuelve a pulsar Habilitar permisos.')
       }
