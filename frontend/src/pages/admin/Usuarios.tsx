@@ -164,6 +164,12 @@ function FormularioUsuario({ rolActor, alGuardar }: { rolActor: Rol; alGuardar: 
       )}
       <PanelModulos rol={rol} seleccion={modulos} alCambiar={setModulos} />
       <Campo etiqueta="Contraseña inicial" type="password" autoComplete="new-password" error={formState.errors.contrasena?.message} {...register('contrasena')} />
+      <p className="text-xs text-slate-600">
+        Puedes usar la misma contraseña inicial de otro usuario. La contraseña no tiene que ser única:
+        lo que sí debe ser diferente es el correo de cada cuenta.
+        Debe tener 10 caracteres como mínimo, mayúscula, minúscula, número y símbolo.
+        En producción se recomiendan contraseñas distintas.
+      </p>
       <Boton type="submit" className="w-full" disabled={formState.isSubmitting}>Crear usuario</Boton>
     </form>
   )
