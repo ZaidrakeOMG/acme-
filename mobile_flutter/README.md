@@ -29,7 +29,7 @@ PROBAR_ACMA_FLUTTER_ANDROID.bat --local
 Si deseas usar el boton **Run** de Android Studio, abre la carpeta `mobile_flutter`, elige el emulador y configura los argumentos de Flutter:
 
 ```text
---dart-define=ACMA_BASE_URL=https://grupoacma.com
+--dart-define=ACMA_BASE_URL=https://groupacma.com
 ```
 
 ## 3. Probar con el servidor local (opcional)
@@ -41,7 +41,7 @@ Primero inicia `PROBAR_ACMA_WEB.bat` desde la raíz y confirma `http://127.0.0.1
 Desde la raíz en Windows:
 
 ```bat
-GENERAR_APK_ACMA_RAILWAY.bat https://grupoacma.com
+GENERAR_APK_ACMA_RAILWAY.bat https://groupacma.com
 ```
 
 Resultado: `mobile_flutter/build/app/outputs/flutter-apk/app-release.apk`.
