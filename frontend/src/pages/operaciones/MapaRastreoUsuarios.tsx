@@ -14,7 +14,7 @@ type Props = {
 export default function MapaRastreoUsuarios({ usuarios, seleccionadoId, alSeleccionar }: Props) {
   const contenedor = useRef<HTMLDivElement | null>(null)
   const mapa = useRef<L.Map | null>(null)
-  const marcadores = useRef<Map<string, L.CircleMarker>>(new Map())
+  const marcadores = useRef<Map<string, L.Marker>>(new Map())
   const primerAjuste = useRef(false)
   const proveedor = useMemo(() => proveedorActual(), [])
 
@@ -47,16 +47,21 @@ export default function MapaRastreoUsuarios({ usuarios, seleccionadoId, alSelecc
       const seleccionado = u.usuario_id === seleccionadoId
       const texto = document.createElement('span')
       texto.textContent = u.usuario_nombre + ' · GPS compartido · ' + (u.dispositivo ?? 'dispositivo')
+      // Los iconos HTML evitan el canvas de Leaflet: también funcionan en
+      // WebView, Safari y entornos de prueba sin API de lienzo.
+      const icono = L.divIcon({
+        className: 'acma-gps-persona',
+        html: '<span aria-hidden="true" style="display:block;width:100%;height:100%;border-radius:50%;background:#10b981;border:3px solid #047857;box-shadow:0 2px 12px #065f4666"></span>',
+        iconSize: seleccionado ? [27, 27] : [20, 20],
+        iconAnchor: seleccionado ? [13, 13] : [10, 10],
+      })
       const anterior = marcadores.current.get(u.usuario_id)
       if (anterior) {
         anterior.setLatLng(coord)
         anterior.setTooltipContent(texto)
-        anterior.setStyle({ radius: seleccionado ? 14 : 10, weight: seleccionado ? 4 : 2 })
+        anterior.setIcon(icono)
       } else {
-        const marcador = L.circleMarker(coord, {
-          color: '#047857', fillColor: '#10b981', fillOpacity: 0.88,
-          radius: seleccionado ? 14 : 10, weight: seleccionado ? 4 : 2,
-        })
+        const marcador = L.marker(coord, { icon: icono })
         marcador.bindTooltip(texto, { direction: 'top' })
         marcador.on('click', () => alSeleccionar(u.usuario_id))
         marcador.addTo(m)
