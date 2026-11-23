@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ChatFolio } from '../../../components/chat/ChatFolio'
+import { CompartirUbicacionFolio } from '../../../components/CompartirUbicacionFolio'
 import { Renderizador } from '../../../components/formularios/Renderizador'
 import { Aviso, Boton, Insignia, Selector } from '../../../components/ui'
 import { useAuth } from '../../../contexts/AuthContext'
@@ -213,6 +214,7 @@ export function AtencionTecnico() {
         </div>
       )}
 
+      {!['cerrado', 'cancelado'].includes(f.estado) && <CompartirUbicacionFolio folioId={f.id} />}
       <ApoyoDelFolio folioId={f.id} enLinea={enLinea} />
 
       {f.tipo_folio === 'preventivo' && <PlanDelTecnico folioId={f.id} alUsarMaterial={(m) => setRefaccion({ ...refaccion, descripcion: m.descripcion, cantidad: String(Number(m.cantidad_estandar) || 1) })} />}
