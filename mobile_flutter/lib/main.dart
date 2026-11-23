@@ -81,7 +81,15 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final destino = _origen;
-    if (destino != null) _abrirServidor(destino);
+    if (destino != null) {
+      try {
+        _abrirServidor(destino);
+      } catch (_) {
+        // Un plugin WebView no registrado (p. ej. test sin plataforma)
+        // no debe exponer ni permitir cambiar el servidor de ACMA.
+        _detalle = 'No fue posible iniciar la vista web de ACMA.';
+      }
+    }
     if (Platform.isAndroid) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_comprobarPermisosAndroid(solicitar: true));
