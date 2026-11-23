@@ -197,7 +197,7 @@ describe('Operaciones en tiempo real (F2-03)', () => {
     const fila = (await screen.findByText('CD-000122')).closest('tr')
     expect(fila).not.toBeNull()
     const user = userEvent.setup()
-    await user.click(within(fila!).getByRole('button', { name: 'Rastrear' }))
+    await user.click(within(fila!).getByRole('button', { name: 'Ver ubicación' }))
     const panel = await screen.findByTestId('operaciones-folio-rastreado')
     expect(within(panel).getByText(/Marcador ámbar: ubicación registrada de la sucursal/)).toBeInTheDocument()
     expect(within(panel).getByRole('button', { name: 'Ver sucursal en el mapa' })).toBeInTheDocument()
