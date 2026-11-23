@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { CompartirUbicacionFolio } from '../../components/CompartirUbicacionFolio'
 import { ChatFolio } from '../../components/chat/ChatFolio'
 import { Aviso, Boton, Campo, Insignia, Modal, Selector, Tarjeta } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
@@ -128,6 +129,8 @@ export function FolioDetalle() {
       </div>
       {error && <Aviso>{error}</Aviso>}
       {aviso && <Aviso tipo="exito">{aviso}</Aviso>}
+      {!final && (usuario.id === f.capturado_por || usuario.id === f.tecnico_id || usuario.rol === 'superadmin') &&
+        <CompartirUbicacionFolio folioId={f.id} />}
 
       {d.triggers_revision.length > 0 && (
         <Tarjeta titulo="Triggers de revisión manual">
