@@ -68,6 +68,12 @@ jobs:
               frontend/src/pages/operaciones/MapaOperaciones.tsx|\
               frontend/src/services/mapas.ts|\
               frontend/src/services/marcadorFolio.ts|\
+              frontend/src/components/CompartirUbicacionFolio.tsx|\
+              frontend/src/services/rastreoUsuarioFolio.ts|\
+              frontend/src/pages/campo/operador/DetalleOperador.tsx|\
+              frontend/src/pages/campo/tecnico/AtencionTecnico.tsx|\
+              frontend/src/pages/folios/FolioDetalle.tsx|\
+              backend/alembic/versions/0020_rastreo_usuario_folio.py|\
               frontend/src/pages/formularios/Constructor.tsx|\
               frontend/src/services/testbotAcma.ts|\
               frontend/src/services/testbotFlujoDemo.ts|\
@@ -82,7 +88,8 @@ jobs:
               frontend/src/services/ayudaConversacionalAcma.ts|\
               frontend/public/testbot-acma.webp)
                 # Se admiten cambios focalizados de sesión, UI y el nuevo asistente
-                # de pruebas DEMO. Los demás módulos permanecen protegidos.
+                # de pruebas DEMO, y el rastreo voluntario por folio Android/iOS.
+                # Los demás módulos y migraciones permanecen protegidos.
                 echo "Cambio visual y responsivo permitido: $archivo"
                 ;;
               *)
