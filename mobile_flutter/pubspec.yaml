@@ -15,7 +15,6 @@ dependencies:
   url_launcher: 6.3.2
   file_picker: 13.3.3
   permission_handler: 12.0.3
-  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:
