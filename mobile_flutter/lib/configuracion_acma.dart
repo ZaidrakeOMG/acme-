@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 /// La URL apunta al servidor ACMA completo (React compilado + FastAPI).
 /// Nunca se guardan aquí claves de Supabase ni contraseñas.
 class ConfiguracionAcma {
-  static const String _base = String.fromEnvironment('ACMA_BASE_URL', defaultValue: 'https://grupoacma.com');
+  static const String _base = String.fromEnvironment('ACMA_BASE_URL', defaultValue: 'https://groupacma.com');
   static const bool _permitirHttpLocal =
       bool.fromEnvironment('ACMA_ALLOW_HTTP', defaultValue: false);
 
