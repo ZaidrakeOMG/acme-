@@ -11,7 +11,7 @@ interface Props {
   tecnicos: TecnicoEnTablero[]
   unidades: UnidadEnTablero[]
   recorrido: PuntoRecorrido[]
-  folioDestacado?: { numero: string; lat: number; lng: number } | null
+  folioDestacado?: { numero: string; lat: number; lng: number; origen: 'tecnico' | 'servicio' } | null
   gpsPersonal?: PuntoGpsDemo | null
   rutaGpsPersonal?: Array<{ lat: number; lng: number }>
   seleccionado: string | null
@@ -147,8 +147,8 @@ export default function MapaOperaciones({ tecnicos, unidades, recorrido, folioDe
                                { color: '#1C3D8F', weight: 3, opacity: 0.7, dashArray: '6 6' }).addTo(m)
   }, [recorrido])
 
-  // Un marcador prominente para el técnico asociado al folio seleccionado.
-  // Si no hay jornada y coordenadas válidas, no se pone ninguna marca ficticia.
+  // Marcador del técnico con GPS o, si no lo hay, sucursal registrada del folio.
+  // Los dos orígenes se identifican claramente; nunca se simula GPS en vivo.
   useEffect(() => {
     const m = mapa.current
     if (!m) return
@@ -160,7 +160,7 @@ export default function MapaOperaciones({ tecnicos, unidades, recorrido, folioDe
     const coords: [number, number] = [folioDestacado.lat, folioDestacado.lng]
     const icono = L.divIcon({
       className: 'acma-folio-destacado',
-      html: contenidoMarcadorFolio(folioDestacado.numero, 'tecnico'),
+      html: contenidoMarcadorFolio(folioDestacado.numero, folioDestacado.origen),
       iconSize: [80, 88],
       iconAnchor: [40, 70],
     })
