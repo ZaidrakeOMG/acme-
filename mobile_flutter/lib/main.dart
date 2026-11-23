@@ -6,7 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -81,7 +80,8 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_restaurarServidor());
+    final destino = _origen;
+    if (destino != null) _abrirServidor(destino);
     if (Platform.isAndroid) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_comprobarPermisosAndroid(solicitar: true));
@@ -145,24 +145,6 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _restaurarServidor() async {
-    Uri? destino = _origen;
-    try {
-      final preferencias = await SharedPreferences.getInstance();
-      final guardada = preferencias.getString('acma.servidor.url');
-      if (guardada != null) {
-        destino = ConfiguracionAcma.validarUrl(guardada);
-      }
-    } catch (_) {
-      // Sin preferencias: usar la URL HTTPS compilada en el APK.
-    }
-    if (!mounted) return;
-    if (destino != null) {
-      _abrirServidor(destino);
-    } else {
-      setState(() => _controlador = null);
-    }
-  }
 
   void _abrirServidor(Uri origen) {
     if (!mounted) return;
@@ -172,13 +154,16 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (valor) {
-            if (mounted) setState(() => _progreso = valor);
+            // Evitar reconstruir toda la WebView por cada 1% de carga.
+            if (mounted && (valor == 100 || valor >= _progreso + 15)) {
+              setState(() => _progreso = valor);
+            }
           },
           onPageStarted: (_) {
             if (mounted) setState(() { _fallo = false; _progreso = 0; });
           },
           onPageFinished: (_) {
-            if (mounted) setState(() => _progreso = 100);
+            if (mounted && _progreso != 100) setState(() => _progreso = 100);
             unawaited(_publicarNotificacionesEnWeb());
           },
           onWebResourceError: (error) {
@@ -259,8 +244,14 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
               !ConfiguracionAcma.mismoOrigen(_origen!, origenSolicitud)) {
             return const GeolocationPermissionsResponse(allow: false, retain: false);
           }
-          final permiso = await Permission.locationWhenInUse.request();
-          return GeolocationPermissionsResponse(allow: permiso.isGranted, retain: false);
+          var permiso = await Permission.locationWhenInUse.status;
+          if (!permiso.isGranted) {
+            permiso = await Permission.locationWhenInUse.request();
+          }
+          // El origen HTTPS ya autorizado no debe preguntar otra vez en
+          // cada lectura de GPS de la misma WebView.
+          return GeolocationPermissionsResponse(
+              allow: permiso.isGranted, retain: permiso.isGranted);
         },
       ));
       unawaited(android.setAllowFileAccess(true));
@@ -287,79 +278,6 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
     unawaited(puentePermisos.then((_) => controller.loadRequest(origen)));
   }
 
-  /// Acceso nativo al consentimiento GPS, también cuando la sesión
-  /// web antigua conservó caché y no apareció el aviso al iniciar sesión.
-  /// No activa la ubicación sin tocar el botón y aceptar el permiso.
-  Future<void> _abrirMiUbicacion() async {
-    final controlador = _controlador;
-    final servidor = _origen;
-    if (controlador == null || servidor == null) return;
-    final destino = servidor.resolve('/mi-ubicacion');
-    await controlador.loadRequest(destino);
-  }
-
-  Future<void> _cambiarServidor() async {
-    final direccion = TextEditingController(
-      text: _origen?.toString() ?? 'https://groupacma.com',
-    );
-    String? validacion;
-    final nuevo = await showDialog<Uri>(
-      context: context,
-      builder: (dialogo) => StatefulBuilder(
-        builder: (dialogo, actualizar) => AlertDialog(
-          title: const Text('Servidor de ACMA'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Si cambió el dominio de ACMA en Railway, escribe aquí '
-                  'la dirección HTTPS que usas en el navegador. '
-                  'Se conservará para próximos inicios.'),
-              const SizedBox(height: 16),
-              TextField(
-                controller: direccion,
-                keyboardType: TextInputType.url,
-                autocorrect: false,
-                enableSuggestions: false,
-                decoration: InputDecoration(
-                  labelText: 'Dirección HTTPS',
-                  hintText: 'https://groupacma.com',
-                  errorText: validacion,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogo).pop(),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final url = ConfiguracionAcma.validarUrl(direccion.text);
-                if (url == null || url.scheme != 'https') {
-                  actualizar(() => validacion = 'Introduce una URL HTTPS válida');
-                  return;
-                }
-                Navigator.of(dialogo).pop(url);
-              },
-              child: const Text('Guardar y abrir'),
-            ),
-          ],
-        ),
-      ),
-    );
-    direccion.dispose();
-    if (!mounted || nuevo == null) return;
-    try {
-      final preferencias = await SharedPreferences.getInstance();
-      await preferencias.setString('acma.servidor.url', nuevo.toString());
-    } catch (_) {
-      // El cambio funciona en esta sesión aunque no se pueda persistir.
-    }
-    _abrirServidor(nuevo);
-  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -488,14 +406,17 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
         body: SafeArea(child: Center(child: Padding(
           padding: const EdgeInsets.all(28),
           child: _PantallaAvisoAcma(
-            icono: Icons.settings_ethernet_rounded,
-            titulo: 'Configura la dirección de ACMA',
-            descripcion: 'Publica ACMA con HTTPS y configura ACMA_BASE_URL al compilar la aplicación.',
-            detalle: 'No se encontró una dirección HTTPS configurada.',
+            icono: Icons.wifi_off_rounded,
+            titulo: 'ACMA no está disponible',
+            descripcion: 'No se pudo establecer conexión con el servicio.',
+            detalle: 'Verifica tu conexión e intenta abrir ACMA otra vez.',
             accion: FilledButton.icon(
-              onPressed: _cambiarServidor,
-              icon: const Icon(Icons.dns_outlined),
-              label: const Text('Configurar servidor'),
+              onPressed: () {
+                final servidor = ConfiguracionAcma.url;
+                if (servidor != null) _abrirServidor(servidor);
+              },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Reintentar'),
             ),
           ),
         ))),
@@ -529,59 +450,14 @@ class _VistaAcmaState extends State<VistaAcma> with WidgetsBindingObserver {
                     titulo: 'ACMA no está disponible',
                     descripcion: 'Revisa tu conexión e intenta nuevamente.',
                     detalle: _detalle,
-                    accion: Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        FilledButton.icon(
-                          onPressed: _recargar,
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Reintentar'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _cambiarServidor,
-                          icon: const Icon(Icons.dns_outlined),
-                          label: const Text('Cambiar servidor'),
-                        ),
-                      ],
+                    accion: FilledButton.icon(
+                      onPressed: _recargar,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Reintentar'),
                     ),
                   ),
                 )),
               )),
-            // Siempre disponible: incluso si Railway devuelve una página
-            // HTML 404, que WebView no considera un fallo de red.
-            // Botón GPS permanente en Android, independiente del estado
-            // del banner de React; abre el consentimiento del usuario.
-            Positioned(
-              top: 10,
-              right: 64,
-              child: Material(
-                elevation: 2,
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                child: IconButton(
-                  tooltip: 'Activar o detener mi ubicación GPS',
-                  icon: const Icon(Icons.my_location_outlined,
-                      color: Color(0xFF047857)),
-                  onPressed: _abrirMiUbicacion,
-                ),
-              ),
-            ),
-            Positioned(
-              top: 10,
-              right: 10,
-              child: Material(
-                elevation: 2,
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                child: IconButton(
-                  tooltip: 'Cambiar servidor de ACMA',
-                  icon: const Icon(Icons.dns_outlined, color: Color(0xFF9F2444)),
-                  onPressed: _cambiarServidor,
-                ),
-              ),
-            ),
           ]),
         ),
       ),
