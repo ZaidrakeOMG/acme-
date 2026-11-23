@@ -11,7 +11,7 @@ interface Props {
   tecnicos: TecnicoEnTablero[]
   unidades: UnidadEnTablero[]
   recorrido: PuntoRecorrido[]
-  folioDestacado?: { numero: string; lat: number; lng: number; origen: 'tecnico' | 'servicio' } | null
+  folioDestacado?: { numero: string; lat: number; lng: number; origen: 'tecnico' | 'servicio' | 'usuario' } | null
   gpsPersonal?: PuntoGpsDemo | null
   rutaGpsPersonal?: Array<{ lat: number; lng: number }>
   seleccionado: string | null
