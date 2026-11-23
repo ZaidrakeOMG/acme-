@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ChatFolio } from '../../../components/chat/ChatFolio'
+import { CompartirUbicacionFolio } from '../../../components/CompartirUbicacionFolio'
+import { useAuth } from '../../../contexts/AuthContext'
 import { Aviso, Boton, Insignia } from '../../../components/ui'
 import { useConexion } from '../../../hooks/useConexion'
 import { mensajeDeError } from '../../../services/api'
@@ -15,6 +17,7 @@ import { EstadoInsignia, SeveridadInsignia, fecha } from '../../folios/comunes'
 /** Detalle del folio en la app del operador: línea de tiempo, chat de campo y acceso a firma/encuesta. */
 export function DetalleOperador() {
   const { folioId } = useParams()
+  const { usuario } = useAuth()
   const { enLinea } = useConexion()
   const [d, setD] = useState<FolioDetalle | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -77,6 +80,9 @@ export function DetalleOperador() {
         </div>
       )}
 
+      {!pendiente && !['cerrado', 'cancelado'].includes(f.estado) &&
+       usuario && (usuario.id === f.capturado_por || usuario.rol === 'superadmin') &&
+        <CompartirUbicacionFolio folioId={f.id} />}
       {!pendiente && (
         <div>
           <h2 className="mb-2 text-sm font-semibold text-slate-800">Chat con el técnico</h2>
