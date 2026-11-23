@@ -44,7 +44,7 @@ import { Medidores } from './pages/medidores/Medidores'
 import { Iso55000 } from './pages/criticidad/Iso55000'
 import { PlanDelDia } from './pages/rutas/PlanDelDia'
 import { Mensajeria } from './pages/mensajeria/Mensajeria'
-import { Operaciones } from './pages/operaciones/Operaciones'
+import { RastreoUsuariosOperaciones } from './pages/operaciones/RastreoUsuariosOperaciones'
 import { MiUbicacion } from './pages/MiUbicacion'
 import { Activos } from './pages/activos/Activos'
 import { Dashboard } from './pages/bi/Dashboard'
@@ -87,7 +87,7 @@ const PAGINAS: Record<string, ReactNode> = {
   medidores: <Medidores />,
   iso55000: <Iso55000 />,
   rutas: <PlanDelDia />,
-  operaciones: <Operaciones />,
+  operaciones: <RastreoUsuariosOperaciones />,
   trabajos_especiales: <TrabajosEspeciales />,
   oc_activos: <OcActivos />,
   inventario: <Inventario />,
