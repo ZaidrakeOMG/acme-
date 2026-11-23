@@ -29,3 +29,18 @@ class UsuarioEnMapa(BaseModel):
     lng: float
     precision_m: float | None
     ultima_at: datetime
+
+
+class UsuarioRastreable(BaseModel):
+    """Usuario con cuenta activa; su GPS solo aparece con consentimiento vigente."""
+    usuario_id: UUID
+    usuario_nombre: str
+    rol: str
+    correo: str
+    dispositivo: str | None = None
+    gps_activo: bool
+    lat: float | None = None
+    lng: float | None = None
+    precision_m: float | None = None
+    ultima_at: datetime | None = None
+    ultimo_acceso_at: datetime | None = None
