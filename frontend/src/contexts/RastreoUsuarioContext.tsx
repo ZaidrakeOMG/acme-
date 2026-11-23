@@ -194,8 +194,20 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
         catch { concluir(false) }
       })
     }
+    // Android WebView no expone Notification aunque el permiso Android
+    // ya haya sido concedido. La APK v0.1.6 publica el estado obtenido
+    // de Permission.notification.status (nunca se supone autorizado).
+    const android = (window as Window & {
+      __acmaNotificacionesAutorizadas?: boolean
+    }).__acmaNotificacionesAutorizadas
+    if (/Android/i.test(navigator.userAgent) && android === true) return true
     if (!('Notification' in window) || !window.isSecureContext) {
-      throw new Error('Este navegador no admite notificaciones del sistema. Abre ACMA en Chrome o Edge para PC, o en la APK Android compatible.')
+      if (/Android/i.test(navigator.userAgent)) {
+        throw new Error(
+          'Esta versión Android no tiene el módulo nativo de notificaciones. Instala la APK ACMA 0.1.6 y vuelve a abrir la aplicación.',
+        )
+      }
+      throw new Error('Este navegador no admite notificaciones del sistema. Usa Chrome o Edge con HTTPS y autoriza notificaciones en la configuración.')
     }
     if (Notification.permission === 'granted') return true
     if (Notification.permission === 'denied') return false
