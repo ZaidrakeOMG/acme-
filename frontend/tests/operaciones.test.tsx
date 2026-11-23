@@ -346,6 +346,39 @@ describe('Operaciones en tiempo real (F2-03)', () => {
     }
   })
 
+  it('APK Android 0.1.6 reconoce permiso de notificaciones verificado nativamente', async () => {
+    const original = navigator.userAgent
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true, value: 'Mozilla/5.0 (Linux; Android 15) ACMA',
+    })
+    Object.defineProperty(window, '__acmaNotificacionesAutorizadas', {
+      configurable: true, value: true,
+    })
+    Object.defineProperty(window, 'isSecureContext', {
+      configurable: true, value: true,
+    })
+    try {
+      await entrar('tecnico', '/campo', {
+        'GET /api/folios': () => ({ json: [] }),
+        'GET /api/configuracion/mis-permisos': () => ({ json: [] }),
+        'GET /api/operacion/mi-jornada': () => ({ json: sinJornada }),
+        'GET /api/operacion/mis-alertas': () => ({ json: [] }),
+      })
+      const panel = await screen.findByTestId('solicitud-ubicacion-inicio')
+      const usuario = userEvent.setup()
+      await usuario.click(within(panel).getByRole('button', {
+        name: 'Habilitar ubicación y notificaciones',
+      }))
+      expect(await within(panel).findByText(/No se ha podido activar la ubicación/)).toBeInTheDocument()
+      expect(within(panel).queryByText(/no tiene el módulo nativo de notificaciones/)).not.toBeInTheDocument()
+    } finally {
+      Object.defineProperty(navigator, 'userAgent', {
+        configurable: true, value: original,
+      })
+      Reflect.deleteProperty(window, '__acmaNotificacionesAutorizadas')
+    }
+  })
+
   it('el cliente no entra a la pantalla de operaciones', async () => {
     await entrar('admin_un', '/operaciones')
     expect(await screen.findByText('Sin acceso')).toBeInTheDocument()
