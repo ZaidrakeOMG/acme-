@@ -134,7 +134,7 @@ class LanzadorFlutter(unittest.TestCase):
                 comando = ejecutar_flutter.call_args.args[0]
                 self.assertEqual(comando[:4], ["flutter", "run", "-d", "emulator-5554"])
                 self.assertIn(
-                    "--dart-define=ACMA_BASE_URL=https://acme-production-ee493e67.up.railway.app",
+                    "--dart-define=ACMA_BASE_URL=https://groupacma.com",
                     comando,
                 )
                 self.assertNotIn("--dart-define=ACMA_ALLOW_HTTP=true", comando)
