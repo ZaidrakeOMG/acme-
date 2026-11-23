@@ -278,7 +278,7 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
       {solicitudVisible && !activo && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center overflow-y-auto bg-slate-950/90 p-4"
           data-testid="solicitud-ubicacion-inicio">
-          <section role="dialog" aria-modal="true" aria-labelledby="acma-permisos-titulo"
+          <section role="region" aria-labelledby="acma-permisos-titulo"
             className="w-full max-w-lg rounded-3xl border border-emerald-200 bg-white p-5 shadow-2xl sm:p-8">
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100">
               <span className="text-3xl font-bold text-emerald-800" aria-hidden="true">+</span>
