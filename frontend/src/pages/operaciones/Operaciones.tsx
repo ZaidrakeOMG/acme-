@@ -752,7 +752,7 @@ function PanelFolios({ folios, alRastrear, folioRastreadoId }: {
                     title={'Ver ubicación del técnico o de la sucursal del folio ' + f.numero_folio}
                     className={'rounded border px-2 py-1 font-semibold ' + (folioRastreadoId === f.folio_id
                       ? 'border-blue-800 bg-blue-800 text-white' : 'border-slate-300 text-primario')}>
-                    {folioRastreadoId === f.folio_id ? 'Seleccionado' : 'Rastrear'}
+                    {folioRastreadoId === f.folio_id ? 'Seleccionado' : 'Ver ubicación'}
                   </button>
                 </td>
               </tr>
