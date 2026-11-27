@@ -116,6 +116,10 @@ class UsuarioEntrada(BaseModel):
     modulos_habilitados: list[str] | None = Field(default=None, max_length=50)
 
 
+class RestablecerContrasenaAdmin(BaseModel):
+    contrasena: str = Field(min_length=10, max_length=200, repr=False)
+
+
 class UsuarioCambios(BaseModel):
     modulos_habilitados: list[str] | None = Field(default=None, max_length=50)
     nombre: str | None = Field(default=None, min_length=2, max_length=160)

@@ -57,9 +57,9 @@ async def detalle(tenant_id: UUID, db: DB, actor: Actor = Depends(LECTORES)):
 
 
 @router.patch("/{tenant_id}", response_model=TenantSalida, summary="Modificar tenant",
-              description="superadmin modifica cualquier campo; admin_empresa solo moneda y zona horaria de su tenant.")
+              description="Solo superadmin modifica clientes.")
 async def modificar(tenant_id: UUID, datos: TenantCambios, request: Request, db: DB,
-                    actor: Actor = Depends(requiere_rol(Rol.superadmin, Rol.admin_empresa))):
+                    actor: Actor = Depends(SUPERADMIN)):
     tenant = await _obtener(db, actor, tenant_id)
     cambios = datos.model_dump(exclude_unset=True, exclude_none=True)
     if actor.rol == Rol.admin_empresa and set(cambios) - {"moneda", "zona_horaria"}:

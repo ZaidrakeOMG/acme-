@@ -16,7 +16,7 @@ from services import auditoria
 
 router = APIRouter(prefix="/api/unidades-negocio", tags=["Unidades de negocio"], responses=RESPUESTAS_ERROR)
 
-ADMIN = requiere_rol(Rol.superadmin, Rol.admin_empresa)
+ADMIN = requiere_rol(Rol.superadmin)
 LECTORES = requiere_rol(*Rol)
 ROLES_ASIGNABLES_UN = {Rol.admin_un, Rol.supervisor_operadores, Rol.operador}
 

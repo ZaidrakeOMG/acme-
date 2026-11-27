@@ -45,6 +45,8 @@ export function Usuarios() {
   const [aviso, setAviso] = useState<string | null>(null)
   if (!usuario || !['superadmin', 'admin_prestador', 'admin_empresa'].includes(usuario.rol)) return null
 
+  const esSuper = usuario.rol === 'superadmin'
+
   async function cambiarEstado(u: Usuario) {
     setAviso(null)
     try {
@@ -67,7 +69,7 @@ export function Usuarios() {
 
   return (
     <div>
-      <Encabezado titulo="Usuarios" descripcion="Administra usuarios, roles y permisos individuales por módulo." acciones={<Boton onClick={() => setAbierto(true)}>Nuevo usuario</Boton>} />
+      <Encabezado titulo="Usuarios" descripcion="Administra usuarios, roles y permisos individuales por módulo." acciones={esSuper && <Boton onClick={() => setAbierto(true)}>Nuevo usuario</Boton>} />
       <Tarjeta acciones={<input aria-label="Buscar usuarios" placeholder="Buscar por nombre o correo" value={q} onChange={(e) => setQ(e.target.value)} className="w-64 rounded-lg border border-slate-300 px-3 py-1.5 text-sm" />}>
         {(error || aviso) && <div className="mb-3"><Aviso>{error ?? aviso}</Aviso></div>}
         <Tabla
@@ -80,7 +82,7 @@ export function Usuarios() {
             { titulo: 'Estado', celda: (u) => <Insignia tono={u.estado === 'activo' ? 'ok' : 'alerta'}>{u.estado}</Insignia> },
             {
               titulo: 'Acciones',
-              celda: (u) => (
+              celda: (u) => esSuper ? (
                 <div className="flex flex-wrap gap-1">
                   <Boton variante="secundario" onClick={() => setEditando(u)}>Editar y permisos</Boton>
                   {u.id !== usuario.id && (
@@ -92,7 +94,7 @@ export function Usuarios() {
                     </>
                   )}
                 </div>
-              ),
+              ) : 'Solo lectura',
             },
           ]}
         />
@@ -213,6 +215,9 @@ function FormularioEditar({ usuario, rolActor, esPropio, alGuardar }: {
     (usuario.dominio === 'tenant' && ROLES_TENANT.includes(r)) ||
     (usuario.dominio === 'prestador' && ROLES_PRESTADOR.includes(r)))
   const [nombre, setNombre] = useState(usuario.nombre)
+  const [nueva, setNueva] = useState('')
+  const [confirmar, setConfirmar] = useState('')
+  const [exito, setExito] = useState('')
   const [telefono, setTelefono] = useState(usuario.telefono ?? '')
   const [rol, setRol] = useState<Rol>(usuario.rol)
   const [estado, setEstado] = useState(usuario.estado)
@@ -236,6 +241,17 @@ function FormularioEditar({ usuario, rolActor, esPropio, alGuardar }: {
     finally { setGuardando(false) }
   }
 
+  async function restablecer() {
+    setError(null); setExito('')
+    if (nueva !== confirmar || nueva.length < 10) { setError('Verifica ambas contraseñas (mínimo 10 caracteres)'); return }
+    setGuardando(true)
+    try {
+      await api(`/usuarios/${usuario.id}/restablecer-contrasena`, { metodo: 'POST', cuerpo: { contrasena: nueva } })
+      setNueva(''); setConfirmar(''); setExito('Contraseña restablecida y sesiones revocadas.')
+    } catch (e) { setError(mensajeDeError(e)) }
+    finally { setGuardando(false) }
+  }
+
   return (
     <form onSubmit={guardar} className="space-y-3">
       {error && <Aviso>{error}</Aviso>}
@@ -248,6 +264,13 @@ function FormularioEditar({ usuario, rolActor, esPropio, alGuardar }: {
         { valor: 'activo', texto: 'Activo' }, { valor: 'inactivo', texto: 'Inactivo' }, { valor: 'suspendido', texto: 'Suspendido' },
       ]} onChange={e => setEstado(e.target.value as Usuario['estado'])} />}
       {!esPropio && <PanelModulos rol={rol} seleccion={modulos} alCambiar={setModulos} />}
+      {!esPropio && rolActor === 'superadmin' && <fieldset className="space-y-2 rounded-lg border p-3">
+        <legend className="px-1 font-medium">Restablecer contraseña</legend>
+        {exito && <Aviso tipo="exito">{exito}</Aviso>}
+        <Campo etiqueta="Nueva contraseña" type="password" autoComplete="new-password" value={nueva} onChange={e => setNueva(e.target.value)} maxLength={200} />
+        <Campo etiqueta="Confirmar contraseña" type="password" autoComplete="new-password" value={confirmar} onChange={e => setConfirmar(e.target.value)} maxLength={200} />
+        <Boton type="button" variante="secundario" disabled={guardando || !nueva || !confirmar} onClick={() => void restablecer()}>Restablecer contraseña</Boton>
+      </fieldset>}
       {esPropio && <Aviso tipo="info">Por seguridad, no puedes cambiar tu propio rol ni desactivar tu cuenta.</Aviso>}
       <Boton type="submit" className="w-full" disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar cambios'}</Boton>
     </form>

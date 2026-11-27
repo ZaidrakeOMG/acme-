@@ -48,7 +48,13 @@ export function Contratos() {
   const tenants = useRecurso<Tenant[]>('/tenants')
   const prestadores = useRecurso<Prestador[]>(usuario?.rol === 'superadmin' ? '/prestadores' : null)
   const [editar, setEditar] = useState<Contrato | 'nuevo' | null>(null)
-  const puedeEditar = usuario?.rol === 'admin_prestador' || usuario?.rol === 'superadmin'
+  const [aviso, setAviso] = useState<string | null>(null)
+  async function estadoContrato(c: Contrato) {
+    if (!window.confirm(c.estado === 'activo' ? `¿Dar de baja el contrato ${c.nombre}? Se conserva su historial.` : `¿Reactivar el contrato ${c.nombre}?`)) return
+    try { setAviso(null); await api(`/contratos/${c.id}`, { metodo: 'PATCH', cuerpo: { estado: c.estado === 'activo' ? 'inactivo' : 'activo' } }); await recargar() }
+    catch (e) { setAviso(mensajeDeError(e)) }
+  }
+  const puedeEditar = usuario?.rol === 'superadmin'
   const nombreTenant = (id: string) => tenants.datos?.find((t) => t.id === id)?.razon_social ?? id.slice(0, 8)
   function ir(v: Vista) {
     const p = new URLSearchParams(params)
@@ -73,7 +79,7 @@ export function Contratos() {
 
       {vista === 'contratos' && (
         <Tarjeta>
-          {error && <Aviso>{error}</Aviso>}
+          {(error || aviso) && <Aviso>{error ?? aviso}</Aviso>}
           <Tabla
             filas={datos ?? []}
             columnas={[
@@ -90,7 +96,8 @@ export function Contratos() {
                   return s ? `${s.tiempo_respuesta_horas} h / ${s.tiempo_resolucion_horas} h` : '—'
                 },
               },
-              { titulo: '', celda: (c) => <Boton variante="fantasma" onClick={() => setEditar(c)}>{puedeEditar ? 'Editar' : 'Ver'}</Boton> },
+              { titulo: 'Estado', celda: (c) => <Insignia>{c.estado}</Insignia> },
+              { titulo: 'Acciones', celda: (c) => <div className="flex flex-wrap gap-1"><Boton variante="fantasma" onClick={() => setEditar(c)}>{puedeEditar ? 'Editar' : 'Ver'}</Boton>{puedeEditar && <Boton variante="peligro" onClick={() => void estadoContrato(c)}>{c.estado === 'activo' ? 'Dar de baja' : 'Reactivar'}</Boton>}</div> },
             ]}
           />
         </Tarjeta>

@@ -78,8 +78,8 @@ async def detalle(prestador_id: UUID, request: Request, db: DB, actor: Actor = D
 
 
 @router.patch("/{prestador_id}", response_model=PrestadorSalida, summary="Modificar prestador",
-              description="admin_prestador modifica su prestador (no su estado); superadmin cualquiera.")
-async def modificar(prestador_id: UUID, datos: PrestadorCambios, request: Request, db: DB, actor: Actor = Depends(ADMIN)):
+              description="Solo superadmin modifica prestadores.")
+async def modificar(prestador_id: UUID, datos: PrestadorCambios, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN)):
     p = await _obtener(db, actor, prestador_id)
     cambios = datos.model_dump(exclude_unset=True, exclude_none=True, exclude={"datos_fiscales"})
     if actor.rol != Rol.superadmin and "estado" in cambios:
@@ -100,7 +100,7 @@ async def modificar(prestador_id: UUID, datos: PrestadorCambios, request: Reques
 @router.post("/{prestador_id}/logo", response_model=PrestadorSalida, summary="Subir logo",
              description="PNG, JPG, SVG o WebP de hasta 1 MB. Se guarda en el almacenamiento S3 y se registra su key.")
 async def subir_logo(prestador_id: UUID, request: Request, db: DB, archivo: UploadFile = File(...),
-                     actor: Actor = Depends(ADMIN)):
+                     actor: Actor = Depends(SUPERADMIN)):
     p = await _obtener(db, actor, prestador_id)
     extension = TIPOS_LOGO.get(archivo.content_type or "")
     if extension is None:

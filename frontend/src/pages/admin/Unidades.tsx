@@ -24,12 +24,18 @@ type FormUnidad = z.input<typeof esquemaUnidad>
 
 export function Unidades() {
   const { usuario } = useAuth()
-  const puedeEditar = usuario?.rol === 'admin_empresa' || usuario?.rol === 'superadmin'
+  const puedeEditar = usuario?.rol === 'superadmin'
   const unidades = useRecurso<UnidadNegocio[]>('/unidades-negocio')
   const grupos = useRecurso<GrupoUN[]>(usuario && ['admin_un', 'operador', 'tecnico'].includes(usuario.rol) ? null : '/grupos-un')
   const clientes = useRecurso<Tenant[]>(usuario?.rol === 'superadmin' ? '/tenants' : null)
   const [editar, setEditar] = useState<UnidadNegocio | 'nueva' | null>(null)
-  const [nuevoGrupo, setNuevoGrupo] = useState(false)
+  const [grupoEditar, setGrupoEditar] = useState<GrupoUN | 'nuevo' | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
+  async function cambiarEstado(path: string, item: UnidadNegocio | GrupoUN, recargar: () => Promise<void>) {
+    if (!window.confirm(item.estado === 'activo' ? `¿Dar de baja a ${item.nombre}? Se conserva su historial.` : `¿Reactivar a ${item.nombre}?`)) return
+    try { setAviso(null); await api(`${path}/${item.id}`, { metodo: 'PATCH', cuerpo: { estado: item.estado === 'activo' ? 'inactivo' : 'activo' } }); await recargar() }
+    catch (e) { setAviso(mensajeDeError(e)) }
+  }
   const nombreGrupo = (id: string | null) => grupos.datos?.find((g) => g.id === id)?.nombre ?? '—'
 
   return (
@@ -40,7 +46,7 @@ export function Unidades() {
         acciones={puedeEditar && <Boton onClick={() => setEditar('nueva')}>Nueva unidad</Boton>}
       />
       <Tarjeta titulo="Unidades">
-        {unidades.error && <Aviso>{unidades.error}</Aviso>}
+        {(unidades.error || aviso) && <Aviso>{unidades.error ?? aviso}</Aviso>}
         <Tabla
           filas={unidades.datos ?? []}
           columnas={[
@@ -49,13 +55,13 @@ export function Unidades() {
             { titulo: 'Grupo', celda: (u) => nombreGrupo(u.grupo_id) },
             { titulo: 'Ubicación', celda: (u) => (u.ubicacion ? `${u.ubicacion.lat.toFixed(4)}, ${u.ubicacion.lng.toFixed(4)}` : '—') },
             { titulo: 'Estado', celda: (u) => <Insignia tono={u.estado === 'activo' ? 'ok' : 'alerta'}>{u.estado}</Insignia> },
-            ...(puedeEditar ? [{ titulo: '', celda: (u: UnidadNegocio) => <Boton variante="fantasma" onClick={() => setEditar(u)}>Editar</Boton> }] : []),
+            ...(puedeEditar ? [{ titulo: '', celda: (u: UnidadNegocio) => <div className="flex flex-wrap gap-1"><Boton variante="fantasma" onClick={() => setEditar(u)}>Editar</Boton><Boton variante="peligro" onClick={() => void cambiarEstado('/unidades-negocio', u, unidades.recargar)}>{u.estado === 'activo' ? 'Dar de baja' : 'Reactivar'}</Boton></div> }] : []),
           ]}
         />
       </Tarjeta>
 
       {grupos.datos && (
-        <Tarjeta titulo="Grupos de unidades" acciones={puedeEditar && <Boton variante="secundario" onClick={() => setNuevoGrupo(true)}>Nuevo grupo</Boton>}>
+        <Tarjeta titulo="Grupos de unidades" acciones={puedeEditar && <Boton variante="secundario" onClick={() => setGrupoEditar('nuevo')}>Nuevo grupo</Boton>}>
           {grupos.error && <Aviso>{grupos.error}</Aviso>}
           <Tabla
             filas={grupos.datos}
@@ -64,10 +70,11 @@ export function Unidades() {
               { titulo: 'Grupo', celda: (g) => <><p className="font-medium">{g.nombre}</p><p className="text-xs text-slate-500">{g.descripcion}</p></> },
               { titulo: 'Unidades', celda: (g) => g.unidad_ids.length },
               { titulo: 'Supervisores', celda: (g) => g.supervisor_ids.length },
+              { titulo: 'Estado', celda: (g) => <Insignia>{g.estado}</Insignia> },
               ...(puedeEditar
                 ? [{
                     titulo: 'Miembros',
-                    celda: (g: GrupoUN) => <MiembrosGrupo grupo={g} unidades={unidades.datos ?? []} alGuardar={grupos.recargar} />,
+                    celda: (g: GrupoUN) => <div className="flex flex-wrap gap-1"><MiembrosGrupo grupo={g} unidades={(unidades.datos ?? []).filter(u => u.tenant_id === g.tenant_id)} alGuardar={grupos.recargar} /><Boton variante="fantasma" onClick={() => setGrupoEditar(g)}>Editar</Boton><Boton variante="peligro" onClick={() => void cambiarEstado('/grupos-un', g, grupos.recargar)}>{g.estado === 'activo' ? 'Dar de baja' : 'Reactivar'}</Boton></div>,
                   }]
                 : []),
             ]}
@@ -89,8 +96,8 @@ export function Unidades() {
           />
         )}
       </Modal>
-      <Modal titulo="Nuevo grupo" abierto={nuevoGrupo} alCerrar={() => setNuevoGrupo(false)}>
-        <FormularioGrupo clientes={clientes.datos ?? []} esSuper={usuario?.rol === 'superadmin'} alGuardar={async () => { setNuevoGrupo(false); await grupos.recargar() }} />
+      <Modal titulo={grupoEditar === 'nuevo' ? 'Nuevo grupo' : 'Editar grupo'} abierto={grupoEditar !== null} alCerrar={() => setGrupoEditar(null)}>
+        {grupoEditar && <FormularioGrupo key={grupoEditar === 'nuevo' ? 'nuevo' : grupoEditar.id} grupo={grupoEditar === 'nuevo' ? null : grupoEditar} clientes={clientes.datos ?? []} esSuper={usuario?.rol === 'superadmin'} alGuardar={async () => { setGrupoEditar(null); await grupos.recargar() }} />}
       </Modal>
     </div>
   )
@@ -155,11 +162,11 @@ function FormularioUnidad({ unidad, grupos, clientes, esSuper, alGuardar }: { un
   )
 }
 
-function FormularioGrupo({ clientes, esSuper, alGuardar }: { clientes: Tenant[]; esSuper: boolean; alGuardar: () => Promise<void> }) {
+function FormularioGrupo({ grupo, clientes, esSuper, alGuardar }: { grupo: GrupoUN | null; clientes: Tenant[]; esSuper: boolean; alGuardar: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null)
   const { register, handleSubmit, formState } = useForm<{ nombre: string; descripcion: string; tenant_id: string }>({
     resolver: zodResolver(z.object({ nombre: z.string().trim().min(2, 'Mínimo 2 caracteres'), descripcion: z.string().max(1000), tenant_id: z.string() })),
-    defaultValues: { nombre: '', descripcion: '', tenant_id: '' },
+    defaultValues: { nombre: grupo?.nombre ?? '', descripcion: grupo?.descripcion ?? '', tenant_id: grupo?.tenant_id ?? '' },
   })
   const enviar = handleSubmit(async (d) => {
     setError(null)
@@ -168,7 +175,8 @@ function FormularioGrupo({ clientes, esSuper, alGuardar }: { clientes: Tenant[];
       return
     }
     try {
-      await api('/grupos-un', { metodo: 'POST', cuerpo: { nombre: d.nombre, descripcion: d.descripcion, ...(esSuper ? { tenant_id: d.tenant_id } : {}) } })
+      if (grupo) await api(`/grupos-un/${grupo.id}`, { metodo: 'PATCH', cuerpo: { nombre: d.nombre, descripcion: d.descripcion } })
+      else await api('/grupos-un', { metodo: 'POST', cuerpo: { nombre: d.nombre, descripcion: d.descripcion, ...(esSuper ? { tenant_id: d.tenant_id } : {}) } })
       await alGuardar()
     } catch (e) {
       setError(mensajeDeError(e))
@@ -177,10 +185,10 @@ function FormularioGrupo({ clientes, esSuper, alGuardar }: { clientes: Tenant[];
   return (
     <form onSubmit={enviar} className="space-y-3" noValidate>
       {error && <Aviso>{error}</Aviso>}
-      {esSuper && <Selector etiqueta="Cliente" opciones={[{ valor: '', texto: 'Selecciona cliente…' }, ...clientes.map((c) => ({ valor: c.id, texto: c.razon_social }))]} {...register('tenant_id')} />}
+      {esSuper && !grupo && <Selector etiqueta="Cliente" opciones={[{ valor: '', texto: 'Selecciona cliente…' }, ...clientes.map((c) => ({ valor: c.id, texto: c.razon_social }))]} {...register('tenant_id')} />}
       <Campo etiqueta="Nombre" error={formState.errors.nombre?.message} {...register('nombre')} />
       <Campo etiqueta="Descripción" {...register('descripcion')} />
-      <Boton type="submit" className="w-full" disabled={formState.isSubmitting}>Crear grupo</Boton>
+      <Boton type="submit" className="w-full" disabled={formState.isSubmitting}>{grupo ? 'Guardar cambios' : 'Crear grupo'}</Boton>
     </form>
   )
 }
