@@ -16,7 +16,7 @@ export function Equipos() {
     ...ambito.params, un_id: unId || undefined, q: q || undefined, con_contrato: soloContrato ? 'true' : undefined,
   })
   const [editar, setEditar] = useState<Equipo | 'nuevo' | null>(null)
-  const puedeEditar = ambito.puedeEditarTenant || ambito.rol === 'admin_un'
+  const puedeEditar = ambito.puedeEditarTenant
   const nombreUn = (id: string) => unidades.datos?.find((u) => u.id === id)?.nombre ?? id.slice(0, 8)
 
   return (

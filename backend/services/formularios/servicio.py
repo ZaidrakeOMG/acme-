@@ -53,13 +53,7 @@ async def _permiso_mesa(db: AsyncSession, actor: Actor, formulario: Formulario) 
 
 
 async def puede_editar(db: AsyncSession, actor: Actor, formulario: Formulario) -> bool:
-    if actor.es_superadmin:
-        return True
-    if actor.rol == Rol.admin_prestador:
-        return formulario.prestador_id == actor.prestador_id
-    if actor.rol == Rol.mesa_control and formulario.prestador_id == actor.prestador_id:
-        return formulario.estado == EstadoFormulario.publicado and await _permiso_mesa(db, actor, formulario)
-    return False
+    return actor.es_superadmin
 
 
 async def exigir_edicion(db: AsyncSession, actor: Actor, formulario: Formulario) -> None:

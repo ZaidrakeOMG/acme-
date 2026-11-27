@@ -21,6 +21,7 @@ from services import auditoria
 router = APIRouter(prefix="/api/alertas", tags=["Alertas"], responses=RESPUESTAS_ERROR)
 
 ADMINS = requiere_rol(Rol.superadmin, Rol.admin_empresa, Rol.admin_prestador)
+SUPERADMIN = requiere_rol(Rol.superadmin)
 LECTORES_HISTORIAL = requiere_rol(Rol.superadmin, Rol.admin_empresa, Rol.admin_un, Rol.admin_prestador,
                                   Rol.direccion_prestador, Rol.mesa_control, Rol.despachador)
 
@@ -71,7 +72,7 @@ async def configuracion(db: DB, actor: Actor = Depends(ADMINS), tenant_id: UUID 
 
 @router.put("/configuracion/{clave}", response_model=AlertaEfectiva, summary="Personalizar umbral",
             description="El umbral debe quedar dentro del rango definido por el superadmin.")
-async def configurar(clave: str, datos: AlertaConfiguracionEntrada, request: Request, db: DB, actor: Actor = Depends(ADMINS),
+async def configurar(clave: str, datos: AlertaConfiguracionEntrada, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN),
                      tenant_id: UUID | None = None, prestador_id: UUID | None = None):
     t, p = duenio(actor, tenant_id, prestador_id)
     cat = await svc.obtener_catalogo(db, clave)
@@ -85,7 +86,7 @@ async def configurar(clave: str, datos: AlertaConfiguracionEntrada, request: Req
 
 
 @router.delete("/configuracion/{clave}", response_model=AlertaEfectiva, summary="Restablecer umbral por defecto")
-async def restablecer(clave: str, request: Request, db: DB, actor: Actor = Depends(ADMINS),
+async def restablecer(clave: str, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN),
                       tenant_id: UUID | None = None, prestador_id: UUID | None = None):
     t, p = duenio(actor, tenant_id, prestador_id)
     despues = await svc.restablecer(db, clave, t, p)
@@ -134,7 +135,7 @@ async def supresiones(db: DB, actor: Actor = Depends(ADMINS), tenant_id: UUID | 
 
 
 @router.post("/supresiones", response_model=SupresionSalida, status_code=201, summary="Suprimir una alerta temporalmente")
-async def suprimir(datos: SupresionEntrada, request: Request, db: DB, actor: Actor = Depends(ADMINS),
+async def suprimir(datos: SupresionEntrada, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN),
                    tenant_id: UUID | None = None, prestador_id: UUID | None = None):
     t, p = duenio(actor, tenant_id, prestador_id)
     await svc.obtener_catalogo(db, datos.clave_alerta)
@@ -151,7 +152,7 @@ async def suprimir(datos: SupresionEntrada, request: Request, db: DB, actor: Act
 
 
 @router.post("/supresiones/{supresion_id}/desactivar", response_model=SupresionSalida, summary="Terminar una supresión")
-async def desactivar_supresion(supresion_id: UUID, request: Request, db: DB, actor: Actor = Depends(ADMINS),
+async def desactivar_supresion(supresion_id: UUID, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN),
                                tenant_id: UUID | None = None, prestador_id: UUID | None = None):
     t, p = duenio(actor, tenant_id, prestador_id)
     s = await db.get(AlertaSupresion, supresion_id)
@@ -207,7 +208,7 @@ async def escalaciones(db: DB, actor: ActorActual):
             description="El Admin prestador encadena alertas críticas a una escalación a Dirección dentro de su prestador; "
                         "el Superadmin cambia el default del catálogo. `escalacion_de` vacío desconecta la cadena.")
 async def configurar_escalacion(datos: EscalacionEntrada, request: Request, db: DB,
-                                actor: Actor = Depends(requiere_rol(Rol.superadmin, Rol.admin_prestador))):
+                                actor: Actor = Depends(SUPERADMIN)):
     salida = await svc.configurar_escalacion(db, actor, datos.clave, datos.escalacion_de)
     await auditoria.registrar_actor(db, actor, "alertas.escalacion_configurada", request, recurso_tipo="alerta_catalogo",
                                     recurso_id=datos.clave, despues={"escalacion_de": salida["escalacion_de"]})

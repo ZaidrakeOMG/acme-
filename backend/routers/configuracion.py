@@ -51,7 +51,7 @@ async def listar_tenant(db: DB, actor: Actor = Depends(ADMIN_TENANT), tenant_id:
 
 @router.put("/tenant/{clave}", response_model=ConfiguracionSalida, summary="Guardar parámetro del tenant")
 async def guardar_tenant(datos: ValorConfiguracion, request: Request, db: DB, clave: str = CLAVE,
-                         actor: Actor = Depends(ADMIN_TENANT), tenant_id: UUID | None = None):
+                         actor: Actor = Depends(requiere_rol(Rol.superadmin)), tenant_id: UUID | None = None):
     t = _tenant(actor, tenant_id)
     fila = (await db.execute(select(ConfiguracionTenant).where(
         ConfiguracionTenant.tenant_id == t, ConfiguracionTenant.clave == clave))).scalar_one_or_none()
@@ -80,7 +80,7 @@ async def listar_prestador(db: DB, actor: Actor = Depends(ADMIN_PRESTADOR), pres
 
 @router.put("/prestador/{clave}", response_model=ConfiguracionSalida, summary="Guardar parámetro del prestador")
 async def guardar_prestador(datos: ValorConfiguracion, request: Request, db: DB, clave: str = CLAVE,
-                            actor: Actor = Depends(ADMIN_PRESTADOR), prestador_id: UUID | None = None):
+                            actor: Actor = Depends(requiere_rol(Rol.superadmin)), prestador_id: UUID | None = None):
     p = _prestador(actor, prestador_id)
     fila = (await db.execute(select(ConfiguracionPrestador).where(
         ConfiguracionPrestador.prestador_id == p, ConfiguracionPrestador.clave == clave))).scalar_one_or_none()
@@ -119,7 +119,7 @@ async def permisos_tecnico(db: DB, actor: Actor = Depends(LECTOR_PERMISOS), pres
 
 @router.put("/permisos-tecnico", response_model=list[PermisoEfectivo], summary="Configurar permisos del técnico")
 async def configurar_permisos_tecnico(datos: PermisosCambios, request: Request, db: DB,
-                                      actor: Actor = Depends(ADMIN_PRESTADOR), prestador_id: UUID | None = None):
+                                      actor: Actor = Depends(requiere_rol(Rol.superadmin)), prestador_id: UUID | None = None):
     p = _prestador(actor, prestador_id)
     cambios = await permisos_service.actualizar_tecnico(db, p, datos.valores)
     await auditoria.registrar_actor(db, actor, "permisos.tecnico", request, prestador_id=p, recurso_tipo="permisos_tecnico",
@@ -142,7 +142,7 @@ async def permisos_despachador(db: DB, actor: Actor = Depends(LECTOR_PERMISOS), 
 @router.put("/permisos-despachador", response_model=list[PermisoEfectivo], summary="Configurar permisos del despachador",
             description="Cada cambio queda en el log inmutable permisos_despachador_log y en auditoría.")
 async def configurar_permisos_despachador(datos: PermisosDespachadorCambios, request: Request, db: DB,
-                                          actor: Actor = Depends(ADMIN_PRESTADOR), prestador_id: UUID | None = None):
+                                          actor: Actor = Depends(requiere_rol(Rol.superadmin)), prestador_id: UUID | None = None):
     p = _prestador(actor, prestador_id)
     if datos.despachador_id:
         despachador = await db.get(Usuario, datos.despachador_id)

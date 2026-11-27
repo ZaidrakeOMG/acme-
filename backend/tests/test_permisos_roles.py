@@ -82,7 +82,7 @@ async def test_superadmin_crea_tenant_prestador_y_vinculo(cliente, auth):
 
 
 async def test_version_hash_cambia_al_modificar(cliente, auth, datos):
-    h = await auth(AE)
+    h = await auth(SA)
     antes = (await cliente.get(f"/api/tenants/{datos['tenant']}", headers=h)).json()
     despues = (await cliente.patch(f"/api/tenants/{datos['tenant']}", headers=h, json={"zona_horaria": "America/Monterrey"})).json()
     assert despues["version_hash"] != antes["version_hash"] and despues["updated_at"] > antes["updated_at"]
@@ -118,25 +118,25 @@ async def test_admin_empresa_solo_crea_roles_de_su_tenant(cliente, auth, datos):
     r = await cliente.post("/api/usuarios", headers=h, json={
         "email": f"op.{uuid.uuid4().hex[:6]}@prueba.dev", "nombre": "Operador", "rol": "operador", "contrasena": "Prueba#Segura2026",
         "tenant_id": str(datos["otro_tenant"])})
-    assert r.status_code == 201 and r.json()["tenant_id"] == str(datos["tenant"])  # ignora el tenant ajeno
+    assert r.status_code == 403
 
 
 async def test_admin_prestador_crea_tecnico_en_su_prestador(cliente, auth, datos):
     r = await cliente.post("/api/usuarios", headers=await auth(AP), json={
         "email": f"tec.{uuid.uuid4().hex[:6]}@prueba.dev", "nombre": "Técnico Nuevo", "rol": "tecnico", "contrasena": "Prueba#Segura2026"})
-    assert r.status_code == 201 and r.json()["prestador_id"] == str(datos["prestador"]) and r.json()["dominio"] == "prestador"
+    assert r.status_code == 403
     r = await cliente.post("/api/usuarios", headers=await auth(AP), json={
         "email": f"sa.{uuid.uuid4().hex[:6]}@prueba.dev", "nombre": "Escalada", "rol": "superadmin", "contrasena": "Prueba#Segura2026"})
     assert r.status_code == 403
 
 
 async def test_usuario_correo_duplicado_y_politica(cliente, auth):
-    h = await auth(AE)
+    h = await auth(SA)
     dup = await cliente.post("/api/usuarios", headers=h, json={
-        "email": "OPERADOR@acma.dev", "nombre": "Dup", "rol": "operador", "contrasena": "Prueba#Segura2026"})
+        "email": "OPERADOR@acma.dev", "nombre": "Dup", "rol": "superadmin", "contrasena": "Prueba#Segura2026"})
     assert dup.status_code == 409 and dup.json()["codigo"] == "EMAIL_DUPLICADO"
     debil = await cliente.post("/api/usuarios", headers=h, json={
-        "email": f"d.{uuid.uuid4().hex[:6]}@prueba.dev", "nombre": "Débil", "rol": "operador", "contrasena": "abcdefghijk"})
+        "email": f"d.{uuid.uuid4().hex[:6]}@prueba.dev", "nombre": "Débil", "rol": "superadmin", "contrasena": "abcdefghijk"})
     assert debil.status_code == 422 and debil.json()["codigo"] == "POLITICA_CONTRASENA"
 
 
@@ -152,14 +152,14 @@ async def test_no_puede_cambiar_rol_a_otro_dominio_ni_el_propio(cliente, auth):
 # ------------------------------------------------------------ UNs y grupos
 
 async def test_crud_unidad_con_ubicacion_y_asignacion(cliente, auth, datos):
-    h = await auth(AE)
+    h = await auth(SA)
     codigo = f"T-{uuid.uuid4().hex[:5]}"
     r = await cliente.post("/api/unidades-negocio", headers=h, json={
-        "nombre": "Sucursal Prueba", "codigo": codigo, "ubicacion": {"lat": 20.6736, "lng": -103.344}})
+        "tenant_id": str(datos["tenant"]), "nombre": "Sucursal Prueba", "codigo": codigo, "ubicacion": {"lat": 20.6736, "lng": -103.344}})
     assert r.status_code == 201, r.text
     un = r.json()
     assert un["ubicacion"] == {"lat": pytest.approx(20.6736), "lng": pytest.approx(-103.344)}
-    dup = await cliente.post("/api/unidades-negocio", headers=h, json={"nombre": "Dup", "codigo": codigo})
+    dup = await cliente.post("/api/unidades-negocio", headers=h, json={"tenant_id": str(datos["tenant"]), "nombre": "Dup", "codigo": codigo})
     assert dup.status_code == 409
     operadores = (await cliente.get("/api/usuarios", headers=h, params={"rol": "operador", "q": "olga"})).json()
     asig = await cliente.put(f"/api/unidades-negocio/{un['id']}/usuarios", headers=h, json={"usuario_ids": [operadores[0]["id"]]})
@@ -172,8 +172,8 @@ async def test_crud_unidad_con_ubicacion_y_asignacion(cliente, auth, datos):
 
 
 async def test_grupos_miembros_y_supervisores(cliente, auth, datos):
-    h = await auth(AE)
-    g = await cliente.post("/api/grupos-un", headers=h, json={"nombre": f"Grupo {uuid.uuid4().hex[:5]}"})
+    h = await auth(SA)
+    g = await cliente.post("/api/grupos-un", headers=h, json={"tenant_id": str(datos["tenant"]), "nombre": f"Grupo {uuid.uuid4().hex[:5]}"})
     assert g.status_code == 201
     gid = g.json()["id"]
     m = await cliente.put(f"/api/grupos-un/{gid}/unidades", headers=h, json={"unidad_ids": [str(u) for u in datos["unidades"][:2]]})
@@ -186,7 +186,7 @@ async def test_grupos_miembros_y_supervisores(cliente, auth, datos):
     # El supervisor ve solo sus grupos asignados.
     vistos = {x["id"] for x in (await cliente.get("/api/grupos-un", headers=await auth(SUPO))).json()}
     assert gid in vistos
-    assert all(x["tenant_id"] == str(datos["tenant"]) for x in (await cliente.get("/api/grupos-un", headers=h)).json())
+    assert all(x["tenant_id"] == str(datos["tenant"]) for x in (await cliente.get("/api/grupos-un", headers=await auth(AE))).json())
 
 
 # ------------------------------------------------------------------ contratos
@@ -197,9 +197,9 @@ def _slas(resp=2, resol=8):
 
 
 async def test_contrato_requiere_cinco_severidades_y_rangos(cliente, auth, datos):
-    h = await auth(AP)
+    h = await auth(SA)
     # §6.10.1 admite un solo contrato activo por relación: la prueba usa un período que no se traslapa con el del seed.
-    base = {"tenant_id": str(datos["tenant"]), "nombre": "Contrato prueba", "fecha_inicio": "2028-01-01", "fecha_fin": "2028-12-31"}
+    base = {"prestador_id": str(datos["prestador"]), "tenant_id": str(datos["tenant"]), "nombre": "Contrato prueba", "fecha_inicio": "2028-01-01", "fecha_fin": "2028-12-31"}
     assert (await cliente.post("/api/contratos", headers=h, json={**base, "slas": _slas()[:4]})).status_code == 422
     assert (await cliente.post("/api/contratos", headers=h, json={**base, "slas": _slas(resp=0)})).status_code == 422
     assert (await cliente.post("/api/contratos", headers=h, json={**base, "slas": _slas(resol=4321)})).status_code == 422
@@ -219,8 +219,8 @@ async def test_contrato_requiere_cinco_severidades_y_rangos(cliente, auth, datos
 
 
 async def test_contrato_con_tenant_no_vinculado(cliente, auth, datos):
-    r = await cliente.post("/api/contratos", headers=await auth(AP), json={
-        "tenant_id": str(datos["otro_tenant"]), "nombre": "Indebido", "fecha_inicio": str(date(2026, 1, 1)),
+    r = await cliente.post("/api/contratos", headers=await auth(SA), json={
+        "prestador_id": str(datos["prestador"]), "tenant_id": str(datos["otro_tenant"]), "nombre": "Indebido", "fecha_inicio": str(date(2026, 1, 1)),
         "fecha_fin": str(date(2026, 6, 30)), "slas": _slas()})
     assert r.status_code == 422 and r.json()["codigo"] == "TENANT_NO_VINCULADO"
 
