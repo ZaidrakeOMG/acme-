@@ -80,7 +80,25 @@ describe('Burbuja móvil del Asistente ACMA', () => {
     await waitFor(() => expect(Number(burbuja.style.left.replace('px', ''))).toBe(anterior - 45))
     expect(screen.queryByRole('dialog', { name: /Asistente de ayuda ACMA/ })).not.toBeInTheDocument()
     expect(localStorage.getItem('acma.asistente.burbuja.v1.usuario-burbuja-demo')).toContain('"x":')
-    // Un toque posterior, ya independiente del arrastre, debe poder abrir el panel.
-    // El propio arrastre no debe abrirlo; eso se verifica arriba.
+    fireEvent.click(burbuja) // click sintético tardío del arrastre
+    expect(screen.queryByRole('dialog', { name: /Asistente de ayuda ACMA/ })).not.toBeInTheDocument()
+    fireEvent.pointerDown(burbuja, { pointerId: 5, pointerType: 'touch', button: 0, clientX: 455, clientY: 440 })
+    fireEvent.pointerUp(burbuja, { pointerId: 5, pointerType: 'touch', button: 0, clientX: 455, clientY: 440 })
+    fireEvent.click(burbuja)
+    expect(screen.getByRole('dialog', { name: /Asistente de ayuda ACMA/ })).toBeInTheDocument()
+  })
+
+  it('arrastra con ratón desde el icono, incluso fuera de la burbuja sin captura', () => {
+    pantalla()
+    const b = screen.getByTestId('acma-asistente-burbuja')
+    const img = b.querySelector('img')!
+    expect(img).toHaveAttribute('draggable', 'false')
+    fireEvent.pointerDown(img, { pointerId: 1, pointerType: 'mouse', button: 0, clientX: 1000, clientY: 700 })
+    fireEvent.pointerMove(window, { pointerId: 1, pointerType: 'mouse', clientX: 400, clientY: 300 })
+    fireEvent.pointerUp(window, { pointerId: 1, pointerType: 'mouse', clientX: 400, clientY: 300 })
+    expect(Number.parseFloat(b.style.left)).toBe(404)
+    expect(b).toHaveAttribute('data-arrastrando', 'false')
+    fireEvent.click(b)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

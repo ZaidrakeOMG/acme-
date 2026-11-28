@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { modulosDe, NOMBRE_ROL, type GrupoModulo, type Modulo } from '../config/modulos'
 import { useAuth } from '../contexts/AuthContext'
-import { ProveedorMiUbicacion } from '../contexts/RastreoUsuarioContext'
+import { ProveedorMiUbicacion, usarMiUbicacion } from '../contexts/RastreoUsuarioContext'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { IndicadorConectividad } from './IndicadorConectividad'
 import { IndicadorEstadoTestBot } from './IndicadorEstadoTestBot'
@@ -146,6 +146,13 @@ function Navegacion({ modulos, alNavegar, rutaActual, indicadores, mostrarEstado
 
 /** Shell compartido por React Web y la WebView Android. Mantiene rutas, permisos y estados existentes. */
 export function AppShell() {
+  const { usuario } = useAuth()
+  if (!usuario) return null
+  return <ProveedorMiUbicacion key={usuario.id}><AppShellContenido /></ProveedorMiUbicacion>
+}
+
+function AppShellContenido() {
+  const { bloqueado } = usarMiUbicacion()
   const { usuario, cerrarSesion } = useAuth()
   const indicadoresTestBot = useIndicadoresTestBot(usuario?.id ?? '', usuario?.rol === 'superadmin')
   const [menuAbierto, setMenuAbierto] = useState(false)
@@ -228,7 +235,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="acma-shell flex min-h-dvh min-w-0 bg-fondo lg:flex">
+    <div inert={bloqueado} aria-hidden={bloqueado || undefined} className="acma-shell flex min-h-dvh min-w-0 bg-fondo lg:flex">
       {menuAbierto && anchoMovil && (
         <button type="button" aria-label="Cerrar navegación" onClick={() => setMenuAbierto(false)}
           className="fixed inset-0 z-40 bg-[#08162b]/70 backdrop-blur-[3px] lg:hidden" />
@@ -386,11 +393,11 @@ export function AppShell() {
           </div>
         </header>
         <main id="contenido-acma" className="acma-contenido mx-auto w-full min-w-0 max-w-[1480px] flex-1 px-3 pb-24 pt-5 sm:px-5 sm:pt-7 lg:px-7 xl:px-9 lg:pb-10">
-          <ProveedorMiUbicacion><Outlet /></ProveedorMiUbicacion>
+          <Outlet />
         </main>
       </div>
 
-      <TestBotAcma />
+      {!bloqueado && <TestBotAcma />}
 
       <nav aria-label="Accesos rápidos" className="acma-barra-movil fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 lg:hidden">
         <NavLink to="/" end className={({ isActive }) => `acma-acceso-rapido ${isActive ? 'acma-acceso-activo' : ''}`}>

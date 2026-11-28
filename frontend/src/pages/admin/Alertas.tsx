@@ -59,7 +59,7 @@ export function Alertas() {
   return (
     <div>
       <Encabezado titulo="Configuración central de alertas"
-        descripcion="Un solo lugar para todos los umbrales del sistema. El Superadmin fija el valor por defecto y el rango; cada cliente y cada prestador ajustan su umbral, sus canales y sus roles destinatarios dentro de ese rango. Las alertas cuya fuente de datos llega en Fase 2 se muestran etiquetadas y no se pueden activar." />
+        descripcion="Un solo lugar para todos los umbrales del sistema. Solo el Superadmin modifica los valores, umbrales, canales y roles destinatarios. Las alertas cuya fuente de datos llega en Fase 2 se muestran etiquetadas y no se pueden activar." />
       <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Vistas de alertas">
         {([['catalogo', 'Catálogo y umbrales'], ['escalaciones', 'Escalaciones a Dirección'], ['supresiones', 'Supresiones'], ['historial', 'Historial']] as [Vista, string][]).map(([v, texto]) => (
           <button key={v} role="tab" aria-selected={vista === v} onClick={() => ir(v)}
@@ -98,7 +98,7 @@ export function Alertas() {
                     ? <Insignia tono="alerta">Fase 2</Insignia>
                     : <span className="text-xs text-slate-400">—</span> },
                   { titulo: 'Estado', celda: (a) => (a.activa ? <Insignia tono="ok">Activa</Insignia> : <Insignia>Inactiva</Insignia>) },
-                  { titulo: '', celda: (a) => <Boton variante="fantasma" onClick={() => setEditar(a)}>{a.fase === 2 ? 'Ver' : 'Ajustar'}</Boton> },
+                  { titulo: '', celda: (a) => esSuper ? <Boton variante="fantasma" onClick={() => setEditar(a)}>{a.fase === 2 ? 'Ver' : 'Ajustar'}</Boton> : null },
                 ]}
               />
             </Tarjeta>
@@ -212,7 +212,7 @@ function Escalaciones({ alertas }: { alertas: AlertaEfectiva[] }) {
     try { setFilas(await cargarEscalaciones()) } catch (e) { setError(mensajeDeError(e)) }
   }, [])
   useEffect(() => { void cargar() }, [cargar])
-  const configura = usuario?.rol === 'superadmin' || usuario?.rol === 'admin_prestador'
+  const configura = usuario?.rol === 'superadmin'
 
   async function guardar(clave: string, origen: string | null) {
     setError(null)
@@ -255,6 +255,8 @@ function Escalaciones({ alertas }: { alertas: AlertaEfectiva[] }) {
 }
 
 function Supresiones({ consulta, alertas }: { consulta: Record<string, string | undefined> | undefined; alertas: AlertaEfectiva[] }) {
+  const { usuario } = useAuth()
+  const esSuper = usuario?.rol === 'superadmin'
   const [filas, setFilas] = useState<Supresion[]>([])
   const [soloActivas, setSoloActivas] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -272,7 +274,7 @@ function Supresiones({ consulta, alertas }: { consulta: Record<string, string | 
   }
 
   return (
-    <Tarjeta titulo="Supresiones temporales" acciones={<Boton onClick={() => setNueva(true)}>Suprimir una alerta</Boton>}>
+    <Tarjeta titulo="Supresiones temporales" acciones={esSuper && <Boton onClick={() => setNueva(true)}>Suprimir una alerta</Boton>}>
       <p className="mb-2 text-sm text-slate-600">Silencia una alerta por un período, con razón documentada. Solo los roles
         administradores pueden hacerlo; al vencer, la alerta vuelve sola.</p>
       <label className="mb-2 flex items-center gap-1 text-sm"><input type="checkbox" checked={soloActivas}
@@ -286,7 +288,7 @@ function Supresiones({ consulta, alertas }: { consulta: Record<string, string | 
           { titulo: 'Período', celda: (s) => <span className="text-xs">{fmtFecha(s.desde)} → {fmtFecha(s.hasta)}</span> },
           { titulo: 'Razón', celda: (s) => <span className="text-xs">{s.razon}</span> },
           { titulo: 'Estado', celda: (s) => s.activa ? <Insignia tono="alerta">Vigente</Insignia> : <Insignia>Terminada</Insignia> },
-          { titulo: '', celda: (s) => s.activa
+          { titulo: '', celda: (s) => esSuper && s.activa
             ? <Boton variante="secundario" onClick={() => void ejecutar(() => api(`/alertas/supresiones/${s.id}/desactivar`, { metodo: 'POST', params: consulta }), 'Supresión terminada')}>Terminar</Boton>
             : null },
         ]} />

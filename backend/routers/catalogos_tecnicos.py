@@ -24,7 +24,7 @@ from services import auditoria, catalogos_service, permisos_service
 
 router = APIRouter(prefix="/api/catalogos", tags=["Catálogos · técnicos y severidades"], responses=RESPUESTAS_ERROR)
 
-ADMIN = requiere_rol(Rol.superadmin, Rol.admin_prestador)
+ADMIN = requiere_rol(Rol.superadmin)
 LECTURA = requiere_rol(Rol.superadmin, Rol.admin_prestador, Rol.mesa_control, Rol.despachador)
 LECTURA_SEVERIDADES = requiere_rol(Rol.superadmin, Rol.admin_prestador, Rol.mesa_control, Rol.despachador,
                                    Rol.admin_empresa, Rol.admin_un)

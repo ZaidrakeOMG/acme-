@@ -1,5 +1,6 @@
 """Administración de usuarios. superadmin: todos; admin_empresa: su tenant; admin_prestador: su prestador."""
 from uuid import UUID
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select, text, update
@@ -9,15 +10,16 @@ from core.errors import ErrorAPI, no_encontrado, prohibido
 from core.modulos import validar_modulos
 from core.security import errores_politica_contrasena, hashear_contrasena_async
 from models.base import ROLES_PRESTADOR, ROLES_TENANT, Dominio, EstadoRegistro, Rol, dominio_de_rol
-from models.usuarios import Sesion, Usuario
+from models.usuarios import HistorialContrasena, Sesion, Usuario
 from schemas.comun import RESPUESTAS_ERROR
 from schemas.mensajeria import CodigoEntrada, ConsentimientoEntrada, TelefonoEntrada, TelefonoSalida
-from schemas.organizaciones import UsuarioCambios, UsuarioEntrada, UsuarioSalida
-from services import auditoria
+from schemas.organizaciones import UsuarioCambios, UsuarioEntrada, UsuarioSalida, RestablecerContrasenaAdmin
+from services import auditoria, auth_service
 
 router = APIRouter(prefix="/api/usuarios", tags=["Usuarios"], responses=RESPUESTAS_ERROR)
 
 ADMINS = requiere_rol(Rol.superadmin, Rol.admin_empresa, Rol.admin_prestador)
+SUPERADMIN = requiere_rol(Rol.superadmin)
 # El correo es único en toda la plataforma; la búsqueda no depende de la RLS del actor.
 _EMAIL_EXISTE = text("SELECT EXISTS (SELECT 1 FROM auth_identidad_por_email(:e))")
 
@@ -78,9 +80,8 @@ async def listar(db: DB, actor: Actor = Depends(ADMINS),
 
 
 @router.post("", response_model=UsuarioSalida, status_code=201, summary="Crear usuario",
-             description="admin_empresa crea roles de su tenant; admin_prestador, roles de su prestador; "
-                         "superadmin cualquier rol indicando tenant_id o prestador_id.")
-async def crear(datos: UsuarioEntrada, request: Request, db: DB, actor: Actor = Depends(ADMINS)):
+             description="Solo superadmin; indica tenant_id o prestador_id según el rol.")
+async def crear(datos: UsuarioEntrada, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN)):
     if datos.rol not in _roles_asignables(actor):
         raise prohibido(f"No puedes crear usuarios con rol {datos.rol.value}")
     errores = errores_politica_contrasena(datos.contrasena)
@@ -214,7 +215,7 @@ async def detalle(usuario_id: UUID, db: DB, actor: Actor = Depends(ADMINS)):
 
 @router.patch("/{usuario_id}", response_model=UsuarioSalida, summary="Modificar usuario",
               description="Cambia nombre, teléfono, rol (dentro del mismo dominio) o estado. Desactivar revoca sus sesiones.")
-async def modificar(usuario_id: UUID, datos: UsuarioCambios, request: Request, db: DB, actor: Actor = Depends(ADMINS)):
+async def modificar(usuario_id: UUID, datos: UsuarioCambios, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN)):
     usuario = await _obtener(db, actor, usuario_id)
     antes = auditoria.instantanea(usuario)
     cambios = datos.model_dump(exclude_unset=True)
@@ -251,7 +252,7 @@ async def modificar(usuario_id: UUID, datos: UsuarioCambios, request: Request, d
 
 
 @router.delete('/{usuario_id}', status_code=204, summary='Dar de baja el acceso de un usuario')
-async def eliminar(usuario_id: UUID, request: Request, db: DB, actor: Actor = Depends(ADMINS)):
+async def eliminar(usuario_id: UUID, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN)):
     # Baja lógica: los folios, auditorías y referencias a este usuario se conservan.
     usuario = await _obtener(db, actor, usuario_id)
     if usuario.id == actor.id:
@@ -264,4 +265,33 @@ async def eliminar(usuario_id: UUID, request: Request, db: DB, actor: Actor = De
     await auditoria.registrar_actor(db, actor, 'usuarios.baja', request, tenant_id=usuario.tenant_id,
                                     prestador_id=usuario.prestador_id, recurso_tipo='usuario',
                                     recurso_id=usuario.id, antes=antes, despues=auditoria.instantanea(usuario))
+    await db.commit()
+
+
+@router.post("/{usuario_id}/restablecer-contrasena", status_code=204, summary="Restablecer contraseña (superadmin)")
+async def restablecer_contrasena(usuario_id: UUID, datos: RestablecerContrasenaAdmin, request: Request,
+                                  db: DB, actor: Actor = Depends(SUPERADMIN)):
+    usuario = await _obtener(db, actor, usuario_id)
+    if usuario.id == actor.id:
+        raise prohibido("Usa el cambio de contraseña de tu propio perfil")
+    errores = errores_politica_contrasena(datos.contrasena)
+    if errores:
+        raise ErrorAPI(422, "POLITICA_CONTRASENA", "La contraseña no cumple la política", errores)
+    previas = (await db.execute(
+        select(HistorialContrasena.password_hash).where(HistorialContrasena.usuario_id == usuario.id)
+        .order_by(HistorialContrasena.created_at.desc()).limit(auth_service.HISTORIAL_CONTRASENAS - 1)
+    )).scalars().all()
+    if await auth_service._alguna_coincide([usuario.password_hash, *previas], datos.contrasena):
+        raise ErrorAPI(422, "CONTRASENA_REPETIDA", "No puedes reutilizar una contraseña reciente")
+    db.add(HistorialContrasena(usuario_id=usuario.id, password_hash=usuario.password_hash))
+    usuario.password_hash = await hashear_contrasena_async(datos.contrasena)
+    usuario.password_actualizado_at = datetime.now(UTC)
+    usuario.intentos_fallidos = 0
+    usuario.bloqueado_hasta = None
+    await db.execute(update(Sesion).where(Sesion.usuario_id == usuario.id, Sesion.revocada_at.is_(None))
+                     .values(revocada_at=func.now(), motivo_revocacion="contrasena_restablecida"))
+    await db.flush()
+    await auditoria.registrar_actor(db, actor, "usuarios.contrasena_restablecida", request,
+                                    tenant_id=usuario.tenant_id, prestador_id=usuario.prestador_id,
+                                    recurso_tipo="usuario", recurso_id=usuario.id)
     await db.commit()

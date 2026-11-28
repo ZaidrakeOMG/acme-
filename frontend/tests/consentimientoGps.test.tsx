@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { claveConsentimientoGps } from '../src/contexts/RastreoUsuarioContext'
@@ -20,16 +20,17 @@ function simularGps() {
     timestamp: Date.now(),
     toJSON: () => ({}),
   } as GeolocationPosition))
+  let errorGps: PositionErrorCallback | null = null
   Object.defineProperty(navigator, 'geolocation', {
     configurable: true, value: {
       getCurrentPosition,
-      watchPosition: vi.fn().mockReturnValue(4),
+      watchPosition: vi.fn((_ok: PositionCallback, error: PositionErrorCallback) => { errorGps = error; return 4 }),
       clearWatch: vi.fn(),
     },
   })
   const requestPermission = vi.fn()
   vi.stubGlobal('Notification', { permission: 'granted', requestPermission })
-  return { getCurrentPosition, requestPermission }
+  return { getCurrentPosition, requestPermission, apagarGps: () => errorGps?.({ code: 2, message: 'GPS apagado' } as GeolocationPositionError) }
 }
 
 function entrar(ruta: string) {
@@ -70,19 +71,40 @@ describe('ACMA 0.1.7 · permiso persistente y privacidad de ubicación', () => {
     await waitFor(() => expect(llamadas.some(x => x.clave === 'POST /api/mi-ubicacion/iniciar')).toBe(true))
     expect(getCurrentPosition).toHaveBeenCalled()
     expect(requestPermission).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('aviso-inicial-gps')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument())
     expect(localStorage.getItem(claveConsentimientoGps(ID))).toBe('1')
   })
 
-  it('si detiene GPS desde su cuenta, revoca consentimiento guardado', async () => {
+  it('el técnico no puede detener GPS y seguir trabajando; si se apaga conserva autorización', async () => {
+    localStorage.setItem(claveConsentimientoGps(ID), '1')
+    const { apagarGps } = simularGps()
+    const llamadas = entrar('/mi-ubicacion')
+    await waitFor(() => expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument())
+    await screen.findByText('GPS activo · autorización guardada')
+    expect(screen.queryByRole('button', { name: 'Dejar de compartir mi ubicación' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Retirar autorización/ })).not.toBeInTheDocument()
+    act(() => apagarGps())
+    const aviso = await screen.findByTestId('solicitud-ubicacion-inicio')
+    expect(within(aviso).queryByTestId('aviso-inicial-gps')).not.toBeInTheDocument()
+    expect(within(aviso).getByRole('button', { name: 'Reintentar GPS' })).toBeInTheDocument()
+    expect(within(aviso).getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
+    expect(document.querySelector('.acma-shell')).toHaveAttribute('inert')
+    expect(localStorage.getItem(claveConsentimientoGps(ID))).toBe('1')
+    await waitFor(() => expect(llamadas.some(x => x.clave === 'POST /api/mi-ubicacion/detener')).toBe(true))
+    await userEvent.setup().click(within(aviso).getByRole('button', { name: 'Reintentar GPS' }))
+    await waitFor(() => expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument())
+    expect(llamadas.filter(x => x.clave === 'POST /api/mi-ubicacion/iniciar')).toHaveLength(2)
+  })
+
+  it('bloquea si Android reporta que su interruptor de ubicación está apagado', async () => {
     localStorage.setItem(claveConsentimientoGps(ID), '1')
     simularGps()
     entrar('/mi-ubicacion')
-    const boton = await screen.findByRole('button', { name: 'Dejar de compartir mi ubicación' })
-    const usuario = userEvent.setup()
-    await usuario.click(boton)
-    await waitFor(() => expect(localStorage.getItem(claveConsentimientoGps(ID))).toBeNull())
+    await waitFor(() => expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument())
+    act(() => window.dispatchEvent(new CustomEvent('acma:estado-gps', { detail: { autorizado: true, servicioActivo: false } })))
     const aviso = await screen.findByTestId('solicitud-ubicacion-inicio')
-    expect(within(aviso).getByRole('button', { name: 'Habilitar ubicación y notificaciones' })).toBeInTheDocument()
+    expect(within(aviso).getByText(/GPS desactivado/)).toBeInTheDocument()
+    expect(localStorage.getItem(claveConsentimientoGps(ID))).toBe('1')
   })
 })

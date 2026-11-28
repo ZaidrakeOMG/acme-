@@ -23,9 +23,9 @@ from services import auditoria, catalogos_service
 router = APIRouter(prefix="/api/catalogos", tags=["Catálogos · equipos, fallas y matriz"], responses=RESPUESTAS_ERROR)
 
 TODOS = requiere_rol(*Rol)
-ADMIN_TENANT = requiere_rol(Rol.superadmin, Rol.admin_empresa)
-ADMIN_EQUIPOS = requiere_rol(Rol.superadmin, Rol.admin_empresa, Rol.admin_un)
-ADMIN_PRESTADOR = requiere_rol(Rol.superadmin, Rol.admin_prestador)
+ADMIN_TENANT = requiere_rol(Rol.superadmin)
+ADMIN_EQUIPOS = requiere_rol(Rol.superadmin)
+ADMIN_PRESTADOR = requiere_rol(Rol.superadmin)
 LECTURA_FALLAS = requiere_rol(Rol.superadmin, Rol.admin_prestador, Rol.mesa_control, Rol.despachador, Rol.tecnico,
                               Rol.admin_empresa, Rol.admin_un, Rol.supervisor_operadores, Rol.operador)
 

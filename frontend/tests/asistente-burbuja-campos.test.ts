@@ -28,6 +28,13 @@ describe('Burbuja flotante del Asistente ACMA', () => {
     }
   })
 
+  it('ajusta el panel cuando el teclado móvil reduce mucho el espacio', () => {
+    const vista = { ancho: 320, alto: 160 }
+    const p = posicionPanel({ x: 240, y: 70 }, vista)
+    expect(p.top + p.alto).toBeLessThanOrEqual(148)
+    expect(p.left + p.ancho).toBeLessThanOrEqual(308)
+  })
+
   it('guarda posición por usuario, la recupera y descarta coordenadas inválidas', () => {
     const vista = { ancho: 390, alto: 780 }
     guardarBurbuja('cuenta-a', { x: 45, y: 175 })

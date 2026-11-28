@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { modulosDe } from '../config/modulos'
 import { identificarModuloPorRuta, resolverAyuda, type RespuestaGuia } from '../services/ayudaModulos'
@@ -110,12 +111,14 @@ export function TestBotAcma() {
   const canalGpsRef = useRef<BroadcastChannel | null>(null)
   const ultimoGpsRef = useRef<PuntoGpsDemo | null>(null)
   const [mascotaFallida, setMascotaFallida] = useState(false)
-  const viewport = () => ({ ancho: window.innerWidth, alto: window.innerHeight })
+  const viewport = () => ({ ancho: Math.min(window.innerWidth, window.visualViewport?.width ?? window.innerWidth),
+    alto: Math.min(window.innerHeight, window.visualViewport?.height ?? window.innerHeight) })
+  const [arrastrando, setArrastrando] = useState(false)
   const [posBurbuja, setPosBurbuja] = useState<PuntoBurbuja>(() =>
     typeof window !== 'undefined' ? leerBurbuja(usuarioId, viewport()) : { x: 20, y: 120 })
   const posBurbujaRef = useRef(posBurbuja)
   const arrastreRef = useRef<{
-    pointerId: number; x: number; y: number; inicial: PuntoBurbuja; movio: boolean
+    pointerId: number; x: number; y: number; inicial: PuntoBurbuja; movio: boolean; elemento: HTMLButtonElement
   } | null>(null)
   const evitarClicRef = useRef(false)
   const posicionPanelActual = typeof window !== 'undefined'
@@ -144,40 +147,63 @@ export function TestBotAcma() {
       titulo: resultado.respuesta.titulo }].slice(-7))
   }
 
-  // Un PointerEvent funciona con ratón, dedo y lápiz en Chrome y Flutter WebView.
+  // El gesto pertenece a la burbuja, no al documento: evita scroll y arrastre nativo de la imagen.
   function alComenzarArrastre(e: ReactPointerEvent<HTMLButtonElement>) {
-    if (e.button !== 0) return
+    if ((e.pointerType === 'mouse' && e.button !== 0) || e.isPrimary === false || arrastreRef.current) return
+    evitarClicRef.current = false
     arrastreRef.current = {
       pointerId: e.pointerId, x: e.clientX, y: e.clientY,
-      inicial: posBurbujaRef.current, movio: false,
+      inicial: posBurbujaRef.current, movio: false, elemento: e.currentTarget,
     }
-    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* navegadores limitados */ }
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* fallback: listeners de ventana */ }
   }
-  function alMoverBurbuja(e: ReactPointerEvent<HTMLButtonElement>) {
-    const arrastre = arrastreRef.current
-    if (!arrastre || arrastre.pointerId !== e.pointerId) return
-    const dx = e.clientX - arrastre.x, dy = e.clientY - arrastre.y
-    if (!arrastre.movio && Math.hypot(dx, dy) < 6) return
-    arrastre.movio = true
-    e.preventDefault()
-    const nueva = ajustarBurbuja({ x: arrastre.inicial.x + dx, y: arrastre.inicial.y + dy }, viewport())
-    posBurbujaRef.current = nueva
-    setPosBurbuja(nueva)
-  }
-  function alTerminarArrastre(e: ReactPointerEvent<HTMLButtonElement>) {
-    const arrastre = arrastreRef.current
-    if (!arrastre || arrastre.pointerId !== e.pointerId) return
-    if (arrastre.movio) {
-      guardarBurbuja(usuarioId, posBurbujaRef.current)
-      evitarClicRef.current = true
-      // Si el navegador no genera click tras drag, el siguiente toque real no debe perderse.
-      window.setTimeout(() => { evitarClicRef.current = false }, 0)
-      setSugerencia(false)
+
+  useEffect(() => {
+    function mover(e: PointerEvent) {
+      const a = arrastreRef.current
+      if (!a || a.pointerId !== e.pointerId) return
+      const dx = e.clientX - a.x, dy = e.clientY - a.y
+      if (!a.movio && Math.hypot(dx, dy) < 6) return
+      if (!a.movio) { a.movio = true; setArrastrando(true); setSugerencia(false) }
+      if (e.cancelable) e.preventDefault()
+      const nueva = ajustarBurbuja({ x: a.inicial.x + dx, y: a.inicial.y + dy }, viewport())
+      posBurbujaRef.current = nueva
+      setPosBurbuja(nueva)
     }
-    arrastreRef.current = null
-    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* opcional */ }
-  }
+    function terminar(e?: PointerEvent) {
+      const a = arrastreRef.current
+      if (!a || (e && a.pointerId !== e.pointerId)) return
+      if (e?.type === 'pointerup') mover(e)
+      arrastreRef.current = null
+      setArrastrando(false)
+      if (a.movio) {
+        guardarBurbuja(usuarioId, posBurbujaRef.current)
+        // No usar un temporizador: algunas WebViews entregan el click sintético tarde.
+        // El próximo pointerdown real o Enter/Espacio vuelve a habilitar el click.
+        evitarClicRef.current = true
+      }
+      try { a.elemento.releasePointerCapture(a.pointerId) } catch { /* captura opcional */ }
+    }
+    const perderFoco = () => terminar()
+    window.addEventListener('pointermove', mover, { capture: true, passive: false })
+    window.addEventListener('pointerup', terminar, true)
+    window.addEventListener('pointercancel', terminar, true)
+    window.addEventListener('lostpointercapture', terminar, true)
+    window.addEventListener('blur', perderFoco)
+    return () => {
+      window.removeEventListener('pointermove', mover, true)
+      window.removeEventListener('pointerup', terminar, true)
+      window.removeEventListener('pointercancel', terminar, true)
+      window.removeEventListener('lostpointercapture', terminar, true)
+      window.removeEventListener('blur', perderFoco)
+      const a = arrastreRef.current
+      arrastreRef.current = null
+      if (a) { try { a.elemento.releasePointerCapture(a.pointerId) } catch { /* opcional */ } }
+    }
+  }, [usuarioId])
+
   function alTecladoBurbuja(e: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (e.key === 'Enter' || e.key === ' ') evitarClicRef.current = false
     const desplazamiento: Record<string, [number, number]> = {
       ArrowLeft: [-18, 0], ArrowRight: [18, 0],
       ArrowUp: [0, -18], ArrowDown: [0, 18],
@@ -194,6 +220,8 @@ export function TestBotAcma() {
   }
 
   useEffect(() => {
+    setArrastrando(false)
+    evitarClicRef.current = false
     const posicion = leerBurbuja(usuarioId, viewport())
     posBurbujaRef.current = posicion
     setPosBurbuja(posicion)
@@ -521,7 +549,7 @@ export function TestBotAcma() {
   }
 
   if (!usuario) return null
-  return (
+  return createPortal(
     <div data-testid="acma-testbot" className="pointer-events-none fixed inset-0 z-[65]">
       {abierto && !oculto && (
         <section role="dialog" aria-label="Asistente de ayuda ACMA"
@@ -840,8 +868,8 @@ export function TestBotAcma() {
           </div>
         </section>
       )}
-      {!abierto && !oculto && sugerencia && (
-        <div style={{ left: Math.max(12, Math.min(window.innerWidth - 236, posBurbuja.x - 140)),
+      {!abierto && !oculto && sugerencia && !arrastrando && (
+        <div style={{ left: Math.max(12, Math.min(viewport().ancho - 236, posBurbuja.x - 140)),
           top: Math.max(12, posBurbuja.y - 60) }}
           className="pointer-events-auto fixed flex max-w-56 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-lg">
           <span>¿Dudas con ACMA? Arrastra la burbuja.</span>
@@ -851,20 +879,22 @@ export function TestBotAcma() {
       <button type="button" aria-label={oculto ? 'Mostrar asistente ACMA' : abierto ? 'Cerrar asistente ACMA' : 'Abrir asistente ACMA'}
         title="Arrastra la burbuja para mover el asistente. Usa las flechas del teclado para desplazarla."
         data-testid="acma-asistente-burbuja"
-        onPointerDown={alComenzarArrastre} onPointerMove={alMoverBurbuja}
-        onPointerUp={alTerminarArrastre} onPointerCancel={alTerminarArrastre}
-        onKeyDown={alTecladoBurbuja}
-        style={{ left: posBurbuja.x, top: posBurbuja.y, touchAction: 'none' }}
+        onPointerDown={alComenzarArrastre}
+        onDragStart={e => e.preventDefault()} onContextMenu={e => e.preventDefault()}
+        onKeyDown={alTecladoBurbuja} aria-expanded={abierto && !oculto}
+        data-arrastrando={arrastrando}
+        style={{ left: posBurbuja.x, top: posBurbuja.y, touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
         onClick={() => {
           if (evitarClicRef.current) { evitarClicRef.current = false; return }
           setOculto(false)
           setSugerencia(false)
           setAbierto(v => !v)
         }}
-        className="pointer-events-auto fixed flex h-14 w-14 cursor-grab items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white shadow-[0_5px_22px_rgba(0,0,0,.27)] active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a70d2d]">
+        className={'pointer-events-auto fixed flex h-14 w-14 touch-none select-none items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white motion-safe:transition-[box-shadow,transform] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a70d2d] ' +
+          (arrastrando ? 'cursor-grabbing scale-110 shadow-[0_10px_28px_rgba(0,0,0,.35)]' : 'cursor-grab shadow-[0_5px_22px_rgba(0,0,0,.27)]')}>
         <img src={mascotaFallida ? '/icono.svg' : '/testbot-acma.webp'} onError={() => setMascotaFallida(true)}
-          alt="" className="h-full w-full object-contain" />
+          alt="" draggable={false} className="pointer-events-none h-full w-full select-none object-contain" />
       </button>
-    </div>
+    </div>, document.body
   )
 }

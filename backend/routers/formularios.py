@@ -27,7 +27,7 @@ from services.formularios import servicio as svc
 
 router = APIRouter(prefix="/api/formularios", tags=["Formularios"], responses=RESPUESTAS_ERROR)
 
-DISENO = requiere_rol(Rol.superadmin, Rol.admin_prestador)
+DISENO = requiere_rol(Rol.superadmin)
 DISENO_Y_MESA = requiere_rol(Rol.superadmin, Rol.admin_prestador, Rol.mesa_control)
 
 
@@ -196,14 +196,14 @@ async def detalle(formulario_id: UUID, db: DB, actor: ActorActual):
 
 @router.put("/{formulario_id}", response_model=FormularioSalida, summary="Editar",
             description="En borrador edita la versión actual; si está publicado crea `numero_version + 1` en borrador (la publicada no cambia).")
-async def editar(formulario_id: UUID, cambios: FormularioCambios, request: Request, db: DB, actor: Actor = Depends(DISENO_Y_MESA)):
+async def editar(formulario_id: UUID, cambios: FormularioCambios, request: Request, db: DB, actor: Actor = Depends(DISENO)):
     f = await svc.editar(db, actor, formulario_id, cambios, request)
     await db.commit()
     return await _salida(db, actor, f)
 
 
 @router.post("/{formulario_id}/publicar", response_model=FormularioSalida, summary="Publicar la versión más reciente")
-async def publicar(formulario_id: UUID, datos: PublicarEntrada, request: Request, db: DB, actor: Actor = Depends(DISENO_Y_MESA)):
+async def publicar(formulario_id: UUID, datos: PublicarEntrada, request: Request, db: DB, actor: Actor = Depends(DISENO)):
     f = await svc.publicar(db, actor, formulario_id, datos.notas_version, request)
     await db.commit()
     return await _salida(db, actor, f)

@@ -57,9 +57,9 @@ async def detalle(tenant_id: UUID, db: DB, actor: Actor = Depends(LECTORES)):
 
 
 @router.patch("/{tenant_id}", response_model=TenantSalida, summary="Modificar tenant",
-              description="superadmin modifica cualquier campo; admin_empresa solo moneda y zona horaria de su tenant.")
+              description="Solo superadmin modifica clientes.")
 async def modificar(tenant_id: UUID, datos: TenantCambios, request: Request, db: DB,
-                    actor: Actor = Depends(requiere_rol(Rol.superadmin, Rol.admin_empresa))):
+                    actor: Actor = Depends(SUPERADMIN)):
     tenant = await _obtener(db, actor, tenant_id)
     cambios = datos.model_dump(exclude_unset=True, exclude_none=True)
     if actor.rol == Rol.admin_empresa and set(cambios) - {"moneda", "zona_horaria"}:
@@ -88,7 +88,10 @@ async def vinculos(tenant_id: UUID, db: DB, actor: Actor = Depends(LECTORES)):
 @router.post("/{tenant_id}/prestadores", response_model=VinculoSalida, status_code=201, summary="Vincular prestador",
              description="Crea la relación N:N tenant–prestador con vigencia.")
 async def vincular(tenant_id: UUID, datos: VinculoPrestadorEntrada, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN)):
-    await _obtener(db, actor, tenant_id)
+    # Mismo bloqueo que el alta de contrato para serializar las relaciones de un cliente.
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id).with_for_update())).scalar_one_or_none()
+    if tenant is None:
+        raise no_encontrado("Tenant")
     if await db.get(Prestador, datos.prestador_id) is None:
         raise no_encontrado("Prestador")
     vinculo = TenantPrestador(tenant_id=tenant_id, **datos.model_dump())

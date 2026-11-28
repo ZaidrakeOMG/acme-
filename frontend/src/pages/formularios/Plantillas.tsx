@@ -16,7 +16,7 @@ export function Plantillas() {
   const [previa, setPrevia] = useState<Formulario | null>(null)
   const [valores, setValores] = useState<Record<string, unknown>>({})
   const [aviso, setAviso] = useState<string | null>(null)
-  const puedeClonar = usuario?.rol === 'superadmin' || usuario?.rol === 'admin_prestador'
+  const puedeClonar = usuario?.rol === 'superadmin'
 
   async function clonar(p: Formulario) {
     setAviso(null)

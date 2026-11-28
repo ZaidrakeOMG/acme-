@@ -59,7 +59,7 @@ export function Constructor() {
   const personalizados = useRecurso<CatalogoPersonalizado[]>('/formularios/catalogos-personalizados')
   const campos = useMemo(() => camposDe(esquema), [esquema])
   const campoSel = campos.find((c) => c.clave === seleccion) ?? null
-  const puedeEditar = f ? f.puede_editar : usuario?.rol !== 'mesa_control'
+  const puedeEditar = esSuper && (f ? f.puede_editar : true)
 
   useEffect(() => {
     if (!formularioId) return

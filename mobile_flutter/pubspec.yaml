@@ -1,7 +1,7 @@
 name: acma_mobile
 description: Aplicacion movil ACMA que conserva la interfaz web original durante la migracion a Flutter.
 publish_to: none
-version: 0.1.7+8
+version: 0.1.8+9
 
 environment:
   sdk: '>=3.10.0 <4.0.0'

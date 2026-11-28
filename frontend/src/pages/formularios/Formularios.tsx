@@ -17,7 +17,7 @@ export function Formularios() {
   const [estado, setEstado] = useState('')
   const { datos, error, recargar } = useRecurso<Formulario[]>('/formularios', { tipo: tipo || undefined, alcance: alcance || undefined, estado: estado || undefined, plantillas: 'false' })
   const [aviso, setAviso] = useState<string | null>(null)
-  const disena = usuario?.rol === 'superadmin' || usuario?.rol === 'admin_prestador'
+  const disena = usuario?.rol === 'superadmin'
 
   async function accion(f: Formulario, ruta: string) {
     setAviso(null)

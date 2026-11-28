@@ -20,7 +20,7 @@ from services.almacenamiento import dueno_de, obtener_almacenamiento
 
 router = APIRouter(prefix="/api/catalogos/importar", tags=["Catálogos · importador"], responses=RESPUESTAS_ERROR)
 
-IMPORTADORES = requiere_rol(Rol.superadmin, Rol.admin_prestador, Rol.admin_empresa)
+IMPORTADORES = requiere_rol(Rol.superadmin)
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 

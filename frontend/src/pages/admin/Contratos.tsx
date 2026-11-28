@@ -48,7 +48,13 @@ export function Contratos() {
   const tenants = useRecurso<Tenant[]>('/tenants')
   const prestadores = useRecurso<Prestador[]>(usuario?.rol === 'superadmin' ? '/prestadores' : null)
   const [editar, setEditar] = useState<Contrato | 'nuevo' | null>(null)
-  const puedeEditar = usuario?.rol === 'admin_prestador' || usuario?.rol === 'superadmin'
+  const [aviso, setAviso] = useState<string | null>(null)
+  async function estadoContrato(c: Contrato) {
+    if (!window.confirm(c.estado === 'activo' ? `¿Dar de baja el contrato ${c.nombre}? Se conserva su historial.` : `¿Reactivar el contrato ${c.nombre}?`)) return
+    try { setAviso(null); await api(`/contratos/${c.id}`, { metodo: 'PATCH', cuerpo: { estado: c.estado === 'activo' ? 'inactivo' : 'activo' } }); await recargar() }
+    catch (e) { setAviso(mensajeDeError(e)) }
+  }
+  const puedeEditar = usuario?.rol === 'superadmin'
   const nombreTenant = (id: string) => tenants.datos?.find((t) => t.id === id)?.razon_social ?? id.slice(0, 8)
   function ir(v: Vista) {
     const p = new URLSearchParams(params)
@@ -73,7 +79,7 @@ export function Contratos() {
 
       {vista === 'contratos' && (
         <Tarjeta>
-          {error && <Aviso>{error}</Aviso>}
+          {(error || aviso) && <Aviso>{error ?? aviso}</Aviso>}
           <Tabla
             filas={datos ?? []}
             columnas={[
@@ -90,7 +96,8 @@ export function Contratos() {
                   return s ? `${s.tiempo_respuesta_horas} h / ${s.tiempo_resolucion_horas} h` : '—'
                 },
               },
-              { titulo: '', celda: (c) => <Boton variante="fantasma" onClick={() => setEditar(c)}>{puedeEditar ? 'Editar' : 'Ver'}</Boton> },
+              { titulo: 'Estado', celda: (c) => <Insignia>{c.estado}</Insignia> },
+              { titulo: 'Acciones', celda: (c) => <div className="flex flex-wrap gap-1"><Boton variante="fantasma" onClick={() => setEditar(c)}>{puedeEditar ? 'Editar' : 'Ver'}</Boton>{puedeEditar && <Boton variante="peligro" onClick={() => void estadoContrato(c)}>{c.estado === 'activo' ? 'Dar de baja' : 'Reactivar'}</Boton>}</div> },
             ]}
           />
         </Tarjeta>
@@ -119,7 +126,8 @@ export function Contratos() {
 
 function FormularioContrato({ contrato, tenants, prestadores, esSuper, soloLectura, alGuardar }: { contrato: Contrato | null; tenants: Tenant[]; prestadores: Prestador[]; esSuper: boolean; soloLectura: boolean; alGuardar: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null)
-  const [tenantId, setTenantId] = useState(contrato?.tenant_id ?? tenants[0]?.id ?? '')
+  const [guardando, setGuardando] = useState(false)
+  const [tenantId, setTenantId] = useState(contrato?.tenant_id ?? tenants.find(t => t.estado === 'activo')?.id ?? '')
   const [prestadorId, setPrestadorId] = useState(contrato?.prestador_id ?? '')
   const [nombre, setNombre] = useState(contrato?.nombre ?? '')
   const [modalidad, setModalidad] = useState<'evento' | 'iguala'>(contrato?.modalidad ?? 'evento')
@@ -148,6 +156,7 @@ function FormularioContrato({ contrato, tenants, prestadores, esSuper, soloLectu
   )
 
   async function guardar() {
+    if (guardando) return
     setError(null)
     if (!contrato && !tenantId) return setError('Selecciona un cliente para el contrato')
     if (!contrato && esSuper && !prestadorId) return setError('Selecciona el prestador que atenderá el contrato')
@@ -177,20 +186,22 @@ function FormularioContrato({ contrato, tenants, prestadores, esSuper, soloLectu
         ? { cantidad: Number(preventivos || 0), periodicidad, ...(puntos ? { puntos_a_revisar: puntos } : {}) }
         : {},
     }
+    setGuardando(true)
     try {
       if (contrato) await api(`/contratos/${contrato.id}`, { metodo: 'PATCH', cuerpo })
-      else await api('/contratos', { metodo: 'POST', cuerpo: { ...cuerpo, tenant_id: tenantId, ...(esSuper ? { prestador_id: prestadorId } : {}) } })
+      else await api('/contratos', { metodo: 'POST', cuerpo: { ...cuerpo, tenant_id: tenantId, ...(esSuper ? { prestador_id: prestadorId, vincular_prestador: true } : {}) } })
       await alGuardar()
     } catch (e) {
       setError(mensajeDeError(e))
-    }
+    } finally { setGuardando(false) }
   }
 
   return (
-    <fieldset disabled={soloLectura} className="space-y-3" data-testid="form-contrato">
+    <fieldset disabled={soloLectura || guardando} className="space-y-3" data-testid="form-contrato">
       {error && <Aviso>{error}</Aviso>}
-      {!contrato && <Selector etiqueta="Cliente" value={tenantId} onChange={(e) => setTenantId(e.target.value)} opciones={[{ valor: '', texto: 'Selecciona cliente…' }, ...tenants.map((t) => ({ valor: t.id, texto: t.razon_social }))]} />}
-      {!contrato && esSuper && <Selector etiqueta="Prestador" value={prestadorId} onChange={(e) => setPrestadorId(e.target.value)} opciones={[{ valor: '', texto: 'Selecciona prestador…' }, ...prestadores.map((p) => ({ valor: p.id, texto: p.razon_social }))]} />}
+      {!contrato && <Selector etiqueta="Cliente" value={tenantId} onChange={(e) => setTenantId(e.target.value)} opciones={[{ valor: '', texto: 'Selecciona cliente…' }, ...tenants.filter(t => t.estado === 'activo').map((t) => ({ valor: t.id, texto: t.razon_social }))]} />}
+      {!contrato && esSuper && <Selector etiqueta="Prestador" value={prestadorId} onChange={(e) => setPrestadorId(e.target.value)} opciones={[{ valor: '', texto: 'Selecciona prestador…' }, ...prestadores.filter(p => p.estado === 'activo').map((p) => ({ valor: p.id, texto: p.razon_social }))]} />}
+      {!contrato && esSuper && tenantId && prestadorId && <Aviso tipo="info">Al guardar, ACMA vinculará este cliente con el prestador si todavía no tienen un vínculo vigente. Si ya existe, lo reutilizará.</Aviso>}
       <Campo etiqueta="Nombre del contrato" value={nombre} onChange={(e) => setNombre(e.target.value)} />
       <div className="grid grid-cols-2 gap-3">
         <Campo etiqueta="Inicio" type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
@@ -252,7 +263,7 @@ function FormularioContrato({ contrato, tenants, prestadores, esSuper, soloLectu
       </table>
       <p className="text-xs text-slate-500">§6.10.1: el tiempo se firma en la unidad que elija el cliente y ACMA valida su
         equivalente entre 1 y 4,320 horas. La penalización solo se calcula cuando se incumple la resolución.</p>
-      {!soloLectura && <Boton className="w-full" onClick={() => void guardar()}>Guardar contrato</Boton>}
+      {!soloLectura && <Boton className="w-full" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar contrato'}</Boton>}
     </fieldset>
   )
 }

@@ -25,8 +25,8 @@ export function inicioBurbuja(vista: VistaBurbuja): PuntoBurbuja {
 export function posicionPanel(
   p: PuntoBurbuja, vista: VistaBurbuja,
 ): { left: number; top: number; ancho: number; alto: number } {
-  const ancho = Math.max(190, Math.min(390, vista.ancho - 2 * MARGEN))
-  const alto = Math.max(170, Math.min(620, Math.floor(vista.alto * .74)))
+  const ancho = Math.max(1, Math.min(390, vista.ancho - 2 * MARGEN))
+  const alto = Math.max(1, Math.min(620, Math.max(170, Math.floor(vista.alto * .74)), vista.alto - 2 * MARGEN))
   const left = Math.max(MARGEN, Math.min(Math.max(MARGEN, vista.ancho - ancho - MARGEN), p.x + TAMANO_BURBUJA - ancho))
   const espacioArriba = p.y - MARGEN
   const espacioAbajo = vista.alto - (p.y + TAMANO_BURBUJA) - MARGEN

@@ -44,7 +44,7 @@ const PESTANAS: Pestana[] = [
   { id: 'equipos', nombre: 'Equipos', roles: ['superadmin', 'admin_prestador', 'mesa_control', 'despachador', 'admin_empresa', 'admin_un'], componente: Equipos },
   { id: 'fallas', nombre: 'Tipos de falla', roles: ['superadmin', 'admin_prestador', 'mesa_control', 'despachador', 'admin_empresa', 'admin_un'], componente: TiposFalla },
   { id: 'matriz', nombre: 'Matriz de severidad', roles: ['superadmin', 'admin_prestador', 'mesa_control', 'despachador', 'admin_empresa', 'admin_un'], componente: Matriz },
-  { id: 'importar', nombre: 'Importar', roles: ['superadmin', 'admin_prestador', 'admin_empresa'], componente: Importar },
+  { id: 'importar', nombre: 'Importar', roles: ['superadmin'], componente: Importar },
 ]
 
 export function pestanasDe(rol: Rol): Pestana[] {
@@ -73,8 +73,8 @@ export function Catalogos() {
     }
     return {
       tenant_id: usuario.tenant_id ?? undefined, prestador_id: usuario.prestador_id ?? undefined, rol, params: {},
-      puedeEditarPrestador: rol === 'admin_prestador',
-      puedeEditarTenant: rol === 'admin_empresa',
+      puedeEditarPrestador: false,
+      puedeEditarTenant: false,
     }
   }, [usuario, esSuper, tenantId, prestadorId])
 

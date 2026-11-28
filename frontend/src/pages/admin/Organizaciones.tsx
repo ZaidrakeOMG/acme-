@@ -24,19 +24,25 @@ export function Tenants() {
   const { usuario } = useAuth()
   const { datos, error, recargar } = useRecurso<Tenant[]>('/tenants')
   const prestadores = useRecurso<Prestador[]>(usuario?.rol === 'superadmin' ? '/prestadores' : null)
-  const [abierto, setAbierto] = useState(false)
+  const [editarCliente, setEditarCliente] = useState<Tenant | 'nuevo' | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
   const [vincular, setVincular] = useState<Tenant | null>(null)
   const esSuper = usuario?.rol === 'superadmin'
+  async function estadoCliente(t: Tenant) {
+    if (!window.confirm(t.estado === 'activo' ? `¿Dar de baja a ${t.razon_social}? Se conserva su historial.` : `¿Reactivar a ${t.razon_social}?`)) return
+    try { setAviso(null); await api(`/tenants/${t.id}`, { metodo: 'PATCH', cuerpo: { estado: t.estado === 'activo' ? 'inactivo' : 'activo' } }); await recargar() }
+    catch (e) { setAviso(mensajeDeError(e)) }
+  }
 
   return (
     <div>
       <Encabezado
         titulo="Clientes (tenants)"
         descripcion={esSuper ? 'Empresas cliente de la plataforma.' : 'Clientes que atiende tu prestador.'}
-        acciones={esSuper && <Boton onClick={() => setAbierto(true)}>Nuevo cliente</Boton>}
+        acciones={esSuper && <Boton onClick={() => setEditarCliente('nuevo')}>Nuevo cliente</Boton>}
       />
       <Tarjeta>
-        {error && <Aviso>{error}</Aviso>}
+        {(error || aviso) && <Aviso>{error ?? aviso}</Aviso>}
         <Tabla
           filas={datos ?? []}
           columnas={[
@@ -45,12 +51,12 @@ export function Tenants() {
             { titulo: 'País / moneda', celda: (t) => `${t.pais} · ${t.moneda}` },
             { titulo: 'Zona horaria', celda: (t) => t.zona_horaria },
             { titulo: 'Estado', celda: (t) => <Insignia tono={t.estado === 'activo' ? 'ok' : 'alerta'}>{t.estado}</Insignia> },
-            ...(esSuper ? [{ titulo: 'Prestador', celda: (t: Tenant) => <Boton variante="fantasma" onClick={() => setVincular(t)}>Vincular</Boton> }] : []),
+            ...(esSuper ? [{ titulo: 'Prestador', celda: (t: Tenant) => <div className="flex flex-wrap gap-1"><Boton variante="fantasma" onClick={() => setVincular(t)}>Vincular</Boton><Boton variante="secundario" onClick={() => setEditarCliente(t)}>Editar</Boton><Boton variante="peligro" onClick={() => void estadoCliente(t)}>{t.estado === 'activo' ? 'Dar de baja' : 'Reactivar'}</Boton></div> }] : []),
           ]}
         />
       </Tarjeta>
-      <Modal titulo="Nuevo cliente" abierto={abierto} alCerrar={() => setAbierto(false)}>
-        <FormularioTenant alGuardar={async () => { setAbierto(false); await recargar() }} />
+      <Modal titulo={editarCliente === 'nuevo' ? 'Nuevo cliente' : 'Editar cliente'} abierto={editarCliente !== null} alCerrar={() => setEditarCliente(null)}>
+        {editarCliente && <FormularioTenant key={editarCliente === 'nuevo' ? 'nuevo' : editarCliente.id} tenant={editarCliente === 'nuevo' ? null : editarCliente} alGuardar={async () => { setEditarCliente(null); await recargar() }} />}
       </Modal>
       <Modal titulo={`Vincular prestador a ${vincular?.razon_social ?? ''}`} abierto={vincular !== null} alCerrar={() => setVincular(null)}>
         {vincular && <FormularioVinculo tenant={vincular} prestadores={prestadores.datos ?? []} alGuardar={() => setVincular(null)} />}
@@ -59,15 +65,16 @@ export function Tenants() {
   )
 }
 
-function FormularioTenant({ alGuardar }: { alGuardar: () => Promise<void> }) {
+function FormularioTenant({ tenant, alGuardar }: { tenant: Tenant | null; alGuardar: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null)
   const { register, handleSubmit, formState } = useForm<z.infer<typeof esquemaTenant>>({
     resolver: zodResolver(esquemaTenant),
-    defaultValues: { moneda: 'MXN', zona_horaria: 'America/Mexico_City' },
+    defaultValues: { razon_social: tenant?.razon_social ?? '', rfc: tenant?.rfc ?? '', moneda: tenant?.moneda ?? 'MXN', zona_horaria: tenant?.zona_horaria ?? 'America/Mexico_City' },
   })
   const enviar = handleSubmit(async (d) => {
     try {
-      await api('/tenants', { metodo: 'POST', cuerpo: d })
+      if (tenant) await api(`/tenants/${tenant.id}`, { metodo: 'PATCH', cuerpo: { razon_social: d.razon_social, moneda: d.moneda, zona_horaria: d.zona_horaria } })
+      else await api('/tenants', { metodo: 'POST', cuerpo: d })
       await alGuardar()
     } catch (e) {
       setError(mensajeDeError(e))
@@ -77,12 +84,12 @@ function FormularioTenant({ alGuardar }: { alGuardar: () => Promise<void> }) {
     <form onSubmit={enviar} className="space-y-3" noValidate>
       {error && <Aviso>{error}</Aviso>}
       <Campo etiqueta="Razón social" error={formState.errors.razon_social?.message} {...register('razon_social')} />
-      <Campo etiqueta="RFC" error={formState.errors.rfc?.message} {...register('rfc')} />
+      <Campo etiqueta="RFC" readOnly={tenant !== null} error={formState.errors.rfc?.message} {...register('rfc')} />
       <div className="grid grid-cols-2 gap-3">
         <Campo etiqueta="Moneda" {...register('moneda')} />
         <Campo etiqueta="Zona horaria" {...register('zona_horaria')} />
       </div>
-      <Boton type="submit" className="w-full" disabled={formState.isSubmitting}>Crear cliente</Boton>
+      <Boton type="submit" className="w-full" disabled={formState.isSubmitting}>{tenant ? 'Guardar cambios' : 'Crear cliente'}</Boton>
     </form>
   )
 }
@@ -123,6 +130,12 @@ export function Prestadores() {
   const { usuario, recargarPerfil } = useAuth()
   const { datos, error, recargar } = useRecurso<Prestador[]>('/prestadores')
   const [editar, setEditar] = useState<Prestador | 'nuevo' | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
+  async function estadoPrestador(p: Prestador) {
+    if (!window.confirm(p.estado === 'activo' ? `¿Dar de baja a ${p.razon_social}? Se conserva su historial.` : `¿Reactivar a ${p.razon_social}?`)) return
+    try { setAviso(null); await api(`/prestadores/${p.id}`, { metodo: 'PATCH', cuerpo: { estado: p.estado === 'activo' ? 'inactivo' : 'activo' } }); await recargar() }
+    catch (e) { setAviso(mensajeDeError(e)) }
+  }
 
   return (
     <div>
@@ -132,7 +145,7 @@ export function Prestadores() {
         acciones={usuario?.rol === 'superadmin' && <Boton onClick={() => setEditar('nuevo')}>Nuevo prestador</Boton>}
       />
       <Tarjeta>
-        {error && <Aviso>{error}</Aviso>}
+        {(error || aviso) && <Aviso>{error ?? aviso}</Aviso>}
         <Tabla
           filas={datos ?? []}
           columnas={[
@@ -148,7 +161,8 @@ export function Prestadores() {
               ),
             },
             { titulo: 'Logo', celda: (p) => (p.logo_key ? <Insignia tono="ok">Cargado</Insignia> : <Insignia>Sin logo</Insignia>) },
-            { titulo: '', celda: (p) => <Boton variante="fantasma" onClick={() => setEditar(p)}>Editar</Boton> },
+            { titulo: 'Estado', celda: (p) => <Insignia>{p.estado}</Insignia> },
+            ...(usuario?.rol === 'superadmin' ? [{ titulo: 'Acciones', celda: (p: Prestador) => <div className="flex flex-wrap gap-1"><Boton variante="fantasma" onClick={() => setEditar(p)}>Editar</Boton><Boton variante="peligro" onClick={() => void estadoPrestador(p)}>{p.estado === 'activo' ? 'Dar de baja' : 'Reactivar'}</Boton></div> }] : []),
           ]}
         />
       </Tarjeta>
