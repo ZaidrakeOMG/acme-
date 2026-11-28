@@ -2,17 +2,10 @@
  * El proveedor del AppShell conserva GPS activo al navegar dentro de ACMA.
  */
 import { Link } from 'react-router'
-import { useAuth } from '../contexts/AuthContext'
 import { usarMiUbicacion } from '../contexts/RastreoUsuarioContext'
 
 export function MiUbicacion() {
   const { activo, gpsObligatorio, ocupado, mensaje, error, iniciar, detener } = usarMiUbicacion()
-  const { cerrarSesion } = useAuth()
-  async function retirarAutorizacion() {
-    if (!window.confirm('¿Retirar la autorización y cerrar sesión? El GPS dejará de compartirse.')) return
-    await detener()
-    await cerrarSesion()
-  }
   return (
     <div className="mx-auto max-w-2xl space-y-5" data-testid="mi-ubicacion">
       <header>
@@ -34,7 +27,7 @@ export function MiUbicacion() {
         {activo
           ? gpsObligatorio ? <div className="mt-4 space-y-3">
               <p className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">GPS activo · autorización guardada</p>
-              <button type="button" onClick={() => void retirarAutorizacion()} className="text-sm text-slate-600 underline">Retirar autorización y cerrar sesión</button>
+              <p className="text-sm text-slate-600">La ubicación permanece activa durante el uso de ACMA. El estado es de solo consulta.</p>
             </div> : <button type="button" onClick={() => void detener()}
               className="mt-4 min-h-12 w-full rounded-xl bg-rose-700 px-4 py-2 font-semibold text-white">
               Dejar de compartir mi ubicación

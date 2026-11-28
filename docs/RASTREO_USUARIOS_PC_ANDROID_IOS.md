@@ -28,7 +28,7 @@ con geolocalización disponible en Windows/macOS, Android o iPhone.
 - Al regresar a la aplicación visible, puede reanudar el envío de
   ubicación según la elección guardada. Al minimizarla o cerrarla
   se suspenden los envíos; **no hay rastreo en segundo plano**.
-- Los técnicos requieren GPS reciente para utilizar los módulos de trabajo. Si se apaga o se pierde permiso, ACMA bloquea la interfaz de trabajo y ofrece reintentar o cerrar sesión. La autorización recordada no se borra al perder señal. Pueden retirar la autorización y cerrar sesión desde Perfil → Mi ubicación; otros roles conservan su control voluntario.
+- Los técnicos requieren GPS reciente para utilizar los módulos de trabajo. Si se apaga o se pierde permiso, ACMA bloquea la interfaz de trabajo y ofrece reintentar o cerrar sesión. La autorización recordada no se borra al perder señal. El perfil técnico de los equipos corporativos muestra únicamente el estado GPS, sin interruptor de desactivación ni botón de revocación interno. Puede cerrar sesión y controlar los permisos del sistema. Otros roles conservan su control voluntario. El aviso inicial se muestra solo al autorizar por primera vez; las recuperaciones posteriores muestran un estado breve de comprobación o un aviso de GPS apagado.
 - Android 0.1.8 comprueba el permiso nativo y el interruptor global de ubicación cada cinco segundos mientras el técnico comparte GPS en primer plano. La WebView se conserva al volver de ajustes. No se fuerza el GPS ni se impide modificar ajustes del sistema.
 - **Operaciones → Rastreo de usuarios en tiempo real** es una pantalla
   exclusiva de personas: no contiene seguimiento de folios, técnicos por
@@ -66,7 +66,7 @@ Safari iOS, Chrome Android y WebView Flutter pueden interrumpir GPS cuando
 la pantalla se apaga o la página deja de estar visible. Desde PC la posición
 depende de los servicios de ubicación del sistema y puede ser aproximada.
 ACMA mantiene el estado de ubicación al navegar entre sus pantallas
-mientras permanezca visible. El control para revocar está en Perfil → Mi ubicación; para técnicos, retirar autorización implica cerrar sesión.
+mientras permanezca visible. El técnico puede cerrar sesión o revocar el permiso desde los ajustes del sistema; Perfil → Mi ubicación es de solo consulta para ese rol.
 No se ha implementado seguimiento nativo en segundo plano.
 
 Los registros expirados se excluyen del mapa, aunque permanecen físicamente

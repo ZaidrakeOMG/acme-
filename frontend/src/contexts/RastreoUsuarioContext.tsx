@@ -104,7 +104,10 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
   }
 
   async function detener() {
-    // Revocación explícita: no volver a compartir hasta nueva autorización.
+    // El perfil técnico corporativo no tiene un interruptor interno de GPS.
+    // Cerrar sesión y los ajustes del sistema siguen disponibles.
+    if (gpsObligatorio) return
+    // Revocación explícita para los demás perfiles.
     if (usuario?.id) guardarConsentimiento(usuario.id, false)
     limpiarSensores()
     setSolicitudVisible(true)
@@ -301,7 +304,7 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     try {
       // PRIMERO notificaciones: en Chrome y Edge requieren gesto humano.
       const recordado = !!usuario?.id && tieneConsentimiento(usuario.id)
-      const notificaciones = recordado ? (await solicitarNotificaciones(true) || await solicitarNotificaciones()) : await solicitarNotificaciones()
+      const notificaciones = recordado && gpsObligatorio ? true : recordado ? (await solicitarNotificaciones(true) || await solicitarNotificaciones()) : await solicitarNotificaciones()
       if (!notificaciones) {
         setAvisoPermisos('Notificaciones rechazadas. Habilítalas en los ajustes del teléfono o navegador para continuar.')
         return
@@ -344,7 +347,7 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     try {
       // Sólo consultar permisos previamente aprobados: no abrir diálogos
       // del SO al recuperar la sesión.
-      if (!await solicitarNotificaciones(true)) {
+      if (!gpsObligatorio && !await solicitarNotificaciones(true)) {
         setSolicitudVisible(true)
         setAvisoPermisos('Las notificaciones ya no están permitidas. Revisa los ajustes del dispositivo.')
         return
@@ -395,6 +398,8 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     }
     suspendidoRef.current = document.hidden
     saliendoRef.current = false
+    setAvisoPermisos(null)
+    setError(null)
     let vigente = true
     if (tieneConsentimiento(id)) {
       setSolicitudVisible(false)
@@ -422,6 +427,11 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
     const reanudar = () => {
       if (document.hidden) return
       suspendidoRef.current = false
+      if (usuario?.id && tieneConsentimiento(usuario.id) && !activoRef.current) {
+        setSolicitudVisible(false)
+        setAvisoPermisos(null)
+        setError(null)
+      }
       if (usuario?.id && requierePermisosDeCampo(usuario.rol) && tieneConsentimiento(usuario.id)) {
         void reanudarSiRecordado(usuario.id)
       }
@@ -492,6 +502,8 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
 
   const bloqueado = !!usuario && (gpsObligatorio ? !activo || !gpsConfirmado : !activo && solicitudVisible)
   const recordado = !!usuario?.id && tieneConsentimiento(usuario.id)
+  const recuperacion = recordado && gpsObligatorio
+  const comprobando = recuperacion && (!solicitudVisible && !avisoPermisos && !error || solicitandoPermisos || ocupado || (activo && !gpsConfirmado))
   async function salirSinGps() {
     saliendoRef.current = true
     generacionRef.current += 1
@@ -512,20 +524,21 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
               <span className="text-3xl font-bold text-emerald-800" aria-hidden="true">+</span>
             </div>
             <h2 id="acma-permisos-titulo" className="text-xl font-extrabold text-slate-900 sm:text-2xl">
-              {recordado && gpsObligatorio ? 'Ubicación necesaria para continuar' : 'Permisos necesarios para usar ACMA'}
+              {comprobando ? 'Conectando con GPS…' : recuperacion ? 'Ubicación necesaria para continuar' : 'Permisos necesarios para usar ACMA'}
             </h2>
             <p className="mt-3 text-sm leading-6 text-slate-700">
-              {usuario?.nombre}, {recordado && gpsObligatorio
-                ? 'Tu autorización está guardada. Activa el GPS para volver a utilizar los módulos de trabajo.'
-                : 'ACMA requiere que habilites la ubicación y las notificaciones de este dispositivo para acceder a la plataforma.'}
+              {comprobando ? 'Verificando la ubicación autorizada del dispositivo.' : recuperacion
+                ? 'Activa la ubicación del teléfono para continuar trabajando.'
+                : usuario?.nombre + ', ACMA requiere que habilites la ubicación y las notificaciones de este dispositivo para acceder a la plataforma.'}
             </p>
-            <div className="mt-4 space-y-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+            {!recuperacion && <><div data-testid="aviso-inicial-gps" className="mt-4 space-y-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
               <p><strong>Ubicación:</strong> el supervisor autorizado de tu organización podrá
                 ver tu posición reciente mientras ACMA esté abierta y visible.
                 Se conserva solamente la última posición, no un historial de recorridos.
                 Al habilitar los permisos, ACMA recordará tu elección en este dispositivo
-                y reanudará el GPS mientras esté abierta. Puedes retirar tu autorización
-                desde tu perfil → Mi ubicación; para técnicos esto implica cerrar sesión.</p>
+                y reanudará el GPS mientras esté abierta. {gpsObligatorio
+                  ? 'En equipos corporativos el perfil técnico no tiene un interruptor interno de GPS. Puedes cerrar sesión o gestionar el permiso desde los ajustes del sistema.'
+                  : 'Puedes retirar tu autorización desde tu perfil → Mi ubicación.'}</p>
               <p><strong>Notificaciones:</strong> ACMA solicitará permiso para mostrar avisos
                 relacionados con la operación en este equipo.</p>
             </div>
@@ -533,22 +546,22 @@ export function ProveedorMiUbicacion({ children }: { children: ReactNode }) {
               El sistema Android, Windows, macOS o el navegador controla la autorización.
               Si rechazas un permiso, deberás habilitarlo desde sus ajustes.
               ACMA no utiliza el GPS cuando la aplicación está cerrada o en segundo plano.
-            </p>
+            </p></>}
             {(avisoPermisos || error) && (
               <p role="alert" className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 {avisoPermisos ?? error}
               </p>
             )}
             <div className="mt-6 flex flex-col gap-3">
-              <button type="button" disabled={solicitandoPermisos || ocupado || (activo && !gpsConfirmado)}
+              {!comprobando && <><button type="button" disabled={solicitandoPermisos || ocupado || (activo && !gpsConfirmado)}
                 onClick={() => void autorizarPermisosIniciales()}
                 className="min-h-12 w-full rounded-xl bg-emerald-800 px-4 py-3 font-bold text-white disabled:opacity-60">
-                {solicitandoPermisos || ocupado || (activo && !gpsConfirmado) ? 'Comprobando ubicación…' : recordado && gpsObligatorio ? 'Reintentar GPS' : 'Habilitar ubicación y notificaciones'}
+                {solicitandoPermisos || ocupado || (activo && !gpsConfirmado) ? 'Comprobando ubicación…' : recuperacion ? 'Reintentar GPS' : 'Habilitar ubicación y notificaciones'}
               </button>
               <button type="button" onClick={abrirAjustes}
                 className="min-h-11 w-full rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
                 Revisar permisos en configuración
-              </button>
+              </button></>}
               <button type="button" onClick={() => void salirSinGps()}
                 className="min-h-11 w-full rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">
                 Cerrar sesión
