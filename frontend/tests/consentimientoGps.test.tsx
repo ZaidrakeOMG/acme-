@@ -71,7 +71,7 @@ describe('ACMA 0.1.7 · permiso persistente y privacidad de ubicación', () => {
     await waitFor(() => expect(llamadas.some(x => x.clave === 'POST /api/mi-ubicacion/iniciar')).toBe(true))
     expect(getCurrentPosition).toHaveBeenCalled()
     expect(requestPermission).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument())
     expect(localStorage.getItem(claveConsentimientoGps(ID))).toBe('1')
   })
 
@@ -79,6 +79,7 @@ describe('ACMA 0.1.7 · permiso persistente y privacidad de ubicación', () => {
     localStorage.setItem(claveConsentimientoGps(ID), '1')
     const { apagarGps } = simularGps()
     const llamadas = entrar('/mi-ubicacion')
+    await waitFor(() => expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument())
     await screen.findByText('GPS activo · autorización guardada')
     expect(screen.queryByRole('button', { name: 'Dejar de compartir mi ubicación' })).not.toBeInTheDocument()
     act(() => apagarGps())
@@ -91,5 +92,16 @@ describe('ACMA 0.1.7 · permiso persistente y privacidad de ubicación', () => {
     await userEvent.setup().click(within(aviso).getByRole('button', { name: 'Reintentar GPS' }))
     await waitFor(() => expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument())
     expect(llamadas.filter(x => x.clave === 'POST /api/mi-ubicacion/iniciar')).toHaveLength(2)
+  })
+
+  it('bloquea si Android reporta que su interruptor de ubicación está apagado', async () => {
+    localStorage.setItem(claveConsentimientoGps(ID), '1')
+    simularGps()
+    entrar('/mi-ubicacion')
+    await waitFor(() => expect(screen.queryByTestId('solicitud-ubicacion-inicio')).not.toBeInTheDocument())
+    act(() => window.dispatchEvent(new CustomEvent('acma:estado-gps', { detail: { autorizado: true, servicioActivo: false } })))
+    const aviso = await screen.findByTestId('solicitud-ubicacion-inicio')
+    expect(within(aviso).getByText(/GPS desactivado/)).toBeInTheDocument()
+    expect(localStorage.getItem(claveConsentimientoGps(ID))).toBe('1')
   })
 })
