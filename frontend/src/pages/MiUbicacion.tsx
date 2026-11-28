@@ -2,10 +2,17 @@
  * El proveedor del AppShell conserva GPS activo al navegar dentro de ACMA.
  */
 import { Link } from 'react-router'
+import { useAuth } from '../contexts/AuthContext'
 import { usarMiUbicacion } from '../contexts/RastreoUsuarioContext'
 
 export function MiUbicacion() {
-  const { activo, ocupado, mensaje, error, iniciar, detener } = usarMiUbicacion()
+  const { activo, gpsObligatorio, ocupado, mensaje, error, iniciar, detener } = usarMiUbicacion()
+  const { cerrarSesion } = useAuth()
+  async function retirarAutorizacion() {
+    if (!window.confirm('¿Retirar la autorización y cerrar sesión? El GPS dejará de compartirse.')) return
+    await detener()
+    await cerrarSesion()
+  }
   return (
     <div className="mx-auto max-w-2xl space-y-5" data-testid="mi-ubicacion">
       <header>
@@ -19,13 +26,16 @@ export function MiUbicacion() {
           Al activarlo, el personal autorizado de tu organización podrá ver tu última posición
           en Operaciones. Solo se guarda la ubicación más reciente; no se registra ningún recorrido.
           Puedes navegar por otras pantallas de ACMA y el rastreo continuará mientras esta pestaña
-          permanezca visible. También puedes detenerlo desde cualquier pantalla.
+          permanezca visible. {gpsObligatorio ? 'Para usar los módulos de técnico, la ubicación debe estar activa.' : 'Puedes detener el envío desde esta pantalla.'}
           Si dejas de enviar GPS, tu posición desaparecerá del mapa después de 90 segundos.
         </p>
         <p role="status" className="mt-4 text-sm font-semibold text-slate-700">{mensaje}</p>
         {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         {activo
-          ? <button type="button" onClick={() => void detener()}
+          ? gpsObligatorio ? <div className="mt-4 space-y-3">
+              <p className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">GPS activo · autorización guardada</p>
+              <button type="button" onClick={() => void retirarAutorizacion()} className="text-sm text-slate-600 underline">Retirar autorización y cerrar sesión</button>
+            </div> : <button type="button" onClick={() => void detener()}
               className="mt-4 min-h-12 w-full rounded-xl bg-rose-700 px-4 py-2 font-semibold text-white">
               Dejar de compartir mi ubicación
             </button>
