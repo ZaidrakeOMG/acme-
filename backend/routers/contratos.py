@@ -1,4 +1,5 @@
 """Contratos tenant–prestador y SLAs por severidad (§6.10.1). Solo estructura; el contador de SLA llega en P10."""
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
@@ -8,7 +9,7 @@ from core.dependencias import DB, Actor, requiere_rol
 from core.errors import ErrorAPI, no_encontrado
 from models.base import EstadoRegistro, Rol
 from models.contratos import Contrato, ContratoSLA
-from models.organizaciones import TenantPrestador
+from models.organizaciones import Prestador, Tenant, TenantPrestador
 from schemas.comun import RESPUESTAS_ERROR
 from schemas.organizaciones import ContratoCambios, ContratoEntrada, ContratoSalida, SLAEntrada, SLASalida
 from services import auditoria
@@ -79,18 +80,47 @@ async def listar(db: DB, actor: Actor = Depends(LECTORES), tenant_id: UUID | Non
 
 @router.post("", response_model=ContratoSalida, status_code=201, summary="Crear contrato",
              description="Requiere los 5 niveles de severidad con tiempos de respuesta y resolución entre 1 y 4,320 horas. "
-                         "El tenant debe estar vinculado al prestador.")
+                         "Superadmin puede autorizar la vinculación al guardar el contrato.")
 async def crear(datos: ContratoEntrada, request: Request, db: DB, actor: Actor = Depends(ADMIN)):
     prestador_id = datos.prestador_id if actor.es_superadmin else actor.prestador_id
     if prestador_id is None:
         raise ErrorAPI(422, "PRESTADOR_REQUERIDO", "Indica prestador_id")
-    vinculo = (await db.execute(select(TenantPrestador.id).where(
-        TenantPrestador.tenant_id == datos.tenant_id, TenantPrestador.prestador_id == prestador_id,
-        TenantPrestador.estado == EstadoRegistro.activo))).first()
-    if vinculo is None:
-        raise ErrorAPI(422, "TENANT_NO_VINCULADO", "El tenant no está vinculado a este prestador")
+    # Serializa altas de contratos/vínculos de un cliente y comprueba las organizaciones.
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == datos.tenant_id).with_for_update())).scalar_one_or_none()
+    if tenant is None:
+        raise no_encontrado("Cliente")
+    prestador = await db.get(Prestador, prestador_id)
+    if prestador is None:
+        raise no_encontrado("Prestador")
+    if tenant.estado != EstadoRegistro.activo or prestador.estado != EstadoRegistro.activo:
+        raise ErrorAPI(422, "ORGANIZACION_INACTIVA", "El cliente y el prestador deben estar activos")
+    hoy = date.today()
+    vinculos = (await db.execute(select(TenantPrestador).where(
+        TenantPrestador.tenant_id == datos.tenant_id, TenantPrestador.prestador_id == prestador_id
+    ).order_by(TenantPrestador.vigencia_inicio.desc()).with_for_update())).scalars().all()
+    vinculo = next((v for v in vinculos if v.estado == EstadoRegistro.activo
+                    and v.vigencia_inicio <= hoy and (v.vigencia_fin is None or v.vigencia_fin >= hoy)), None)
+    if vinculo is None and not (actor.es_superadmin and datos.vincular_prestador):
+        raise ErrorAPI(422, "TENANT_NO_VINCULADO", "El cliente no tiene un vínculo vigente con este prestador")
     await _sin_traslape(db, datos.tenant_id, prestador_id, datos.fecha_inicio, datos.fecha_fin)
-    c = Contrato(prestador_id=prestador_id, **datos.model_dump(exclude={"slas", "prestador_id"}))
+    if vinculo is None:
+        # Conserva las relaciones históricas. Si ya existe una fila de hoy, reutilízala.
+        vinculo = next((v for v in vinculos if v.vigencia_inicio == hoy), None)
+        antes = auditoria.instantanea(vinculo) if vinculo is not None else None
+        if vinculo is None:
+            vinculo = TenantPrestador(tenant_id=datos.tenant_id, prestador_id=prestador_id,
+                                       vigencia_inicio=hoy, estado=EstadoRegistro.activo)
+            db.add(vinculo)
+        else:
+            vinculo.estado = EstadoRegistro.activo
+            vinculo.vigencia_fin = None
+        await db.flush()
+        await auditoria.registrar_actor(db, actor, "tenants.vinculo_prestador", request,
+                                        tenant_id=datos.tenant_id, prestador_id=prestador_id,
+                                        recurso_tipo="tenant_prestador", recurso_id=vinculo.id,
+                                        antes=antes, despues=auditoria.instantanea(vinculo))
+    # Vínculo, contrato, SLA y auditoría se confirman en la misma transacción.
+    c = Contrato(prestador_id=prestador_id, **datos.model_dump(exclude={"slas", "prestador_id", "vincular_prestador"}))
     db.add(c)
     await db.flush()
     _guardar_slas(db, c, datos.slas)

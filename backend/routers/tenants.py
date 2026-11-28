@@ -88,7 +88,10 @@ async def vinculos(tenant_id: UUID, db: DB, actor: Actor = Depends(LECTORES)):
 @router.post("/{tenant_id}/prestadores", response_model=VinculoSalida, status_code=201, summary="Vincular prestador",
              description="Crea la relación N:N tenant–prestador con vigencia.")
 async def vincular(tenant_id: UUID, datos: VinculoPrestadorEntrada, request: Request, db: DB, actor: Actor = Depends(SUPERADMIN)):
-    await _obtener(db, actor, tenant_id)
+    # Mismo bloqueo que el alta de contrato para serializar las relaciones de un cliente.
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id).with_for_update())).scalar_one_or_none()
+    if tenant is None:
+        raise no_encontrado("Tenant")
     if await db.get(Prestador, datos.prestador_id) is None:
         raise no_encontrado("Prestador")
     vinculo = TenantPrestador(tenant_id=tenant_id, **datos.model_dump())

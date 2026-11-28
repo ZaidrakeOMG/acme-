@@ -299,3 +299,31 @@ async def test_logo_de_prestador(cliente, auth, datos):
     ajeno = await cliente.post(f"/api/prestadores/{datos['otro_prestador']}/logo", headers=h,
                                files={"archivo": ("logo.png", b"x", "image/png")})
     assert ajeno.status_code == 404
+
+
+async def test_contrato_vincula_cliente_y_reutiliza_relacion(cliente, auth, datos):
+    h = await auth(SA)
+    t = await cliente.post("/api/tenants", headers=h, json={
+        "razon_social": "Cliente para vínculo en contrato", "rfc": f"CVN010101{uuid.uuid4().hex[:3].upper()}"})
+    assert t.status_code == 201, t.text
+    tid = t.json()["id"]
+    pid = str(datos["prestador"])
+    ruta = f"/api/tenants/{tid}/prestadores"
+    cuerpo = {"tenant_id": tid, "prestador_id": pid, "nombre": "Nuevo contrato",
+              "fecha_inicio": "2028-01-01", "fecha_fin": "2028-12-31", "slas": _slas(),
+              "vincular_prestador": True}
+    # Un contrato inválido no debe conceder acceso al cliente.
+    r = await cliente.post("/api/contratos", headers=h, json={**cuerpo, "slas": _slas()[:4]})
+    assert r.status_code == 422
+    assert (await cliente.get(ruta, headers=h)).json() == []
+    r = await cliente.post("/api/contratos", headers=h, json=cuerpo)
+    assert r.status_code == 201, r.text
+    vinculados = (await cliente.get(ruta, headers=h)).json()
+    assert len(vinculados) == 1 and vinculados[0]["prestador_id"] == pid
+    assert vinculados[0]["estado"] == "activo"
+    r = await cliente.post("/api/contratos", headers=h, json=cuerpo)
+    assert r.status_code == 409, r.text
+    r = await cliente.post("/api/contratos", headers=h, json={
+        **cuerpo, "fecha_inicio": "2029-01-01", "fecha_fin": "2029-12-31"})
+    assert r.status_code == 201, r.text
+    assert len((await cliente.get(ruta, headers=h)).json()) == 1

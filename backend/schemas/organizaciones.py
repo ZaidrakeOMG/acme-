@@ -275,7 +275,8 @@ def _validar_slas(slas: list[SLAEntrada]) -> list[SLAEntrada]:
 
 class ContratoEntrada(BaseModel):
     tenant_id: UUID
-    prestador_id: UUID | None = Field(default=None, description="Solo superadmin; admin_prestador usa el suyo")
+    prestador_id: UUID | None = Field(default=None, description="Prestador elegido por superadmin")
+    vincular_prestador: bool = Field(default=False, description="Autoriza crear el vínculo si no existe uno vigente")
     nombre: str = Field(min_length=2, max_length=160)
     modalidad: ModalidadContrato = ModalidadContrato.evento
     fecha_inicio: date

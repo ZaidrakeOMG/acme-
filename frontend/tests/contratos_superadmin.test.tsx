@@ -45,10 +45,11 @@ describe('Contratos — alta de superadmin', () => {
     await usuario.click(within(form).getByRole('button', { name: 'Guardar contrato' }))
     await waitFor(() => expect(llamadas.filter(l => l.clave === 'POST /api/contratos')).toHaveLength(1))
     const cuerpo = llamadas.find(l => l.clave === 'POST /api/contratos')?.cuerpo as {
-      tenant_id: string; prestador_id: string; nombre: string; slas: unknown[]
+      tenant_id: string; prestador_id: string; vincular_prestador: boolean; nombre: string; slas: unknown[]
     }
     expect(cuerpo.tenant_id).toBe(T)
     expect(cuerpo.prestador_id).toBe(P)
+    expect(cuerpo.vincular_prestador).toBe(true)
     expect(cuerpo.nombre).toBe('Contrato Demo 2026-27')
     expect(cuerpo.slas).toHaveLength(5)
   })
